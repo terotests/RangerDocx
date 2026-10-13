@@ -13,6 +13,7 @@ Import "WordXml.rgr"
 Import "WordStyleResolver.rgr"
 Import "WordNumbering.rgr"
 Import "DocxPng.rgr"
+Import "DocxFingerprint.rgr"
 Import "pkg:image/JPEGDecoder.rgr"
 
 class WordMlParser {
@@ -36,6 +37,14 @@ class WordMlParser {
             numbering.parse(numXml)
         }
         def doc:RichDocument (this.parseDocumentXml((pkg.documentXml())))
+        ; Keep the package whole: a save copies every part it does not rewrite.
+        doc.source.known = true
+        doc.source.mainPart = pkg.mainPart
+        def partNames:[string] (pkg.listParts())
+        for partNames pn:string pni {
+            push doc.source.parts pn
+            set doc.source.bytes pn (pkg.readPartBytes(pn))
+        }
         def i:int 0
         while (i < (doc.paragraphCount())) {
             def p:Paragraph (doc.paragraphAt(i))
@@ -56,6 +65,7 @@ class WordMlParser {
             }
             si = (si + 1)
         }
+        DocxFingerprint.stamp(doc)
         return doc
     }
 
@@ -93,11 +103,27 @@ class WordMlParser {
 
     fn parseDocumentXml:RichDocument (xml:string) {
         def doc:RichDocument (new RichDocument)
+        doc.source.mainXml = xml
         currentSection = 0
         def bodyAt:int (WordXml.findNext(xml "w:body" 0))
         def body:string xml
+        ; Where `body` starts inside `xml`: every source offset is base + a
+        ; position in body. -1 when it cannot be pinned down, and then nothing
+        ; gets a source (a save regenerates instead of splicing).
+        def base:int 0
         if (bodyAt >= 0) {
-            body = (WordXml.innerOf((WordXml.sliceElement(xml "w:body" bodyAt)) "w:body"))
+            def bodyEl:string (WordXml.sliceElement(xml "w:body" bodyAt))
+            body = (WordXml.innerOf(bodyEl "w:body"))
+            base = -1
+            def gt:int (indexOf bodyEl ">")
+            if (gt >= 0) {
+                def cand:int ((bodyAt + gt) + 1)
+                if ((cand + (strlen body)) <= (strlen xml)) {
+                    if ((substring xml cand (cand + (strlen body))) == body) {
+                        base = cand
+                    }
+                }
+            }
         }
         def i:int 0
         def n:int (strlen body)
@@ -164,28 +190,33 @@ class WordMlParser {
                         isPageBr = true
                     }
                 }
+                def pEnd:int (WordXml.elementEnd(body "w:p" next))
                 if isPageBr {
                     doc.addPageBreak()
+                    this.markLastSynthetic(doc)
                     ; Still parse text on the break paragraph if any
                     def p:Paragraph (doc.addParagraph())
                     this.fillParagraph(p pEl)
+                    this.setSource(doc p.source base next pEnd true)
                     this.maybeSectionFromPara(doc pEl)
                 } {
                     def p2:Paragraph (doc.addParagraph())
                     this.fillParagraph(p2 pEl)
+                    this.setSource(doc p2.source base next pEnd true)
                     if p2.pageBreakBefore {
                         ; Insert page break before this paragraph's block.
                         def bc:int (array_length doc.blocks)
                         if (bc >= 1) {
                             def last:DocBlock (itemAt doc.blocks (bc - 1))
                             removeLast doc.blocks
-                            push doc.blocks (DocBlock.pageBreak())
+                            def pb:DocBlock (DocBlock.pageBreak())
+                            pb.synthetic = true
+                            push doc.blocks pb
                             push doc.blocks last
                         }
                     }
                     this.maybeSectionFromPara(doc pEl)
                 }
-                def pEnd:int (WordXml.elementEnd(body "w:p" next))
                 if (pEnd < 0) {
                     return doc
                 }
@@ -193,8 +224,13 @@ class WordMlParser {
             }
             if (kind == 1) {
                 def tEl:string (WordXml.sliceElement(body "w:tbl" next))
-                this.parseTable(doc tEl)
+                def tBase:int -1
+                if (base >= 0) {
+                    tBase = (base + next)
+                }
+                def tbl:DocumentTable (this.parseTable(doc tEl tBase))
                 def tEnd:int (WordXml.elementEnd(body "w:tbl" next))
+                this.setSource(doc tbl.source base next tEnd true)
                 if (tEnd < 0) {
                     return doc
                 }
@@ -223,6 +259,7 @@ class WordMlParser {
                 }
                 if remaining {
                     def newIdx:int (doc.addSectionBreak())
+                    this.markLastSynthetic(doc)
                     currentSection = newIdx
                     this.applySectPr((doc.sectionAt(newIdx)) sEl)
                 } {
@@ -236,6 +273,26 @@ class WordMlParser {
             }
         }
         return doc
+    }
+
+    ; `ref` = body[from, to) shifted by `base`; body-level elements also go on
+    ; the document's range list. Nothing is recorded when base is unknown.
+    fn setSource:void (doc:RichDocument ref:SourceRef base:int from:int to:int bodyLevel:boolean) {
+        if ((base < 0) || (from < 0) || (to <= from)) {
+            return
+        }
+        ref.set("main" (base + from) (base + to))
+        if bodyLevel {
+            doc.source.addRange((base + from) (base + to))
+        }
+    }
+
+    fn markLastSynthetic:void (doc:RichDocument) {
+        def n:int (array_length doc.blocks)
+        if (n > 0) {
+            def b:DocBlock (itemAt doc.blocks (n - 1))
+            b.synthetic = true
+        }
     }
 
     fn maybeSectionFromPara:void (doc:RichDocument pEl:string) {
@@ -252,6 +309,7 @@ class WordMlParser {
         ; Mid-document section properties: finalize current section, open next.
         this.applySectPr((doc.sectionAt(currentSection)) sEl)
         def newIdx:int (doc.addSectionBreak())
+        this.markLastSynthetic(doc)
         currentSection = newIdx
         doc.section = (doc.sectionAt(newIdx))
     }
@@ -292,7 +350,7 @@ class WordMlParser {
         }
     }
 
-    fn parseTable:void (doc:RichDocument tEl:string) {
+    fn parseTable:DocumentTable (doc:RichDocument tEl:string base:int) {
         def t:DocumentTable (doc.addTable())
         def grid:int (WordXml.findNext(tEl "w:tblGrid" 0))
         if (grid >= 0) {
@@ -321,10 +379,15 @@ class WordMlParser {
         while (ri < tn) {
             def tr:int (WordXml.findNext(tEl "w:tr" ri))
             if (tr < 0) {
-                return
+                return t
             }
             def trEl:string (WordXml.sliceElement(tEl "w:tr" tr))
             def row:DocTableRow (new DocTableRow)
+            def rowBase:int -1
+            if (base >= 0) {
+                rowBase = (base + tr)
+                row.source.set("main" rowBase (rowBase + (strlen trEl)))
+            }
             def ci:int 0
             def trn:int (strlen trEl)
             while (ci < trn) {
@@ -333,7 +396,11 @@ class WordMlParser {
                     ci = trn
                 } {
                     def tcEl:string (WordXml.sliceElement(trEl "w:tc" tc))
-                    def cell:DocTableCell (this.parseCell(doc tcEl))
+                    def cellBase:int -1
+                    if (rowBase >= 0) {
+                        cellBase = (rowBase + tc)
+                    }
+                    def cell:DocTableCell (this.parseCell(doc tcEl cellBase))
                     push row.cells cell
                     def te:int (WordXml.elementEnd(trEl "w:tc" tc))
                     if (te < 0) {
@@ -346,7 +413,7 @@ class WordMlParser {
             push t.rows row
             def tre:int (WordXml.elementEnd(tEl "w:tr" tr))
             if (tre < 0) {
-                return
+                return t
             }
             ri = tre
         }
@@ -370,10 +437,14 @@ class WordMlParser {
                 }
             }
         }
+        return t
     }
 
-    fn parseCell:DocTableCell (doc:RichDocument tcEl:string) {
+    fn parseCell:DocTableCell (doc:RichDocument tcEl:string base:int) {
         def cell:DocTableCell (new DocTableCell)
+        if (base >= 0) {
+            cell.source.set("main" base (base + (strlen tcEl)))
+        }
         def tcPr:int (WordXml.findNext(tcEl "w:tcPr" 0))
         if (tcPr >= 0) {
             def pr:string (WordXml.sliceElement(tcEl "w:tcPr" tcPr))
@@ -408,6 +479,9 @@ class WordMlParser {
             this.fillParagraph(p pEl)
             push cell.paragraphs p
             def pEnd:int (WordXml.elementEnd(tcEl "w:p" pStart))
+            if (base >= 0) {
+                this.setSource(doc p.source base pStart pEnd false)
+            }
             if (pEnd < 0) {
                 return cell
             }
@@ -463,6 +537,7 @@ class WordMlParser {
         resolver.resolveParagraph(p pPrXml)
         def base:ResolvedRunStyle (resolver.baseRunFromParagraph(p))
         clear p.spans
+        clear p.anchors
         p.text = ""
 
         def ri:int 0
@@ -488,10 +563,13 @@ class WordMlParser {
             }
             def runStyle:ResolvedRunStyle (base.copy())
             def rPr:int (WordXml.findNext(rEl "w:rPr" 0))
+            def rPrKeep:string ""
             if (rPr >= 0) {
                 def rPrEl:string (WordXml.sliceElement(rEl "w:rPr" rPr))
                 resolver.applyRPr(rPrEl runStyle)
+                rPrKeep = rPrEl
             }
+            this.collectAnchors(p rEl rPrKeep (strlen p.text))
             def chunk:string ""
             def ti:int 0
             def rn:int (strlen rEl)
@@ -521,6 +599,69 @@ class WordMlParser {
                 return
             }
             ri = rEnd
+        }
+    }
+
+    ; Run children with no text of their own (a tab, a picture, a field
+    ; delimiter, a note reference), each kept as a one-child run at the text
+    ; offset it stood at. Only an edited paragraph ever reads these.
+    sfn anchorTag:boolean (name:string) {
+        def keep:[string] ([] _:string ("w:tab" "w:br" "w:cr" "w:sym" "w:noBreakHyphen" "w:softHyphen" "w:ptab" "w:drawing" "w:pict" "w:object" "w:fldChar" "w:instrText" "w:footnoteReference" "w:endnoteReference" "w:commentReference" "w:separator" "w:continuationSeparator" "mc:AlternateContent"))
+        for keep k:string ki {
+            if (k == name) {
+                return true
+            }
+        }
+        return false
+    }
+
+    fn collectAnchors:void (p:Paragraph rEl:string rPrXml:string offset:int) {
+        def gt0:int (indexOf rEl ">")
+        if (gt0 < 1) {
+            return
+        }
+        if ((charAt rEl (gt0 - 1)) == 47) {
+            return
+        }
+        def at:int (gt0 + 1)
+        def n:int (strlen rEl)
+        def off:int offset
+        while (at < n) {
+            def lt:int (indexOfFrom rEl "<" at)
+            if ((lt < 0) || ((lt + 1) >= n)) {
+                return
+            }
+            ; The run's own closing tag: done.
+            if ((charAt rEl (lt + 1)) == 47) {
+                return
+            }
+            def e:int (lt + 1)
+            def stop:boolean false
+            while ((e < n) && (stop == false)) {
+                def ch:int (charAt rEl e)
+                if ((ch == 32) || (ch == 47) || (ch == 62) || (ch == 9) || (ch == 10) || (ch == 13)) {
+                    stop = true
+                } {
+                    e = (e + 1)
+                }
+            }
+            def name:string (substring rEl (lt + 1) e)
+            def endAt:int (WordXml.elementEnd(rEl name lt))
+            if (endAt <= lt) {
+                return
+            }
+            if (name == "w:t") {
+                def tx:string (WordXml.decodeEntities((WordXml.innerOf((substring rEl lt endAt) "w:t"))))
+                off = (off + (strlen tx))
+            } {
+                if (WordMlParser.anchorTag(name)) {
+                    def a:InlineAnchor (new InlineAnchor)
+                    a.offset = off
+                    a.xml = ("<w:r>" + rPrXml + (substring rEl lt endAt) + "</w:r>")
+                    push p.anchors a
+                }
+            }
+            at = endAt
         }
     }
 

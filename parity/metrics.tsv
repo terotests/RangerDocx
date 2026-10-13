@@ -3,9 +3,9 @@ C1	features	Ribbon/menu catalog features with a working command	count of 502	hig
 C2	formats	OOXML feature groups read	count of 55	higher	computed	computed	computed	40	parity/ooxml.tsv	yes = 1, partial = 0.5; RangerDocx rows need a fixture test
 C3	formats	OOXML feature groups written	count of 55	higher	computed	computed	computed	35	parity/ooxml.tsv	Same scoring as C2, write side
 C4	editing	Typing-behaviour scenarios that pass	count of 42	higher	42	computed	computed	30	parity/typing.tsv	Keystroke script per row run against the editor model; expected result from WordCraft docs/typing-parity.md
-F1	fidelity	Corpus files that open without error	% of corpus	higher	unmeasured	unmeasured	unmeasured	99	corpus/manifest.tsv	Open every corpus file; any thrown error, crash or timeout (10 s) fails
-F2	fidelity	Semantic round trip: open, save, reopen gives the same semantic dump	% of corpus	higher	unmeasured	0	unmeasured	90	harness/oracles/semantic.py	python-docx dump of original vs saved file (text, runs, props, tables, sections). docx_viewer has no writer, so 0
-F3	fidelity	Saved files open in LibreOffice without repair or error	% of corpus	higher	unmeasured	0	unmeasured	100	soffice --convert-to pdf	Headless LibreOffice converts the saved file; non-zero exit or empty PDF fails. Word itself checked by hand
+F1	fidelity	Corpus files that open without error	% of corpus	higher	unmeasured	unmeasured	100 (19/19 fixtures)	99	corpus/manifest.tsv	Open every corpus file; any thrown error, crash or timeout (10 s) fails
+F2	fidelity	Semantic round trip: open, save, reopen gives the same semantic dump	% of corpus	higher	unmeasured	0	100 (17/17, all blocks regenerated)	90	harness/oracles/semantic.py	python-docx dump (text, style, effective bold/italic per character, tables, sections, pictures) of original vs saved. Two fixtures that are malformed on purpose are left out. Worst case: every block regenerated
+F3	fidelity	Saved files open in LibreOffice without repair or error	% of corpus	higher	unmeasured	0	100 (17/17)	100	soffice --convert-to pdf	Headless LibreOffice converts the saved file; non-zero exit or empty PDF fails. Word itself checked by hand
 L1	layout	Page count equals the reference render	% of corpus	higher	unmeasured	unmeasured	unmeasured	80	harness/oracles/visual.py	Reference = LibreOffice PDF (Word PDFs where available, kept local). WordCraft measured via wordcraft-cli PDF export on the same corpus
 L2	layout	Line breaks equal the reference render	% of lines	higher	unmeasured	unmeasured	unmeasured	85	harness/oracles/visual.py	Per page, compare the first word of every line from pdftotext -bbox
 L3	layout	Visual similarity to the reference render	mean SSIM	higher	unmeasured	unmeasured	unmeasured	0.90	harness/oracles/visual.py	Page PNGs at 96 dpi, SSIM per page, mean over corpus
@@ -19,4 +19,4 @@ R1	robustness	Hostile inputs that crash or hang	count	lower	0	unmeasured	unmeasu
 R2	robustness	Fuzz iterations without a crash	count	higher	0	0	0	100000	tests/fuzz	Mutation fuzzing of fixture packages
 X1	formats	Other formats read or written (PDF, RTF, ODT, HTML, MD, TXT, LaTeX, .doc)	count of 8	higher	8	1	1	4	docs/PARITY.md	docx_viewer has PNG page export only; Ranger has a PDF writer (gallery/pdf_writer) to reuse
 A1	accessibility	Accessibility tree for the document canvas	yes/no	higher	1	1	1	1	src/a11y	AccessKit in WordCraft; DocxA11y in docx_viewer
-T1	quality	Automated tests	count	higher	1930	unmeasured	unmeasured	500	tests/	#[test] attributes in WordCraft; Checker sections in RangerDocx
+T1	quality	Automated tests	count	higher	1930	unmeasured	705 checks	500	tests/	WordCraft: #[test] functions. RangerDocx: Checker assertions across the suites (not the same unit)

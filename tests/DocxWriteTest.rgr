@@ -1,0 +1,319 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; DocxWriteTest - .docx out: unchanged files come back byte for byte, edits
+; come back as edits, and a document built in memory opens again.
+; ==============================================================================
+;
+;   npm run docx_viewer:write:test
+; ==============================================================================
+
+Import "../src/DocxViewer.rgr"
+Import "../src/DocxWriter.rgr"
+Import "../src/DocxPackage.rgr"
+Import "../src/RichDocument.rgr"
+Import "../src/RichDocumentEdit.rgr"
+
+class WChecker {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class DocxWriteTest {
+    sfn sameBytes:boolean (a:buffer b:buffer) {
+        def n:int (buffer_length a)
+        if (n != (buffer_length b)) {
+            return false
+        }
+        def i:int 0
+        while (i < n) {
+            if ((buffer_get a i) != (buffer_get b i)) {
+                return false
+            }
+            i = (i + 1)
+        }
+        return true
+    }
+
+    sfn writerFor:DocxWriter (v:DocxViewer) {
+        def w:DocxWriter (new DocxWriter)
+        w.resolver = v.parser.resolver
+        return w
+    }
+
+    ; Save `v`'s document and open the result in a fresh viewer.
+    sfn roundTrip:DocxViewer (v:DocxViewer name:string) {
+        def w:DocxWriter (DocxWriteTest.writerFor(v))
+        def bytes:buffer (w.toBuffer((v.document())))
+        def back:DocxViewer (new DocxViewer)
+        back.init("gallery/pdf_writer/assets/fonts")
+        back.openBytes(bytes name)
+        return back
+    }
+
+    sfn bodyParagraphs:[Paragraph] (doc:RichDocument) {
+        def r:[Paragraph]
+        for doc.blocks b:DocBlock i {
+            if (b.kind == (DocBlockKind.para())) {
+                push r b.paragraph
+            }
+        }
+        return r
+    }
+
+    sfn firstTableBlock:int (doc:RichDocument) {
+        def i:int 0
+        while (i < (array_length doc.blocks)) {
+            def b:DocBlock (itemAt doc.blocks i)
+            if (b.kind == (DocBlockKind.table())) {
+                return i
+            }
+            i = (i + 1)
+        }
+        return -1
+    }
+
+    ; First body paragraph with at least `min` characters.
+    sfn longParagraph:Paragraph (doc:RichDocument min:int) {
+        def ps:[Paragraph] (DocxWriteTest.bodyParagraphs(doc))
+        for ps p:Paragraph i {
+            if ((strlen p.text) >= min) {
+                return p
+            }
+        }
+        return (new Paragraph)
+    }
+
+    sfn main:void () {
+        def c:WChecker (new WChecker)
+        def fix:string "gallery/docx_viewer/fixtures"
+        def files:[string] ([] _:string ("hello.docx" "styles_demo.docx" "lists_demo.docx" "images_demo.docx" "05-table-basic.docx" "06-table-format.docx" "07-table-merged.docx" "08-pages.docx" "09-page-break.docx" "10-landscape-section.docx" "11-mixed-sections.docx" "12-header-footer.docx" "13-images-mixed.docx" "14-styles-indent.docx" "20-business-report.docx" "21-accented-text.docx" "22-glyph-fallback.docx" "23-image-alt-text.docx" "24-rtl-arabic.docx"))
+
+        print "== unchanged documents are written back byte for byte =="
+        for files f:string fi {
+            def v:DocxViewer (new DocxViewer)
+            v.init("gallery/pdf_writer/assets/fonts")
+            if (v.openFile(fix f)) {
+                def doc:RichDocument (v.document())
+                def w:DocxWriter (DocxWriteTest.writerFor(v))
+                def xml:string (w.documentXml(doc))
+                c.ok((f + ": document.xml identical") (xml == doc.source.mainXml))
+                c.eqInt((f + ": nothing rewritten") w.rewrittenBlocks 0)
+                def bytes:buffer (w.toBuffer(doc))
+                def pkg:DocxPackage (new DocxPackage)
+                c.ok((f + ": saved package opens") (pkg.openBytes(bytes f)))
+                def same:boolean true
+                def missing:string ""
+                for doc.source.parts part:string pi {
+                    if (pkg.hasPart(part)) {
+                        def orig@(optional):buffer (get doc.source.bytes part)
+                        if (!null? orig) {
+                            if ((DocxWriteTest.sameBytes((unwrap orig) (pkg.readPartBytes(part)))) == false) {
+                                same = false
+                                missing = part
+                            }
+                        }
+                    } {
+                        same = false
+                        missing = part
+                    }
+                }
+                c.ok((f + ": every part identical " + missing) same)
+                pkg.close()
+                def back:DocxViewer (DocxWriteTest.roundTrip(v f))
+                def backDoc:RichDocument (back.document())
+                c.eqStr((f + ": text after reopen") (backDoc.plainText()) (doc.plainText()))
+            } {
+                c.ok(("open " + f) false)
+            }
+        }
+
+        print "== edit text in one paragraph =="
+        def v1:DocxViewer (new DocxViewer)
+        v1.init("gallery/pdf_writer/assets/fonts")
+        c.ok("open 20-business-report" (v1.openFile(fix "20-business-report.docx")))
+        def d1:RichDocument (v1.document())
+        def ed:RichDocumentEdit v1.edit.adapter
+        def target:Paragraph (DocxWriteTest.longParagraph(d1 20))
+        def before:string target.text
+        ed.replaceRange(target.id 0 0 "EDITED ")
+        def w1:DocxWriter (DocxWriteTest.writerFor(v1))
+        w1.documentXml(d1)
+        c.eqInt("one block rewritten" w1.rewrittenBlocks 1)
+        c.ok("the rest copied" (w1.copiedBlocks > 0))
+        def r1:DocxViewer (DocxWriteTest.roundTrip(v1 "edit.docx"))
+        def rd1:RichDocument (r1.document())
+        c.ok("edited text is there" ((indexOf (rd1.plainText()) ("EDITED " + before)) >= 0))
+        c.eqInt("same paragraph count" (array_length (DocxWriteTest.bodyParagraphs(rd1))) (array_length (DocxWriteTest.bodyParagraphs(d1))))
+        c.eqInt("same table count" (array_length rd1.tables) (array_length d1.tables))
+
+        def viaViewer:DocxViewer (new DocxViewer)
+        viaViewer.init("gallery/pdf_writer/assets/fonts")
+        c.ok("DocxViewer.saveBytes opens again" (viaViewer.openBytes((v1.saveBytes()) "viewer.docx")))
+        c.eqInt("no save warnings" (array_length v1.saveWarnings) 0)
+
+        print "== bold a range =="
+        def v2:DocxViewer (new DocxViewer)
+        v2.init("gallery/pdf_writer/assets/fonts")
+        v2.openFile(fix "hello.docx")
+        def d2:RichDocument (v2.document())
+        def p2:Paragraph (DocxWriteTest.longParagraph(d2 8))
+        def ed2:RichDocumentEdit v2.edit.adapter
+        ed2.applyBold(p2.id 0 4 true)
+        def r2:DocxViewer (DocxWriteTest.roundTrip(v2 "bold.docx"))
+        def rd2:RichDocument (r2.document())
+        def rp2:Paragraph (DocxWriteTest.longParagraph(rd2 8))
+        c.eqStr("same text" rp2.text p2.text)
+        c.ok("first four characters bold" (r2.edit.adapter.rangeIsBold(rp2.id 0 4)))
+
+        print "== split and merge paragraphs =="
+        def v3:DocxViewer (new DocxViewer)
+        v3.init("gallery/pdf_writer/assets/fonts")
+        v3.openFile(fix "styles_demo.docx")
+        def d3:RichDocument (v3.document())
+        def n3:int (array_length (DocxWriteTest.bodyParagraphs(d3)))
+        def p3:Paragraph (DocxWriteTest.longParagraph(d3 10))
+        v3.edit.adapter.splitParagraph(p3.id 5)
+        def r3:DocxViewer (DocxWriteTest.roundTrip(v3 "split.docx"))
+        def rd3:RichDocument (r3.document())
+        c.eqInt("one more paragraph after split" (array_length (DocxWriteTest.bodyParagraphs(rd3))) (n3 + 1))
+        def v4:DocxViewer (new DocxViewer)
+        v4.init("gallery/pdf_writer/assets/fonts")
+        v4.openFile(fix "styles_demo.docx")
+        def d4:RichDocument (v4.document())
+        def ps4:[Paragraph] (DocxWriteTest.bodyParagraphs(d4))
+        def second:Paragraph (itemAt ps4 1)
+        def first4:Paragraph (itemAt ps4 0)
+        def joined:string (first4.text + second.text)
+        v4.edit.adapter.mergePrevious(second.id)
+        def w4:DocxWriter (DocxWriteTest.writerFor(v4))
+        w4.documentXml(d4)
+        c.eqInt("merged-away paragraph skipped" w4.droppedBlocks 1)
+        def r4:DocxViewer (DocxWriteTest.roundTrip(v4 "merge.docx"))
+        def rd4:RichDocument (r4.document())
+        def rps4:[Paragraph] (DocxWriteTest.bodyParagraphs(rd4))
+        c.eqInt("one fewer paragraph after merge" (array_length rps4) (n3 - 1))
+        def rfirst4:Paragraph (itemAt rps4 0)
+        c.eqStr("merged text" rfirst4.text joined)
+
+        print "== tables =="
+        def v5:DocxViewer (new DocxViewer)
+        v5.init("gallery/pdf_writer/assets/fonts")
+        v5.openFile(fix "05-table-basic.docx")
+        def d5:RichDocument (v5.document())
+        def tb:int (DocxWriteTest.firstTableBlock(d5))
+        c.ok("has a table" (tb >= 0))
+        def cellPid:int (v5.edit.adapter.cellParagraphId(tb 0 0))
+        v5.edit.adapter.replaceRange(cellPid 0 0 "X")
+        def rows5:int (v5.edit.adapter.rowCountOfTable(tb))
+        v5.edit.adapter.appendTableRow(tb)
+        def r5:DocxViewer (DocxWriteTest.roundTrip(v5 "table.docx"))
+        def rd5:RichDocument (r5.document())
+        def tb5:int (DocxWriteTest.firstTableBlock(rd5))
+        def rc:int (r5.edit.adapter.cellParagraphId(tb5 0 0))
+        c.ok("cell text starts with X" ((indexOf (r5.edit.adapter.getText(rc)) "X") == 0))
+        c.eqInt("row appended" (r5.edit.adapter.rowCountOfTable(tb5)) (rows5 + 1))
+
+        print "== text outside ASCII =="
+        def v6:DocxViewer (new DocxViewer)
+        v6.init("gallery/pdf_writer/assets/fonts")
+        v6.openFile(fix "hello.docx")
+        def d6:RichDocument (v6.document())
+        def p6:Paragraph (DocxWriteTest.longParagraph(d6 3))
+        def word:string "äö — ℃ & <tag>"
+        v6.edit.adapter.replaceRange(p6.id 0 0 word)
+        def r6:DocxViewer (DocxWriteTest.roundTrip(v6 "utf8.docx"))
+        def rd6:RichDocument (r6.document())
+        def rp6:Paragraph (DocxWriteTest.longParagraph(rd6 3))
+        c.ok("non-ASCII and markup characters survive" ((indexOf rp6.text word) == 0))
+
+        print "== pictures stay in an edited paragraph =="
+        def v7:DocxViewer (new DocxViewer)
+        v7.init("gallery/pdf_writer/assets/fonts")
+        v7.openFile(fix "images_demo.docx")
+        def d7:RichDocument (v7.document())
+        def withImg:Paragraph (new Paragraph)
+        def imgs:int 0
+        for d7.paragraphs pp:Paragraph ppi {
+            if (((array_length pp.images) > 0) && (imgs == 0)) {
+                withImg = pp
+                imgs = (array_length pp.images)
+            }
+        }
+        c.ok("a paragraph has a picture" (imgs > 0))
+        v7.edit.adapter.replaceRange(withImg.id 0 0 "Caption: ")
+        def r7:DocxViewer (DocxWriteTest.roundTrip(v7 "img.docx"))
+        def total7:int 0
+        def rd7:RichDocument (r7.document())
+        for rd7.paragraphs rp:Paragraph rpi {
+            total7 = (total7 + (array_length rp.images))
+        }
+        def total0:int 0
+        for d7.paragraphs op:Paragraph opi {
+            total0 = (total0 + (array_length op.images))
+        }
+        c.eqInt("same number of pictures" total7 total0)
+
+        print "== a document built in memory =="
+        def fresh:RichDocument (new RichDocument)
+        def h:Paragraph (fresh.addParagraph())
+        h.styleId = "Heading1"
+        def hs:TextSpan (TextSpan.create(0 0))
+        hs.bold = true
+        h.appendText("Fresh document" hs)
+        def body:Paragraph (fresh.addParagraph())
+        body.appendText("Written by RangerDocx." (TextSpan.create(0 0)))
+        def t:DocumentTable (fresh.addTable())
+        push t.colWidthsTwips 2000
+        push t.colWidthsTwips 2000
+        def row:DocTableRow (new DocTableRow)
+        def cell1:DocTableCell (new DocTableCell)
+        def cp1:Paragraph (fresh.addParagraphOnly())
+        cp1.appendText("A1" (TextSpan.create(0 0)))
+        push cell1.paragraphs cp1
+        def cell2:DocTableCell (new DocTableCell)
+        def cp2:Paragraph (fresh.addParagraphOnly())
+        cp2.appendText("B1" (TextSpan.create(0 0)))
+        push cell2.paragraphs cp2
+        push row.cells cell1
+        push row.cells cell2
+        push t.rows row
+        def fw:DocxWriter (new DocxWriter)
+        def fb:buffer (fw.toBuffer(fresh))
+        def fv:DocxViewer (new DocxViewer)
+        fv.init("gallery/pdf_writer/assets/fonts")
+        c.ok("fresh package opens" (fv.openBytes(fb "fresh.docx")))
+        def fd:RichDocument (fv.document())
+        c.ok("heading text" ((indexOf (fd.plainText()) "Fresh document") >= 0))
+        c.ok("body text" ((indexOf (fd.plainText()) "Written by RangerDocx.") >= 0))
+        c.eqInt("table read back" (array_length fd.tables) 1)
+        def fps:[Paragraph] (DocxWriteTest.bodyParagraphs(fd))
+        def fh:Paragraph (itemAt fps 0)
+        c.eqStr("heading style" fh.styleId "Heading1")
+        fw.save(fresh "gallery/docx_viewer/bin" "fresh.docx")
+
+        print ""
+        print ("passed " + (to_string c.passed) + ", failed " + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        }
+    }
+}

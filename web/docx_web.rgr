@@ -109,6 +109,11 @@ class DocxWeb {
         return app.status
     }
 
+    ; The open document as .docx bytes, for the page to download.
+    fn saveDocument:buffer () {
+        return (viewer.saveBytes())
+    }
+
     fn takeFileRequest:string () {
         def want:string app.fileRequest
         app.fileRequest = ""

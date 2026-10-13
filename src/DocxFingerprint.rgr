@@ -1,0 +1,86 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; DocxFingerprint - what a paragraph or table looked like when it was read.
+; ==============================================================================
+;
+; The parser stamps every paragraph and table it reads from document.xml with
+; these strings; DocxWriter computes them again at save time. Equal means
+; nothing the model holds has changed, so the original XML is written back
+; byte for byte, with everything the model never understood still inside it.
+;
+; Everything the writer would regenerate from has to be in here. A field
+; missing from the fingerprint is a change the save silently drops.
+; ==============================================================================
+
+Import "RichDocument.rgr"
+
+class DocxFingerprint {
+    sfn b:string (v:boolean) {
+        if v {
+            return "1"
+        }
+        return "0"
+    }
+
+    ; Paragraph-level properties only: equal means the original w:pPr can be
+    ; kept even when the text changed.
+    sfn paraProps:string (p:Paragraph) {
+        def s:string (p.styleId + "|" + (to_string p.align) + "|" + (to_string p.bidi))
+        s = (s + "|" + (to_string p.listKind) + "|" + (to_string p.listLevel) + "|" + (to_string p.listNumId))
+        s = (s + "|" + (to_string p.spaceBeforePt) + "|" + (to_string p.spaceAfterPt) + "|" + (to_string p.lineSpacing))
+        s = (s + "|" + (to_string p.indentLeftPt) + "|" + (to_string p.indentRightPt) + "|" + (to_string p.indentFirstLinePt))
+        s = (s + "|" + (DocxFingerprint.b(p.pageBreakBefore)))
+        return s
+    }
+
+    sfn span:string (sp:TextSpan) {
+        def s:string ((to_string sp.start) + ":" + (to_string sp.end))
+        s = (s + ":" + (DocxFingerprint.b(sp.bold)) + (DocxFingerprint.b(sp.italic)) + (DocxFingerprint.b(sp.underline)))
+        s = (s + ":" + (to_string sp.fontSizePt) + ":" + sp.fontFamily + ":" + sp.colorHex + ":" + sp.hyperlink)
+        return s
+    }
+
+    sfn paragraph:string (p:Paragraph) {
+        def s:string ((DocxFingerprint.paraProps(p)) + "#" + p.text + "#")
+        for p.spans sp:TextSpan i {
+            s = (s + (DocxFingerprint.span(sp)) + ";")
+        }
+        s = (s + "#" + (to_string (array_length p.images)))
+        return s
+    }
+
+    sfn table:string (t:DocumentTable) {
+        def s:string ""
+        for t.colWidthsTwips w:int wi {
+            s = (s + (to_string w) + ",")
+        }
+        for t.rows row:DocTableRow ri {
+            s = (s + "{R" + (to_string row.heightTwips))
+            for row.cells cell:DocTableCell ci {
+                s = (s + "{C" + (to_string cell.gridSpan) + ":" + cell.fillHex + ":" + (to_string cell.vAlign))
+                for cell.paragraphs p:Paragraph pi {
+                    s = (s + "{P" + (DocxFingerprint.paragraph(p)) + "}")
+                }
+                s = (s + "}")
+            }
+            s = (s + "}")
+        }
+        return s
+    }
+
+    ; Stamp everything that has a source: the state "as read".
+    sfn stamp:void (doc:RichDocument) {
+        for doc.paragraphs p:Paragraph i {
+            if p.source.known {
+                p.srcFp = (DocxFingerprint.paragraph(p))
+                p.srcPFp = (DocxFingerprint.paraProps(p))
+            }
+        }
+        for doc.tables t:DocumentTable ti {
+            if t.source.known {
+                t.srcFp = (DocxFingerprint.table(t))
+            }
+        }
+    }
+}

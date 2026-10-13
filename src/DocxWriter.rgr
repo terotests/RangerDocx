@@ -1,0 +1,653 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; DocxWriter - RichDocument → .docx, keeping everything it did not change.
+; ==============================================================================
+;
+; A document that was opened from a file is written back by SPLICING its own
+; word/document.xml, not by regenerating it:
+;
+;   * a paragraph or table whose fingerprint (DocxFingerprint) still matches
+;     the one stamped at parse time is copied byte for byte from the source;
+;   * one that was edited is regenerated from the model, keeping its original
+;     w:p open tag, its w:pPr when the paragraph properties did not change,
+;     and its inline anchors (tabs, pictures, field delimiters, note refs);
+;   * one that was added is generated;
+;   * one that was deleted is skipped, and everything between blocks that the
+;     model never saw (bookmarks at body level, sdt wrappers, the final
+;     w:sectPr) is copied through.
+;
+; Every other part of the package is copied unchanged. A document built in
+; memory gets a minimal package of its own.
+;
+; What an EDITED paragraph loses (an unedited one loses nothing): w:hyperlink
+; and w:ins/w:del wrappers around its runs, bookmarks inside it, and run
+; properties the model does not hold (character styles, language, highlight).
+; Runs are written with the differences between each span and the paragraph
+; style's run properties.
+; ==============================================================================
+
+Import "RichDocument.rgr"
+Import "DocxFingerprint.rgr"
+Import "WordXml.rgr"
+Import "WordStyleResolver.rgr"
+Import "../../zip/ZipWriter.rgr"
+
+class DocxWriter {
+    ; The styles the document was read with; the parser's resolver. Run and
+    ; paragraph properties are written as differences from what the style
+    ; already says.
+    def resolver:WordStyleResolver (new WordStyleResolver)
+    def warnings:[string]
+
+    ; Splice state.
+    def src:string ""
+    def out:string ""
+    def cursor:int 0
+    def rangeAt:int 0
+    def live:[string:boolean]
+    def starts:[int]
+    def ends:[int]
+
+    ; Counters a test can read after a save.
+    def copiedBlocks:int 0
+    def rewrittenBlocks:int 0
+    def newBlocks:int 0
+    def droppedBlocks:int 0
+
+    Constructor () {
+    }
+
+    ; --- text --------------------------------------------------------------
+
+    sfn esc:string (s:string) {
+        def r:string ""
+        def n:int (strlen s)
+        def from:int 0
+        def i:int 0
+        while (i < n) {
+            def c:int (charAt s i)
+            def rep:string ""
+            if (c == 38) {
+                rep = "&amp;"
+            }
+            if (c == 60) {
+                rep = "&lt;"
+            }
+            if (c == 62) {
+                rep = "&gt;"
+            }
+            if (c == 34) {
+                rep = "&quot;"
+            }
+            if ((strlen rep) > 0) {
+                r = (r + (substring s from i) + rep)
+                from = (i + 1)
+            }
+            i = (i + 1)
+        }
+        return (r + (substring s from n))
+    }
+
+    ; Text as UTF-8 bytes, walked by code point so it means the same on every
+    ; target.
+    sfn utf8:buffer (s:string) {
+        def cs:[int] (to_chars s)
+        def total:int 0
+        for cs c:int ci {
+            if (c < 128) {
+                total = (total + 1)
+            } {
+                if (c < 2048) {
+                    total = (total + 2)
+                } {
+                    if (c < 65536) {
+                        total = (total + 3)
+                    } {
+                        total = (total + 4)
+                    }
+                }
+            }
+        }
+        def b:buffer (buffer_alloc total)
+        def w:int 0
+        for cs c2:int ci2 {
+            if (c2 < 128) {
+                buffer_set b w c2
+                w = (w + 1)
+            } {
+                if (c2 < 2048) {
+                    buffer_set b w (192 + (idiv c2 64))
+                    buffer_set b (w + 1) (128 + (c2 % 64))
+                    w = (w + 2)
+                } {
+                    if (c2 < 65536) {
+                        buffer_set b w (224 + (idiv c2 4096))
+                        buffer_set b (w + 1) (128 + ((idiv c2 64) % 64))
+                        buffer_set b (w + 2) (128 + (c2 % 64))
+                        w = (w + 3)
+                    } {
+                        buffer_set b w (240 + (idiv c2 262144))
+                        buffer_set b (w + 1) (128 + ((idiv c2 4096) % 64))
+                        buffer_set b (w + 2) (128 + ((idiv c2 64) % 64))
+                        buffer_set b (w + 3) (128 + (c2 % 64))
+                        w = (w + 4)
+                    }
+                }
+            }
+        }
+        return b
+    }
+
+    sfn twips:int (pt:double) {
+        return (floor ((pt * 20.0) + 0.5))
+    }
+
+    sfn halfPoints:int (pt:double) {
+        return (floor ((pt * 2.0) + 0.5))
+    }
+
+    ; The child `tag` of `el` only when it is the first child — what w:pPr,
+    ; w:tblPr, w:trPr and w:tcPr always are. A search that went deeper would
+    ; find the properties of a paragraph inside a text box.
+    sfn firstChild:string (el:string tag:string) {
+        def gt:int (indexOf el ">")
+        if (gt < 1) {
+            return ""
+        }
+        if ((charAt el (gt - 1)) == 47) {
+            return ""
+        }
+        def i:int (gt + 1)
+        def n:int (strlen el)
+        while (i < n) {
+            def ch:int (charAt el i)
+            if ((ch == 32) || (ch == 9) || (ch == 10) || (ch == 13)) {
+                i = (i + 1)
+            } {
+                if ((WordXml.findNext(el tag i)) == i) {
+                    return (WordXml.sliceElement(el tag i))
+                }
+                return ""
+            }
+        }
+        return ""
+    }
+
+    ; --- runs --------------------------------------------------------------
+
+    fn rPrDiff:string (sp:TextSpan base:ResolvedRunStyle) {
+        def r:string ""
+        if (sp.fontFamily != base.fontFamily) {
+            def f:string (DocxWriter.esc(sp.fontFamily))
+            r = (r + "<w:rFonts w:ascii=\"" + f + "\" w:hAnsi=\"" + f + "\" w:cs=\"" + f + "\"/>")
+        }
+        if (sp.bold != base.bold) {
+            r = (r + (? sp.bold "<w:b/>" "<w:b w:val=\"0\"/>"))
+        }
+        if (sp.italic != base.italic) {
+            r = (r + (? sp.italic "<w:i/>" "<w:i w:val=\"0\"/>"))
+        }
+        if (sp.colorHex != base.colorHex) {
+            r = (r + "<w:color w:val=\"" + (DocxWriter.esc(sp.colorHex)) + "\"/>")
+        }
+        if (sp.fontSizePt != base.fontSizePt) {
+            def hp:string (to_string (DocxWriter.halfPoints(sp.fontSizePt)))
+            r = (r + "<w:sz w:val=\"" + hp + "\"/><w:szCs w:val=\"" + hp + "\"/>")
+        }
+        if (sp.underline != base.underline) {
+            r = (r + (? sp.underline "<w:u w:val=\"single\"/>" "<w:u w:val=\"none\"/>"))
+        }
+        if ((strlen r) == 0) {
+            return ""
+        }
+        return ("<w:rPr>" + r + "</w:rPr>")
+    }
+
+    ; One run of text; a tab or a newline in the text becomes its element.
+    sfn textRun:string (text:string rPr:string) {
+        if ((strlen text) == 0) {
+            return ""
+        }
+        def body:string ""
+        def n:int (strlen text)
+        def from:int 0
+        def i:int 0
+        while (i < n) {
+            def c:int (charAt text i)
+            if ((c == 9) || (c == 10)) {
+                if (i > from) {
+                    body = (body + "<w:t xml:space=\"preserve\">" + (DocxWriter.esc((substring text from i))) + "</w:t>")
+                }
+                body = (body + (? (c == 9) "<w:tab/>" "<w:br/>"))
+                from = (i + 1)
+            }
+            i = (i + 1)
+        }
+        if (n > from) {
+            body = (body + "<w:t xml:space=\"preserve\">" + (DocxWriter.esc((substring text from n))) + "</w:t>")
+        }
+        return ("<w:r>" + rPr + body + "</w:r>")
+    }
+
+    fn runsXml:string (p:Paragraph) {
+        def ps:ResolvedParagraphStyle (resolver.resolveParagraphStyle(p.styleId))
+        def base:ResolvedRunStyle ps.run
+        def n:int (strlen p.text)
+        def na:int (array_length p.anchors)
+        def ai:int 0
+        def r:string ""
+        for p.spans sp:TextSpan si {
+            def a:int (? (sp.start < 0) 0 sp.start)
+            def b:int (? (sp.end > n) n sp.end)
+            def rPr:string (this.rPrDiff(sp base))
+            def cur:int a
+            def going:boolean true
+            while ((ai < na) && going) {
+                def an:InlineAnchor (itemAt p.anchors ai)
+                def at:int (? (an.offset > n) n an.offset)
+                if (at < b) {
+                    if (at > cur) {
+                        r = (r + (DocxWriter.textRun((substring p.text cur at) rPr)))
+                        cur = at
+                    }
+                    r = (r + an.xml)
+                    ai = (ai + 1)
+                } {
+                    going = false
+                }
+            }
+            if (b > cur) {
+                r = (r + (DocxWriter.textRun((substring p.text cur b) rPr)))
+            }
+        }
+        while (ai < na) {
+            def an2:InlineAnchor (itemAt p.anchors ai)
+            r = (r + an2.xml)
+            ai = (ai + 1)
+        }
+        return r
+    }
+
+    ; --- paragraphs ----------------------------------------------------------
+
+    sfn alignName:string (a:int) {
+        if (a == 1) {
+            return "center"
+        }
+        if (a == 2) {
+            return "right"
+        }
+        if (a == 3) {
+            return "both"
+        }
+        return "left"
+    }
+
+    fn pPrXml:string (p:Paragraph origPPr:string) {
+        def ps:ResolvedParagraphStyle (resolver.resolveParagraphStyle(p.styleId))
+        def r:string ""
+        if (((strlen p.styleId) > 0) && (p.styleId != "Normal")) {
+            r = (r + "<w:pStyle w:val=\"" + (DocxWriter.esc(p.styleId)) + "\"/>")
+        }
+        if p.pageBreakBefore {
+            r = (r + "<w:pageBreakBefore/>")
+        }
+        if (p.listNumId > 0) {
+            r = (r + "<w:numPr><w:ilvl w:val=\"" + (to_string p.listLevel) + "\"/><w:numId w:val=\"" + (to_string p.listNumId) + "\"/></w:numPr>")
+        }
+        if (p.bidi != ps.bidi) {
+            if (p.bidi == 1) {
+                r = (r + "<w:bidi/>")
+            }
+            if (p.bidi == 0) {
+                r = (r + "<w:bidi w:val=\"0\"/>")
+            }
+        }
+        if ((p.spaceBeforePt != ps.spaceBeforePt) || (p.spaceAfterPt != ps.spaceAfterPt) || (p.lineSpacing != ps.lineSpacing)) {
+            r = (r + "<w:spacing w:before=\"" + (to_string (DocxWriter.twips(p.spaceBeforePt))) + "\" w:after=\"" + (to_string (DocxWriter.twips(p.spaceAfterPt))) + "\" w:line=\"" + (to_string (floor ((p.lineSpacing * 240.0) + 0.5))) + "\" w:lineRule=\"auto\"/>")
+        }
+        if ((p.indentLeftPt != ps.indentLeftPt) || (p.indentRightPt != ps.indentRightPt) || (p.indentFirstLinePt != ps.indentFirstLinePt)) {
+            def ind:string ("<w:ind w:left=\"" + (to_string (DocxWriter.twips(p.indentLeftPt))) + "\" w:right=\"" + (to_string (DocxWriter.twips(p.indentRightPt))) + "\"")
+            if (p.indentFirstLinePt >= 0.0) {
+                ind = (ind + " w:firstLine=\"" + (to_string (DocxWriter.twips(p.indentFirstLinePt))) + "\"/>")
+            } {
+                ind = (ind + " w:hanging=\"" + (to_string (DocxWriter.twips((0.0 - p.indentFirstLinePt)))) + "\"/>")
+            }
+            r = (r + ind)
+        }
+        if (p.align != ps.align) {
+            r = (r + "<w:jc w:val=\"" + (DocxWriter.alignName(p.align)) + "\"/>")
+        }
+        ; A section that ends at this paragraph ends here whatever was edited.
+        if ((strlen origPPr) > 0) {
+            def sAt:int (WordXml.findNext(origPPr "w:sectPr" 0))
+            if (sAt >= 0) {
+                r = (r + (WordXml.sliceElement(origPPr "w:sectPr" sAt)))
+            }
+        }
+        if ((strlen r) == 0) {
+            return ""
+        }
+        return ("<w:pPr>" + r + "</w:pPr>")
+    }
+
+    ; `orig` is the paragraph's source XML, or "" for a new one.
+    fn paragraphXml:string (p:Paragraph orig:string) {
+        def open:string "<w:p>"
+        def pPr:string ""
+        if ((strlen orig) > 0) {
+            def ot:string (WordXml.openTag(orig))
+            if ((indexOf ot "/>") < 0) {
+                open = ot
+            }
+            def origPPr:string (DocxWriter.firstChild(orig "w:pPr"))
+            if ((DocxFingerprint.paraProps(p)) == p.srcPFp) {
+                pPr = origPPr
+            } {
+                pPr = (this.pPrXml(p origPPr))
+            }
+        } {
+            pPr = (this.pPrXml(p ""))
+        }
+        return (open + pPr + (this.runsXml(p)) + "</w:p>")
+    }
+
+    ; A paragraph inside a table cell: copied when unchanged.
+    fn cellParagraphXml:string (p:Paragraph) {
+        if p.source.known {
+            def orig:string (p.source.slice(src))
+            if (((strlen orig) > 0) && ((DocxFingerprint.paragraph(p)) == p.srcFp)) {
+                return orig
+            }
+            return (this.paragraphXml(p orig))
+        }
+        return (this.paragraphXml(p ""))
+    }
+
+    ; --- tables --------------------------------------------------------------
+
+    fn tableXml:string (t:DocumentTable orig:string) {
+        def tblPr:string ""
+        if ((strlen orig) > 0) {
+            tblPr = (DocxWriter.firstChild(orig "w:tblPr"))
+        }
+        if ((strlen tblPr) == 0) {
+            tblPr = "<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:left w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:right w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:insideH w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:insideV w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tblBorders><w:tblLook w:val=\"04A0\"/></w:tblPr>"
+        }
+        def r:string ("<w:tbl>" + tblPr + "<w:tblGrid>")
+        for t.colWidthsTwips w:int wi {
+            r = (r + "<w:gridCol w:w=\"" + (to_string w) + "\"/>")
+        }
+        r = (r + "</w:tblGrid>")
+        for t.rows row:DocTableRow ri {
+            def trPr:string ""
+            if row.source.known {
+                trPr = (DocxWriter.firstChild((row.source.slice(src)) "w:trPr"))
+            }
+            if ((strlen trPr) == 0) {
+                if (row.heightTwips > 0) {
+                    trPr = ("<w:trPr><w:trHeight w:val=\"" + (to_string row.heightTwips) + "\"/></w:trPr>")
+                }
+            }
+            r = (r + "<w:tr>" + trPr)
+            def col:int 0
+            for row.cells cell:DocTableCell ci {
+                def tcPr:string ""
+                if cell.source.known {
+                    tcPr = (DocxWriter.firstChild((cell.source.slice(src)) "w:tcPr"))
+                }
+                if ((strlen tcPr) == 0) {
+                    def span:int (? (cell.gridSpan < 1) 1 cell.gridSpan)
+                    def wsum:int 0
+                    def k:int 0
+                    while (k < span) {
+                        if ((col + k) < (array_length t.colWidthsTwips)) {
+                            wsum = (wsum + (itemAt t.colWidthsTwips (col + k)))
+                        }
+                        k = (k + 1)
+                    }
+                    tcPr = ("<w:tcPr><w:tcW w:w=\"" + (to_string wsum) + "\" w:type=\"dxa\"/>")
+                    if (span > 1) {
+                        tcPr = (tcPr + "<w:gridSpan w:val=\"" + (to_string span) + "\"/>")
+                    }
+                    if ((strlen cell.fillHex) == 6) {
+                        tcPr = (tcPr + "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"" + cell.fillHex + "\"/>")
+                    }
+                    tcPr = (tcPr + "</w:tcPr>")
+                }
+                col = (col + (? (cell.gridSpan < 1) 1 cell.gridSpan))
+                r = (r + "<w:tc>" + tcPr)
+                ; A cell must end in a paragraph.
+                if ((array_length cell.paragraphs) == 0) {
+                    r = (r + "<w:p/>")
+                }
+                for cell.paragraphs cp:Paragraph cpi {
+                    r = (r + (this.cellParagraphXml(cp)))
+                }
+                r = (r + "</w:tc>")
+            }
+            r = (r + "</w:tr>")
+        }
+        return (r + "</w:tbl>")
+    }
+
+    ; --- the splice ----------------------------------------------------------
+
+    ; src[a, b), leaving out every body-level element whose block is gone.
+    fn copyGap:void (a:int b:int) {
+        def from:int a
+        def n:int (array_length starts)
+        while ((rangeAt < n) && ((itemAt starts rangeAt) < a)) {
+            rangeAt = (rangeAt + 1)
+        }
+        while ((rangeAt < n) && ((itemAt ends rangeAt) <= b)) {
+            def s:int (itemAt starts rangeAt)
+            if ((has live (to_string s)) == false) {
+                out = (out + (substring src from s))
+                from = (itemAt ends rangeAt)
+                droppedBlocks = (droppedBlocks + 1)
+            }
+            rangeAt = (rangeAt + 1)
+        }
+        if (b > from) {
+            out = (out + (substring src from b))
+        }
+        cursor = b
+    }
+
+    fn blockRef:SourceRef (b:DocBlock) {
+        if (b.kind == (DocBlockKind.para())) {
+            return b.paragraph.source
+        }
+        if (b.kind == (DocBlockKind.table())) {
+            return b.table.source
+        }
+        return (new SourceRef())
+    }
+
+    ; A block with no source of its own.
+    fn newBlockXml:string (b:DocBlock) {
+        if (b.kind == (DocBlockKind.para())) {
+            return (this.paragraphXml(b.paragraph ""))
+        }
+        if (b.kind == (DocBlockKind.table())) {
+            return (this.tableXml(b.table ""))
+        }
+        if (b.kind == (DocBlockKind.pageBreak())) {
+            if b.synthetic {
+                return ""
+            }
+            return "<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>"
+        }
+        if (b.kind == (DocBlockKind.sectionBreak())) {
+            if (b.synthetic == false) {
+                push warnings "a section break added in the editor is not written"
+            }
+            return ""
+        }
+        if (b.kind == (DocBlockKind.chart())) {
+            push warnings "charts are not written to .docx yet"
+            return ""
+        }
+        if (b.kind == (DocBlockKind.drawing())) {
+            push warnings "drawings are not written to .docx yet"
+            return ""
+        }
+        return ""
+    }
+
+    fn documentXml:string (doc:RichDocument) {
+        clear warnings
+        copiedBlocks = 0
+        rewrittenBlocks = 0
+        newBlocks = 0
+        droppedBlocks = 0
+        src = doc.source.mainXml
+        def bodyAt:int (WordXml.findNext(src "w:body" 0))
+        if ((doc.source.known == false) || (bodyAt < 0)) {
+            return (this.freshDocumentXml(doc))
+        }
+        def bodyGt:int (indexOfFrom src ">" bodyAt)
+        if (bodyGt < 0) {
+            return (this.freshDocumentXml(doc))
+        }
+        starts = doc.source.rangeStarts
+        ends = doc.source.rangeEnds
+        def freshLive:[string:boolean]
+        live = freshLive
+        ; Which sourced blocks are still where they were. One that now comes
+        ; before something it used to follow is written as new, and its old
+        ; place is skipped like a deleted one.
+        def inOrder:[boolean]
+        def last:int -1
+        def n:int (strlen src)
+        for doc.blocks b:DocBlock bi {
+            def ref:SourceRef (this.blockRef(b))
+            def ok:boolean false
+            if (ref.known && (ref.start > last) && (ref.end <= n)) {
+                ok = true
+                last = ref.start
+                set live (to_string ref.start) true
+            }
+            push inOrder ok
+        }
+        out = ""
+        rangeAt = 0
+        cursor = 0
+        this.copyGap(0 (bodyGt + 1))
+        for doc.blocks b2:DocBlock bj {
+            if (itemAt inOrder bj) {
+                def ref2:SourceRef (this.blockRef(b2))
+                this.copyGap(cursor ref2.start)
+                def orig:string (ref2.slice(src))
+                if (b2.kind == (DocBlockKind.para())) {
+                    if ((DocxFingerprint.paragraph(b2.paragraph)) == b2.paragraph.srcFp) {
+                        out = (out + orig)
+                        copiedBlocks = (copiedBlocks + 1)
+                    } {
+                        out = (out + (this.paragraphXml(b2.paragraph orig)))
+                        rewrittenBlocks = (rewrittenBlocks + 1)
+                    }
+                } {
+                    if ((DocxFingerprint.table(b2.table)) == b2.table.srcFp) {
+                        out = (out + orig)
+                        copiedBlocks = (copiedBlocks + 1)
+                    } {
+                        out = (out + (this.tableXml(b2.table orig)))
+                        rewrittenBlocks = (rewrittenBlocks + 1)
+                    }
+                }
+                cursor = ref2.end
+            } {
+                def x:string (this.newBlockXml(b2))
+                if ((strlen x) > 0) {
+                    out = (out + x)
+                    newBlocks = (newBlocks + 1)
+                }
+            }
+        }
+        this.copyGap(cursor n)
+        return out
+    }
+
+    ; --- a document with no file behind it -----------------------------------
+
+    fn freshDocumentXml:string (doc:RichDocument) {
+        def body:string ""
+        for doc.blocks b:DocBlock bi {
+            def x:string (this.newBlockXml(b))
+            if ((strlen x) > 0) {
+                newBlocks = (newBlocks + 1)
+            }
+            body = (body + x)
+        }
+        def sec:DocSection doc.section
+        def sect:string ("<w:sectPr><w:pgSz w:w=\"" + (to_string sec.pageWTwips) + "\" w:h=\"" + (to_string sec.pageHTwips) + "\"")
+        if sec.landscape {
+            sect = (sect + " w:orient=\"landscape\"")
+        }
+        sect = (sect + "/><w:pgMar w:top=\"" + (to_string sec.marginTopTwips) + "\" w:right=\"" + (to_string sec.marginRightTwips) + "\" w:bottom=\"" + (to_string sec.marginBottomTwips) + "\" w:left=\"" + (to_string sec.marginLeftTwips) + "\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr>")
+        return ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>" + body + sect + "</w:body></w:document>")
+    }
+
+    sfn freshStylesXml:string () {
+        def w:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        w = (w + "<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\" w:cs=\"Calibri\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>")
+        w = (w + "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>")
+        def lvl:int 1
+        while (lvl <= 3) {
+            def id:string ("Heading" + (to_string lvl))
+            def sz:string (to_string (? (lvl == 1) 32 (? (lvl == 2) 26 24)))
+            w = (w + "<w:style w:type=\"paragraph\" w:styleId=\"" + id + "\"><w:name w:val=\"heading " + (to_string lvl) + "\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before=\"240\" w:after=\"80\"/><w:outlineLvl w:val=\"" + (to_string (lvl - 1)) + "\"/></w:pPr><w:rPr><w:color w:val=\"2F5496\"/><w:sz w:val=\"" + sz + "\"/><w:szCs w:val=\"" + sz + "\"/></w:rPr></w:style>")
+            lvl = (lvl + 1)
+        }
+        w = (w + "<w:style w:type=\"paragraph\" w:styleId=\"Title\"><w:name w:val=\"Title\"/><w:basedOn w:val=\"Normal\"/><w:next w:val=\"Normal\"/><w:qFormat/><w:rPr><w:sz w:val=\"56\"/><w:szCs w:val=\"56\"/></w:rPr></w:style>")
+        return (w + "</w:styles>")
+    }
+
+    ; --- the package ---------------------------------------------------------
+
+    fn buildZip:ZipWriter (doc:RichDocument) {
+        def zip:ZipWriter (new ZipWriter())
+        zip.create()
+        def xml:string (this.documentXml(doc))
+        if doc.source.known {
+            def wroteMain:boolean false
+            for doc.source.parts part:string pi {
+                if (part == doc.source.mainPart) {
+                    zip.addFile(part (DocxWriter.utf8(xml)))
+                    wroteMain = true
+                } {
+                    def bytes@(optional):buffer (get doc.source.bytes part)
+                    if (!null? bytes) {
+                        zip.addFile(part (unwrap bytes))
+                    }
+                }
+            }
+            if (wroteMain == false) {
+                zip.addFile(doc.source.mainPart (DocxWriter.utf8(xml)))
+            }
+            return zip
+        }
+        def ct:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/></Types>"
+        def rels:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"
+        def docRels:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>"
+        zip.addFile("[Content_Types].xml" (DocxWriter.utf8(ct)))
+        zip.addFile("_rels/.rels" (DocxWriter.utf8(rels)))
+        zip.addFile("word/document.xml" (DocxWriter.utf8(xml)))
+        zip.addFile("word/_rels/document.xml.rels" (DocxWriter.utf8(docRels)))
+        zip.addFile("word/styles.xml" (DocxWriter.utf8((DocxWriter.freshStylesXml()))))
+        return zip
+    }
+
+    fn toBuffer:buffer (doc:RichDocument) {
+        def zip:ZipWriter (this.buildZip(doc))
+        return (zip.toBuffer())
+    }
+
+    fn save:void (doc:RichDocument dir:string file:string) {
+        def zip:ZipWriter (this.buildZip(doc))
+        zip.save(dir file)
+    }
+}

@@ -79,6 +79,21 @@ Tree, ScrollArea) with a more modern look: flatter ribbon with fewer
 borders, rounded style gallery cards, a quieter navigation pane, and a
 collapsible ribbon. Visual changes do not change command ids.
 
+## Writing (C3, F2, F3)
+
+A C3 row is `yes` when its elements survive a save even inside an edited
+paragraph or table, and `partial` when they survive only while the paragraph
+around them is not edited, or when part of the row is untested (strike,
+complex-script properties) or not editable (headers and footers). Rows are
+scored only for elements the fixtures actually contain; the fixtures are
+simple, so footnotes, comments, fields and the like stay at 0 until fixtures
+with them exist.
+
+F2 and F3 currently run on the 19 docx_viewer fixtures, not on a real-world
+corpus; two of them are malformed on purpose and have no reference to compare
+against. The `regen` run forces every block through regeneration, the worst
+case for an edited document.
+
 ## What the baseline shows
 
 - The moved code covers 20 of 502 catalog features (bold, italic,

@@ -176,9 +176,36 @@ npm run docx_viewer:module
 npm run docx_viewer:window        # http://127.0.0.1:8770/
 ```
 
+## Saving
+
+`DocxWriter` (`src/DocxWriter.rgr`, `DocxViewer.saveBytes()` / `saveFile()`)
+writes the document back by splicing the `word/document.xml` it was read
+from:
+
+- a paragraph or table whose fingerprint (`src/DocxFingerprint.rgr`) still
+  matches the one stamped when it was read is copied byte for byte;
+- an edited one is regenerated from the model, keeping its `w:p` open tag,
+  its `w:pPr` when the paragraph properties did not change (always its
+  `w:sectPr`), and its inline anchors (tabs, pictures, field delimiters, note
+  references) at their text offsets;
+- a new one is generated, a deleted one is skipped, and everything between
+  blocks (body-level bookmarks, `w:sdt` wrappers, the final `w:sectPr`) is
+  copied through;
+- every other part of the package is copied unchanged. A document built in
+  memory gets a minimal package (content types, relationships, styles).
+
+Checked by `npm run docx_viewer:write:test` (unchanged fixtures come back
+byte for byte; edits, splits, merges, table edits, pictures, non-ASCII text
+and a fresh document reopen correctly) and `npm run docx_viewer:roundtrip:check`
+(python-docx compares original and saved files, LibreOffice converts every
+saved file; also with every block forced through regeneration).
+
 ## Known limitations
 
-- Not a full Word clone; no lossless DOCX round-trip / edit export yet
+- Not a full Word clone. Saving keeps unedited paragraphs, tables and parts
+  byte for byte; an edited paragraph loses hyperlink, tracked-change and
+  bookmark markup inside it, and run properties the model does not hold
+  (see [Saving](#saving))
 - Paste builds a plain table: no column widths from the source, cell borders,
   merged rows, or images
 - SoftCanvas glyph metrics can clip the last letter(s) of long lines
@@ -350,7 +377,7 @@ chart and checks the specification followed.
 being changed to a smooth line on a slate palette — in the document, with
 nothing but its own JSON in between.
 
-Known limits: a chart cannot yet be exported back into a `.docx` (this editor
-has no DOCX writer at all yet). When there is one, a chart should go out as a
+Known limits: a chart cannot yet be exported back into a `.docx` (the writer
+skips it with a warning). It should go out as a
 `w:drawing` with the rendered PNG plus its JSON on the alt-text, which is how it
 would survive a round trip through real Word.

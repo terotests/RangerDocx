@@ -183,7 +183,23 @@ async function imagesFor(doc) {
 // The whole editor, not only the paper: the shared toolbar above the page, a
 // status line under it, and the window layer on top. The app decides all of
 // that; this file sizes the frame around the paper and hands over events.
+// Save: the toolbar's Save and Ctrl+S ask through takeFileRequest(); the
+// button below asks directly. Either way the bytes come from DocxWriter.
+let docName = "document.docx";
+function downloadDocx() {
+  const bytes = web.saveDocument();
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = docName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  statusEl.textContent = "saved " + docName;
+}
+document.getElementById("save")?.addEventListener("click", downloadDocx);
+
 async function draw(force) {
+  if (web.takeFileRequest() === "saveAs") downloadDocx();
   // The app lays the page out and sizes the frame around it in one call: a
   // Word page is not one size, and measuring before laying out measures the
   // page you were on.
@@ -327,6 +343,7 @@ fileEl?.addEventListener("change", async (ev) => {
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   const ok = web.openDocument(asRangerBuffer(await file.arrayBuffer()), file.name);
+  if (ok) docName = file.name;
   statusEl.textContent = ok ? "opened " + file.name : "could not open: " + web.note;
   page = 0;
   refreshMedia();
@@ -396,6 +413,15 @@ async function selftest() {
   web.typeText("Zx");
   await draw(true);
   ok("typing changed the page", web.scene(page) !== first);
+
+  // Saving: the typed text goes out in a .docx that opens again.
+  {
+    const bytes = web.saveDocument();
+    const head = new Uint8Array(bytes, 0, 2);
+    ok("saving gives a zip package", bytes.byteLength > 100 && head[0] === 0x50 && head[1] === 0x4b);
+    ok("and the saved file opens again", web.openDocument(asRangerBuffer(bytes.slice(0)), "saved.docx"));
+    await draw(true);
+  }
 
   // Dragging with the button held paints a selection. Through `framePointer`,
   // because the bug was in this file as much as in the app: a move used to say

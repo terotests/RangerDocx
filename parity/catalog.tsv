@@ -1,8 +1,8 @@
 tab	group	feature	command	wordcraft	ranger_viewer	rangerdocx	test
 File	Backstage	New	file.new	live	no	no	-
 File	Backstage	Open	file.open	live	yes	yes	tests/DocxTest.rgr
-File	Backstage	Save	file.save	live	no	no	-
-File	Backstage	Save As	file.saveAs	live	no	no	-
+File	Backstage	Save	file.save	live	no	done	tests/DocxWriteTest.rgr
+File	Backstage	Save As	file.saveAs	live	no	done	tests/DocxWriteTest.rgr
 File	Backstage	Print	file.print	live	partial	impl	-
 File	Backstage	Print Markup	file.printMarkup	live	no	no	-
 File	Backstage	Close	file.close	live	no	no	-

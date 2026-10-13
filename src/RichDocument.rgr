@@ -13,6 +13,43 @@
 
 Import "pkg:image/ImageBuffer.rgr"
 Import "pkg:evg/EVGElement.rgr"
+Import "../../ooxml/SourceRef.rgr"
+
+; Run content the model has no text for — a picture, a tab, a field
+; delimiter, a note reference — kept as the XML it was read from and the text
+; offset it stood at. A paragraph written back unchanged copies its own XML
+; and never looks at these; one that was edited is regenerated from its
+; spans, and these go back in at their offsets (clamped to the new text).
+class InlineAnchor {
+    def offset:int 0
+    def xml:string ""
+
+    Constructor () {
+    }
+}
+
+; The package a document was read from, kept whole so a save can copy every
+; part it does not rewrite. `mainXml` is word/document.xml exactly as the
+; parser read it: every SourceRef offset indexes this string.
+class DocxSource {
+    def known:boolean false
+    def mainPart:string "word/document.xml"
+    def mainXml:string ""
+    def parts:[string]
+    def bytes:[string:buffer]
+    ; Start and end of every body-level element the parser turned into a
+    ; block, in document order. A save skips the ones whose block is gone.
+    def rangeStarts:[int]
+    def rangeEnds:[int]
+
+    Constructor () {
+    }
+
+    fn addRange:void (from:int to:int) {
+        push rangeStarts from
+        push rangeEnds to
+    }
+}
 
 class TextSpan {
     def start:int 0
@@ -109,6 +146,13 @@ class Paragraph {
     def mdSrcStart:int -1
     def mdSrcEnd:int -1
     def mdLastText:string ""
+    ; Where this paragraph was read from, and what it looked like then (see
+    ; DocxWriter.fingerprint). Equal fingerprints mean the original XML is
+    ; written back byte for byte.
+    def source:SourceRef (new SourceRef())
+    def srcFp:string ""
+    def srcPFp:string ""
+    def anchors:[InlineAnchor]
 
     ; ALL of this paragraph's formatting onto another, which is what splitting
     ; one in half needs.
@@ -356,6 +400,7 @@ class DocTableBorder {
 }
 
 class DocTableCell {
+    def source:SourceRef (new SourceRef())
     def gridSpan:int 1
     def fillHex:string ""
     def paragraphs:[Paragraph]
@@ -374,6 +419,7 @@ class DocTableCell {
 }
 
 class DocTableRow {
+    def source:SourceRef (new SourceRef())
     def cells:[DocTableCell]
     def heightTwips:int 0
 
@@ -382,6 +428,8 @@ class DocTableRow {
 }
 
 class DocumentTable {
+    def source:SourceRef (new SourceRef())
+    def srcFp:string ""
     def id:int 0
     def colWidthsTwips:[int]
     def rows:[DocTableRow]
@@ -458,6 +506,10 @@ class DocBlock {
     def chart:DocChart (new DocChart)
     def drawing:DocDrawing (new DocDrawing)
     def sectionIndex:int 0
+    ; A page or section break the parser derived from a paragraph's own XML
+    ; (a `w:br w:type="page"`, a `w:sectPr` in its pPr). That XML is written
+    ; with the paragraph, so the block itself writes nothing.
+    def synthetic:boolean false
 
     Constructor () {
     }
@@ -524,6 +576,7 @@ class RichDocument {
     ; five-hundred-paragraph document out again to draw one page of it is the
     ; cost that follows the document rather than the frame.
     def revision:int 0
+    def source:DocxSource (new DocxSource)
 
     Constructor () {
         push sections section

@@ -1,0 +1,50 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; docx_roundtrip - writes every fixture back out twice, for the external
+; oracles (harness/roundtrip_check.py: python-docx and LibreOffice).
+; ==============================================================================
+;
+;   same/<name>   opened and saved, nothing edited: the splice path
+;   regen/<name>  every paragraph and table forced through regeneration, as if
+;                 each one had been edited: the worst case for fidelity
+;
+;   npm run docx_viewer:roundtrip
+; ==============================================================================
+
+Import "../src/DocxViewer.rgr"
+Import "../src/DocxWriter.rgr"
+
+class DocxRoundtrip {
+    sfn main:void () {
+        def fix:string "gallery/docx_viewer/fixtures"
+        def out:string "gallery/docx_viewer/bin/roundtrip"
+        def files:[string] ([] _:string ("hello.docx" "styles_demo.docx" "lists_demo.docx" "images_demo.docx" "05-table-basic.docx" "06-table-format.docx" "07-table-merged.docx" "08-pages.docx" "09-page-break.docx" "10-landscape-section.docx" "11-mixed-sections.docx" "12-header-footer.docx" "13-images-mixed.docx" "14-styles-indent.docx" "20-business-report.docx" "21-accented-text.docx" "22-glyph-fallback.docx" "23-image-alt-text.docx" "24-rtl-arabic.docx"))
+        for files f:string fi {
+            def v:DocxViewer (new DocxViewer)
+            v.init("gallery/pdf_writer/assets/fonts")
+            if (v.openFile(fix f)) {
+                def doc:RichDocument (v.document())
+                def w:DocxWriter (new DocxWriter)
+                w.resolver = v.parser.resolver
+                w.save(doc (out + "/same") f)
+                ; Forget what everything looked like when it was read: the
+                ; writer now regenerates every paragraph and table, keeping
+                ; only what it keeps for an edited one.
+                for doc.paragraphs p:Paragraph pi {
+                    p.srcFp = "!"
+                }
+                for doc.tables t:DocumentTable ti {
+                    t.srcFp = "!"
+                }
+                w.save(doc (out + "/regen") f)
+                print ("wrote " + f + " (regenerated " + (to_string w.rewrittenBlocks) + " blocks)")
+                for w.warnings wn:string wi {
+                    print ("  warning: " + wn)
+                }
+            } {
+                print ("FAILED to open " + f)
+            }
+        }
+    }
+}

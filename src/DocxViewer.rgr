@@ -6,6 +6,7 @@
 
 Import "DocxPackage.rgr"
 Import "WordMlParser.rgr"
+Import "DocxWriter.rgr"
 Import "WordNumbering.rgr"
 Import "RichDocument.rgr"
 Import "DocxView.rgr"
@@ -79,6 +80,26 @@ class DocxViewer {
         view.layout.invalidate()
         currentPage = 0
         this.renderPage(0)
+    }
+
+    ; The document as a .docx. A document that was opened from a file keeps
+    ; every part and every paragraph it did not change exactly as it was read
+    ; (DocxWriter). `saveWarnings` lists what could not be written.
+    def saveWarnings:[string]
+
+    fn saveBytes:buffer () {
+        def w:DocxWriter (new DocxWriter)
+        w.resolver = parser.resolver
+        def b:buffer (w.toBuffer(doc))
+        saveWarnings = w.warnings
+        return b
+    }
+
+    fn saveFile:void (dir:string file:string) {
+        def w:DocxWriter (new DocxWriter)
+        w.resolver = parser.resolver
+        w.save(doc dir file)
+        saveWarnings = w.warnings
     }
 
     ; The same, from bytes. `openFile` is this with a file read in front of it.
