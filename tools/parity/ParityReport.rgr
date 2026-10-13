@@ -1,0 +1,293 @@
+; ParityReport — reads the parity tables in parity/*.tsv and writes
+; docs/PARITY_REPORT.md. Run from the repository root (see README).
+;
+; Scoring: yes/done = 1, partial/impl = 0.5, anything else = 0. A RangerDocx
+; row only scores when its `test` column names a file that exists: a feature
+; nobody tests is not counted as done.
+
+class Row {
+    def cells:[string]
+}
+
+class Table {
+    def header:[string]
+    def rows:[Row]
+    def errors:[string]
+
+    fn col:int (name:string) {
+        def found:int -1
+        for header h:string i {
+            if (h == name) {
+                found = i
+            }
+        }
+        return found
+    }
+
+    fn cell:string (row:Row name:string) {
+        def c:int (this.col(name))
+        if (c < 0) {
+            return ""
+        }
+        if (c >= (array_length row.cells)) {
+            return ""
+        }
+        return (itemAt row.cells c)
+    }
+}
+
+class ParityReport {
+    def root:string "."
+    def out:string ""
+    def problems:[string]
+
+    fn load:Table (name:string) {
+        def t:Table (new Table)
+        def text:string (?? (read_file (root + "/parity") name) "")
+        if ((strlen text) == 0) {
+            push problems ("missing or empty parity/" + name)
+            return t
+        }
+        def lines:[string] (strsplit text "\n")
+        for lines line:string i {
+            if ((strlen line) == 0) {
+                continue
+            }
+            def cells:[string] (strsplit line "\t")
+            if (i == 0) {
+                t.header = cells
+            } {
+                if ((array_length cells) != (array_length t.header)) {
+                    push problems ("parity/" + name + " line " + (to_string (i + 1)) + ": " + (to_string (array_length cells)) + " columns, header has " + (to_string (array_length t.header)))
+                }
+                def r:Row (new Row)
+                r.cells = cells
+                push t.rows r
+            }
+        }
+        return t
+    }
+
+    fn score:double (v:string) {
+        if ((v == "yes") || (v == "done") || (v == "live")) {
+            return 1.0
+        }
+        if ((v == "partial") || (v == "impl")) {
+            return 0.5
+        }
+        return 0.0
+    }
+
+    fn tested:boolean (test:string) {
+        if ((test == "-") || ((strlen test) == 0)) {
+            return false
+        }
+        def r:boolean (file_exists root test)
+        if (r == false) {
+            push problems ("test file not found: " + test)
+        }
+        return r
+    }
+
+    ; RangerDocx score of one row: the status counts only with an existing test.
+    fn ours:double (t:Table row:Row statusCol:string) {
+        def s:double (this.score((t.cell(row statusCol))))
+        if (s == 0.0) {
+            return 0.0
+        }
+        if (this.tested((t.cell(row "test")))) {
+            return s
+        }
+        return 0.0
+    }
+
+    fn fmt:string (v:double) {
+        def whole:int (floor v)
+        if ((v - (to_double whole)) > 0.0) {
+            return ((to_string whole) + ".5")
+        }
+        return (to_string whole)
+    }
+
+    fn pct:string (v:double total:int) {
+        if (total == 0) {
+            return "-"
+        }
+        def p:int (floor (((v * 1000.0) / (to_double total)) + 0.5))
+        def w:int (idiv p 10)
+        return ((to_string w) + "." + (to_string (p - (w * 10))) + "%")
+    }
+
+    fn line:void (s:string) {
+        out = (out + s + "\n")
+    }
+
+    ; Sums per value of `groupCol` (or one total row when groupCol is "").
+    fn groupTable:[string:[double]] (t:Table groupCol:string cols:[string] oursCols:[string]) {
+        def res:[string:[double]]
+        def order:[string]
+        for t.rows row:Row i {
+            def g:string "Total"
+            if ((strlen groupCol) > 0) {
+                g = (t.cell(row groupCol))
+            }
+            if (has res g) {
+            } {
+                def z:[double]
+                def n:int 0
+                while (n < ((array_length cols) + (array_length oursCols) + 1)) {
+                    push z 0.0
+                    n = n + 1
+                }
+                set res g z
+            }
+            def acc:[double] (unwrap (get res g))
+            def k:int 0
+            for cols c:string ci {
+                set acc k ((itemAt acc k) + (this.score((t.cell(row c)))))
+                k = k + 1
+            }
+            for oursCols oc:string oi {
+                set acc k ((itemAt acc k) + (this.ours(t row oc)))
+                k = k + 1
+            }
+            set acc k ((itemAt acc k) + 1.0)
+            ; Write back: on value-semantics targets (Rust) `acc` is a copy.
+            set res g acc
+        }
+        return res
+    }
+
+    fn section:[double] (title:string t:Table groupCol:string cols:[string] labels:[string] oursCols:[string]) {
+        def groups:[string:[double]] (this.groupTable(t groupCol cols oursCols))
+        def totals:[double]
+        def ncols:int ((array_length cols) + (array_length oursCols))
+        def n:int 0
+        while (n <= ncols) {
+            push totals 0.0
+            n = n + 1
+        }
+        this.line(("## " + title))
+        this.line("")
+        def head:string ("| " + groupCol + " | rows")
+        for labels lb:string li {
+            head = (head + " | " + lb)
+        }
+        this.line((head + " |"))
+        def sep:string "|---|---:"
+        for labels lb2:string li2 {
+            sep = (sep + "|---:")
+        }
+        this.line((sep + "|"))
+        def seen:[string]
+        for t.rows row:Row i {
+            def g:string (t.cell(row groupCol))
+            def dup:boolean false
+            for seen s:string si {
+                if (s == g) {
+                    dup = true
+                }
+            }
+            if dup {
+                continue
+            }
+            push seen g
+            def acc:[double] (unwrap (get groups g))
+            def cnt:int (to_int (itemAt acc ncols))
+            def r:string ("| " + g + " | " + (to_string cnt))
+            def k:int 0
+            while (k < ncols) {
+                r = (r + " | " + (this.fmt((itemAt acc k))))
+                set totals k ((itemAt totals k) + (itemAt acc k))
+                k = k + 1
+            }
+            set totals ncols ((itemAt totals ncols) + (itemAt acc ncols))
+            this.line((r + " |"))
+        }
+        def all:int (to_int (itemAt totals ncols))
+        def tr:string ("| **Total** | **" + (to_string all) + "**")
+        def k2:int 0
+        while (k2 < ncols) {
+            tr = (tr + " | **" + (this.fmt((itemAt totals k2))) + " (" + (this.pct((itemAt totals k2) all)) + ")**")
+            k2 = k2 + 1
+        }
+        this.line((tr + " |"))
+        this.line("")
+        return totals
+    }
+
+    fn run:void () {
+        def catalog:Table (this.load("catalog.tsv"))
+        def ooxml:Table (this.load("ooxml.tsv"))
+        def typing:Table (this.load("typing.tsv"))
+        def metrics:Table (this.load("metrics.tsv"))
+
+        this.line("# RangerDocx feature parity report")
+        this.line("")
+        this.line("Generated by `tools/parity/ParityReport.rgr` from `parity/*.tsv`. Do not edit by hand.")
+        this.line("Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test file exists.")
+        this.line("")
+
+        ; One-element lists are built with push: the Rust target emits a
+        ; one-item ([] _:string ("x")) literal as a bare string.
+        def oursOne:[string]
+        push oursOne "rangerdocx"
+        def labelOne:[string]
+        push labelOne "RangerDocx"
+        def c:[double] (this.section("Ribbon and menu catalog (C1, U1)" catalog "tab" ([] _:string ("wordcraft" "ranger_viewer")) ([] _:string ("WordCraft" "Ranger docx_viewer" "RangerDocx")) oursOne))
+        def o:[double] (this.section("OOXML read and write (C2, C3)" ooxml "area" ([] _:string ("wordcraft_read" "wordcraft_write" "ranger_viewer_read" "ranger_viewer_write")) ([] _:string ("WordCraft read" "WordCraft write" "viewer read" "viewer write" "RangerDocx read" "RangerDocx write")) ([] _:string ("rangerdocx_read" "rangerdocx_write"))))
+        def noCols:[string]
+        def ty:[double] (this.section("Typing behaviour (C4)" typing "section" noCols labelOne oursOne))
+
+        ; Computed values for the metrics table.
+        def computed:[string:string]
+        set computed "C1|ranger_viewer" (this.fmt((itemAt c 1)))
+        set computed "C1|rangerdocx" (this.fmt((itemAt c 2)))
+        set computed "C2|wordcraft" (this.fmt((itemAt o 0)))
+        set computed "C3|wordcraft" (this.fmt((itemAt o 1)))
+        set computed "C2|ranger_viewer" (this.fmt((itemAt o 2)))
+        set computed "C3|ranger_viewer" (this.fmt((itemAt o 3)))
+        set computed "C2|rangerdocx" (this.fmt((itemAt o 4)))
+        set computed "C3|rangerdocx" (this.fmt((itemAt o 5)))
+        set computed "C4|ranger_viewer" "0"
+        set computed "C4|rangerdocx" (this.fmt((itemAt ty 0)))
+
+        this.line("## All metrics")
+        this.line("")
+        this.line("| id | metric | unit | better | WordCraft | Ranger docx_viewer | RangerDocx | target |")
+        this.line("|---|---|---|---|---:|---:|---:|---:|")
+        for metrics.rows row:Row i {
+            def id:string (metrics.cell(row "id"))
+            def vals:[string]
+            for ([] _:string ("wordcraft" "ranger_viewer" "rangerdocx")) who:string wi {
+                def v:string (metrics.cell(row who))
+                if (v == "computed") {
+                    v = (?? (get computed (id + "|" + who)) "?")
+                }
+                push vals v
+            }
+            this.line(("| " + id + " | " + (metrics.cell(row "metric")) + " | " + (metrics.cell(row "unit")) + " | " + (metrics.cell(row "better")) + " | " + (itemAt vals 0) + " | " + (itemAt vals 1) + " | " + (itemAt vals 2) + " | " + (metrics.cell(row "target")) + " |"))
+        }
+        this.line("")
+        if ((array_length problems) > 0) {
+            this.line("## Problems")
+            this.line("")
+            def list:string ""
+            for problems p:string pi {
+                list = (list + "- " + p + "\n")
+            }
+            out = (out + list)
+            this.line("")
+        }
+        write_file (root + "/docs") "PARITY_REPORT.md" out
+        print out
+        if ((array_length problems) > 0) {
+            print ("parity: " + (to_string (array_length problems)) + " problem(s)")
+        }
+    }
+
+    sfn main:void () {
+        def r:ParityReport (new ParityReport)
+        r.run()
+    }
+}

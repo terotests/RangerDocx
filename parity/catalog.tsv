@@ -1,0 +1,503 @@
+tab	group	feature	command	wordcraft	ranger_viewer	rangerdocx	test
+File	Backstage	New	file.new	live	no	no	-
+File	Backstage	Open	file.open	live	yes	no	-
+File	Backstage	Save	file.save	live	no	no	-
+File	Backstage	Save As	file.saveAs	live	no	no	-
+File	Backstage	Print	file.print	live	partial	no	-
+File	Backstage	Print Markup	file.printMarkup	live	no	no	-
+File	Backstage	Close	file.close	live	no	no	-
+File	Backstage	Info	file.info	live	no	no	-
+File	Backstage	Properties	file.properties	live	no	no	-
+File	Backstage	Export PDF	file.exportPdf	live	no	no	-
+File	Backstage	Export Image	file.exportPng	live	no	no	-
+File	Backstage	Options	file.options	live	no	no	-
+File	Options	Numerals	view.numeral	live	no	no	-
+File	Backstage	Share	file.share	live	no	no	-
+File	Backstage	Protect Document	file.protect	live	no	no	-
+File	Backstage	Inspect Document	file.inspect	live	no	no	-
+File	Backstage	Check Accessibility	file.accessibility	live	no	no	-
+File	Backstage	Check Compatibility	file.compatibility	live	no	no	-
+File	Backstage	Version History	file.versions	live	no	no	-
+File	Backstage	Recover Unsaved	file.recover	live	no	no	-
+File	Backstage	New from Template	file.newFromTemplate	live	no	no	-
+File	Backstage	Save as Template	file.saveTemplate	live	no	no	-
+Quick Access	Toolbar	Undo	edit.undo	live	yes	no	-
+Quick Access	Toolbar	Undo List	edit.undoTo	live	no	no	-
+Quick Access	Toolbar	Redo	edit.redo	live	yes	no	-
+Quick Access	Toolbar	Repeat	edit.repeat	live	no	no	-
+Quick Access	Toolbar	AutoSave	file.autosave	live	no	no	-
+Title Bar	Search	Search (Tell Me)	tools.search	live	no	no	-
+Home	Clipboard	Paste	edit.paste	live	partial	no	-
+Home	Clipboard	Paste Keep Text Only	edit.pasteText	live	partial	no	-
+Home	Clipboard	Paste Merge Formatting	edit.pasteMerge	live	no	no	-
+Home	Clipboard	Paste Special	edit.pasteSpecial	live	no	no	-
+Home	Clipboard	Cut	edit.cut	live	partial	no	-
+Home	Clipboard	Copy	edit.copy	live	partial	no	-
+Home	Clipboard	Format Painter	edit.formatPainter	live	no	no	-
+Home	Clipboard	Copy Formatting	edit.copyFormat	live	no	no	-
+Home	Clipboard	Paste Formatting	edit.pasteFormat	live	no	no	-
+Home	Clipboard	Clipboard Pane	edit.clipboardPane	live	no	no	-
+Home	Font	Font	format.font	live	yes	no	-
+Home	Font	Font Size	format.size	live	partial	no	-
+Home	Font	Increase Font Size	format.growFont	live	yes	no	-
+Home	Font	Decrease Font Size	format.shrinkFont	live	yes	no	-
+Home	Font	Change Case	format.changeCase	live	no	no	-
+Home	Font	Clear All Formatting	format.clear	live	no	no	-
+Home	Font	Bold	format.bold	live	yes	no	-
+Home	Font	Italic	format.italic	live	yes	no	-
+Home	Font	Underline	format.underline	live	yes	no	-
+Home	Font	Double Underline	format.doubleUnderline	live	no	no	-
+Home	Font	Strikethrough	format.strikethrough	live	no	no	-
+Home	Font	Subscript	format.subscript	live	no	no	-
+Home	Font	Superscript	format.superscript	live	no	no	-
+Home	Font	Text Effects Outline	format.outline	live	no	no	-
+Home	Font	Text Effects Shadow	format.shadow	live	no	no	-
+Home	Font	Text Effects and Typography	format.textEffects	live	no	no	-
+Home	Font	Text Highlight Color	format.highlight	live	no	no	-
+Home	Font	Font Color	format.color	live	yes	no	-
+Home	Font	Character Shading	format.shading	live	no	no	-
+Home	Font	Font Dialog	format.fontDialog	live	no	no	-
+Home	Font	Double Strikethrough	format.doubleStrikethrough	live	no	no	-
+Home	Font	Small Caps	format.smallCaps	live	no	no	-
+Home	Font	All Caps	format.allCaps	live	no	no	-
+Home	Font	Hidden	format.hidden	live	no	no	-
+Home	Font	Emboss	format.emboss	live	no	no	-
+Home	Font	Engrave	format.engrave	live	no	no	-
+Home	Font	Character Spacing	format.spacing	live	no	no	-
+Home	Font	Character Scale	format.scale	live	no	no	-
+Home	Font	Character Position	format.position	live	no	no	-
+Home	Font	Character Border	format.border	live	no	no	-
+Home	Font	Phonetic Guide	format.phonetic	live	no	no	-
+Home	Font	Enclose Characters	format.enclose	live	no	no	-
+Home	Paragraph	Bullets	para.bullets	live	no	no	-
+Home	Paragraph	Numbering	para.numbering	live	no	no	-
+Home	Paragraph	Multilevel List	para.multilevel	live	no	no	-
+Home	Paragraph	Define New Multilevel List	list.define	live	no	no	-
+Home	Paragraph	Change List Level	para.listLevel	live	no	no	-
+Home	Paragraph	Restart Numbering	para.restartNumbering	live	no	no	-
+Home	Paragraph	Define New Bullet	para.defineBullet	live	no	no	-
+Home	Paragraph	Define New Number Format	para.defineNumber	live	no	no	-
+Home	Paragraph	Set Numbering Value	para.setNumberingValue	live	no	no	-
+Home	Paragraph	Decrease Indent	para.outdent	live	yes	no	-
+Home	Paragraph	Increase Indent	para.indent	live	yes	no	-
+Home	Paragraph	Sort	para.sort	live	no	no	-
+Home	Paragraph	Show/Hide Marks	view.marks	live	no	no	-
+Home	Paragraph	Align Left	para.alignLeft	live	no	no	-
+Home	Paragraph	Center	para.alignCenter	live	no	no	-
+Home	Paragraph	Align Right	para.alignRight	live	no	no	-
+Home	Paragraph	Justify	para.justify	live	no	no	-
+Home	Paragraph	Distributed	para.distribute	live	no	no	-
+Home	Paragraph	Line Spacing	para.lineSpacing	live	no	no	-
+Home	Paragraph	Add Space Before	para.addSpaceBefore	live	no	no	-
+Home	Paragraph	Remove Space After	para.removeSpaceAfter	live	no	no	-
+Home	Paragraph	Shading	para.shading	live	no	no	-
+Home	Paragraph	Borders	para.borders	live	no	no	-
+Home	Paragraph	Horizontal Line	insert.horizontalLine	live	no	no	-
+Home	Paragraph	Paragraph Dialog	para.dialog	live	no	no	-
+Home	Paragraph	Tabs	para.tabs	live	no	no	-
+Home	Paragraph	Keep with Next	para.keepNext	live	no	no	-
+Home	Paragraph	Keep Lines Together	para.keepLines	live	no	no	-
+Home	Paragraph	Page Break Before	para.pageBreakBefore	live	no	no	-
+Home	Paragraph	Widow/Orphan Control	para.widowControl	live	no	no	-
+Home	Paragraph	Outline Level	para.outlineLevel	live	no	no	-
+Home	Paragraph	Hanging Indent	para.hangingIndent	live	no	no	-
+Home	Paragraph	Right-to-Left Text Direction	para.rtl	live	partial	no	-
+Home	Paragraph	Left-to-Right Text Direction	para.ltr	live	no	no	-
+Home	Paragraph	Asian Typography	para.asianTypography	live	no	no	-
+Home	Styles	Styles Gallery	para.style	live	no	no	-
+Home	Styles	Normal	para.normal	live	no	no	-
+Home	Styles	Heading 1	para.heading1	live	no	no	-
+Home	Styles	Heading 2	para.heading2	live	no	no	-
+Home	Styles	Heading 3	para.heading3	live	no	no	-
+Home	Styles	Create a Style	styles.create	live	no	no	-
+Home	Styles	Modify Style	styles.modify	live	no	no	-
+Home	Styles	Update Style to Match	styles.updateToMatch	live	no	no	-
+Home	Styles	Delete Style	styles.delete	live	no	no	-
+Home	Styles	Styles Pane	styles.pane	live	no	no	-
+Home	Styles	Style Inspector	styles.inspector	live	no	no	-
+Home	Styles	Manage Styles	styles.manage	live	no	no	-
+Home	Styles	Apply Styles	styles.apply	live	no	no	-
+Home	Styles	Character Style	format.charStyle	live	no	no	-
+Home	Editing	Find	edit.find	live	no	no	-
+Home	Editing	Find Next	edit.findNext	live	no	no	-
+Home	Editing	Find Previous	edit.findPrevious	live	no	no	-
+Home	Editing	Advanced Find	edit.advancedFind	live	no	no	-
+Home	Editing	Replace	edit.replace	live	no	no	-
+Home	Editing	Replace All	edit.replaceAll	live	no	no	-
+Home	Editing	Go To	edit.goto	live	no	no	-
+Home	Editing	Select All	select.all	live	yes	no	-
+Home	Editing	Select Objects	select.objects	live	no	no	-
+Home	Editing	Select Similar Formatting	select.similar	live	no	no	-
+Home	Voice	Dictate	tools.dictate	missing	no	no	-
+Home	Editor	Editor	review.editor	live	no	no	-
+Insert	Pages	Cover Page	insert.coverPage	live	no	no	-
+Insert	Pages	Blank Page	insert.blankPage	live	no	no	-
+Insert	Pages	Page Break	insert.pageBreak	live	no	no	-
+Insert	Tables	Insert Table	insert.table	live	partial	no	-
+Insert	Tables	Draw Table	table.draw	live	no	no	-
+Insert	Tables	Convert Text to Table	table.fromText	live	no	no	-
+Insert	Tables	Excel Spreadsheet	insert.spreadsheet	live	no	no	-
+Insert	Tables	Quick Tables	table.quick	live	no	no	-
+Insert	Illustrations	Pictures	insert.picture	live	no	no	-
+Insert	Illustrations	Online Pictures	insert.onlinePicture	missing	no	no	-
+Insert	Illustrations	Shapes	insert.shape	live	no	no	-
+Insert	Illustrations	Icons	insert.icon	live	no	no	-
+Insert	Illustrations	3D Models	insert.model3d	missing	no	no	-
+Insert	Illustrations	SmartArt	insert.smartArt	live	no	no	-
+Insert	Illustrations	Chart	insert.chart	live	partial	no	-
+Insert	Illustrations	Screenshot	insert.screenshot	missing	no	no	-
+Insert	Illustrations	Drawing Canvas	insert.canvas	live	no	no	-
+Insert	Add-ins	Get Add-ins	addins.get	missing	no	no	-
+Insert	Media	Online Video	insert.video	missing	no	no	-
+Insert	Links	Link	insert.link	live	no	no	-
+Insert	Links	Remove Link	insert.removeLink	live	no	no	-
+Insert	Links	Bookmark	insert.bookmark	live	no	no	-
+Insert	Links	Cross-reference	insert.crossReference	live	no	no	-
+Insert	Comments	Comment	review.newComment	live	no	no	-
+Insert	Header & Footer	Header	insert.header	live	no	no	-
+Insert	Header & Footer	Footer	insert.footer	live	no	no	-
+Insert	Header & Footer	Page Number	insert.pageNumber	live	no	no	-
+Insert	Header & Footer	Edit Header	insert.editHeader	live	no	no	-
+Insert	Header & Footer	Edit Footer	insert.editFooter	live	no	no	-
+Insert	Header & Footer	Remove Header	insert.removeHeader	live	no	no	-
+Insert	Header & Footer	Remove Footer	insert.removeFooter	live	no	no	-
+Insert	Header & Footer	Format Page Numbers	layout.pageNumberFormat	live	no	no	-
+Insert	Header & Footer	Close Header and Footer	insert.closeHeader	live	no	no	-
+Insert	Header & Footer	Different First Page	layout.differentFirstPage	live	no	no	-
+Insert	Header & Footer	Different Odd & Even	layout.differentOddEven	live	no	no	-
+Insert	Header & Footer	Link to Previous	layout.linkToPrevious	live	no	no	-
+Insert	Text	Text Box	insert.textBox	live	no	no	-
+Insert	Text	Quick Parts	insert.quickParts	live	no	no	-
+Insert	Text	AutoText	insert.autoText	live	no	no	-
+Insert	Text	Document Property	insert.docProperty	live	no	no	-
+Insert	Text	Field	insert.field	live	no	no	-
+Insert	Text	WordArt	insert.wordArt	live	no	no	-
+Insert	Text	Drop Cap	insert.dropCap	live	no	no	-
+Insert	Text	Signature Line	insert.signatureLine	live	no	no	-
+Insert	Text	Date & Time	insert.dateTime	live	no	no	-
+Insert	Text	Object	insert.object	live	no	no	-
+Insert	Text	Text from File	insert.textFromFile	live	no	no	-
+Insert	Symbols	Equation	insert.equation	live	no	no	-
+Insert	Symbols	Ink Equation	insert.inkEquation	missing	no	no	-
+Insert	Symbols	Symbol	insert.symbol	live	no	no	-
+Insert	Symbols	Nonbreaking Space	text.nbsp	live	no	no	-
+Insert	Symbols	Nonbreaking Hyphen	text.nbHyphen	live	no	no	-
+Insert	Symbols	Optional Hyphen	text.optionalHyphen	live	no	no	-
+Draw	Tools	Select	draw.select	live	no	no	-
+Draw	Tools	Lasso Select	draw.lasso	live	no	no	-
+Draw	Tools	Eraser	draw.eraser	live	no	no	-
+Draw	Pens	Pen	draw.pen	live	no	no	-
+Draw	Pens	Pencil	draw.pencil	live	no	no	-
+Draw	Pens	Highlighter	draw.highlighter	live	no	no	-
+Draw	Pens	Add Pen	draw.addPen	live	no	no	-
+Draw	Convert	Ink to Shape	draw.inkToShape	live	no	no	-
+Draw	Convert	Ink to Math	draw.inkToMath	missing	no	no	-
+Draw	Insert	Drawing Canvas	insert.canvas	live	no	no	-
+Draw	Replay	Ink Replay	draw.replay	live	no	no	-
+Design	Document Formatting	Themes	design.theme	live	no	no	-
+Design	Document Formatting	Style Set	design.styleSet	live	no	no	-
+Design	Document Formatting	Colors	design.themeColors	live	no	no	-
+Design	Document Formatting	Fonts	design.themeFonts	live	no	no	-
+Design	Document Formatting	Paragraph Spacing	design.paragraphSpacing	live	no	no	-
+Design	Document Formatting	Effects	design.effects	live	no	no	-
+Design	Document Formatting	Set as Default	design.setDefault	live	no	no	-
+Design	Page Background	Watermark	design.watermark	live	no	no	-
+Design	Page Background	Page Color	design.pageColor	live	no	no	-
+Design	Page Background	Page Borders	design.pageBorders	live	no	no	-
+Layout	Page Setup	Margins	layout.margins	live	no	no	-
+Layout	Page Setup	Orientation	layout.orientation	live	no	no	-
+Layout	Page Setup	Size	layout.size	live	no	no	-
+Layout	Page Setup	Columns	layout.columns	live	no	no	-
+Layout	Page Setup	Breaks	layout.break	live	no	no	-
+Layout	Page Setup	Line Numbers	layout.lineNumbers	live	no	no	-
+Layout	Page Setup	Hyphenation	layout.hyphenation	live	no	no	-
+Layout	Page Setup	Page Setup Dialog	layout.pageSetup	live	no	no	-
+Layout	Page Setup	Vertical Alignment	layout.verticalAlign	live	no	no	-
+Layout	Page Setup	Document Grid	layout.documentGrid	live	no	no	-
+Layout	Page Setup	Section Direction	layout.sectionRtl	live	no	no	-
+Layout	Page Setup	Text Direction	layout.textDirection	live	no	no	-
+Layout	Paragraph	Indent	para.indents	live	no	no	-
+Layout	Paragraph	Spacing	para.spacing	live	no	no	-
+Layout	Arrange	Position	arrange.position	live	no	no	-
+Layout	Arrange	Wrap Text	arrange.wrap	live	no	no	-
+Layout	Arrange	Bring Forward	arrange.bringForward	live	no	no	-
+Layout	Arrange	Send Backward	arrange.sendBackward	live	no	no	-
+Layout	Arrange	Selection Pane	arrange.selectionPane	live	no	no	-
+Layout	Arrange	Align	arrange.align	live	no	no	-
+Layout	Arrange	Group	arrange.group	live	no	no	-
+Layout	Arrange	Rotate	arrange.rotate	live	no	no	-
+References	Table of Contents	Table of Contents	references.toc	live	no	no	-
+References	Table of Contents	Add Text	references.addText	live	no	no	-
+References	Table of Contents	Update Table	references.updateToc	live	no	no	-
+References	Table of Contents	Remove Table of Contents	references.removeToc	live	no	no	-
+References	Footnotes	Insert Footnote	references.footnote	live	no	no	-
+References	Footnotes	Insert Endnote	references.endnote	live	no	no	-
+References	Footnotes	Next Footnote	references.nextFootnote	live	no	no	-
+References	Footnotes	Show Notes	references.notes	live	no	no	-
+References	Footnotes	Footnote Options	references.noteOptions	live	no	no	-
+References	Research	Researcher	references.researcher	live	no	no	-
+References	Citations	Insert Citation	references.citation	live	no	no	-
+References	Citations	Manage Sources	references.sources	live	no	no	-
+References	Citations	Style	references.citationStyle	live	no	no	-
+References	Citations	Bibliography	references.bibliography	live	no	no	-
+References	Captions	Insert Caption	references.caption	live	no	no	-
+References	Captions	Insert Table of Figures	references.tableOfFigures	live	no	no	-
+References	Captions	Update Table of Figures	references.updateFigures	live	no	no	-
+References	Captions	Cross-reference	insert.crossReference	live	no	no	-
+References	Index	Mark Entry	references.markEntry	live	no	no	-
+References	Index	Insert Index	references.index	live	no	no	-
+References	Index	Update Index	references.updateIndex	live	no	no	-
+References	Table of Authorities	Mark Citation	references.markCitation	live	no	no	-
+References	Table of Authorities	Insert Table of Authorities	references.tableOfAuthorities	live	no	no	-
+References	Table of Authorities	Update Table	references.updateAuthorities	live	no	no	-
+References	Fields	Update Fields	references.updateFields	live	no	no	-
+Mailings	Create	Envelopes	mailings.envelopes	live	no	no	-
+Mailings	Create	Labels	mailings.labels	live	no	no	-
+Mailings	Start Mail Merge	Start Mail Merge	mailings.start	live	no	no	-
+Mailings	Start Mail Merge	Select Recipients	mailings.recipients	live	no	no	-
+Mailings	Start Mail Merge	Edit Recipient List	mailings.editRecipients	live	no	no	-
+Mailings	Write & Insert Fields	Highlight Merge Fields	mailings.highlightFields	live	no	no	-
+Mailings	Write & Insert Fields	Address Block	mailings.addressBlock	live	no	no	-
+Mailings	Write & Insert Fields	Greeting Line	mailings.greetingLine	live	no	no	-
+Mailings	Write & Insert Fields	Insert Merge Field	mailings.insertField	live	no	no	-
+Mailings	Write & Insert Fields	Rules	mailings.rules	live	no	no	-
+Mailings	Write & Insert Fields	Match Fields	mailings.matchFields	live	no	no	-
+Mailings	Preview Results	Preview Results	mailings.preview	live	no	no	-
+Mailings	Preview Results	Next Record	mailings.next	live	no	no	-
+Mailings	Preview Results	Previous Record	mailings.previous	live	no	no	-
+Mailings	Preview Results	Find Recipient	mailings.findRecipient	live	no	no	-
+Mailings	Preview Results	Check for Errors	mailings.checkErrors	live	no	no	-
+Mailings	Finish	Finish & Merge	mailings.finish	live	no	no	-
+Review	Proofing	Spelling & Grammar	review.spelling	live	no	no	-
+Review	Proofing	Thesaurus	review.thesaurus	live	no	no	-
+Review	Proofing	Word Count	review.wordCount	live	no	no	-
+Review	Speech	Read Aloud	review.readAloud	live	no	no	-
+Review	Accessibility	Check Accessibility	file.accessibility	live	no	no	-
+Review	Accessibility	Alt Text	view.altTextPane	live	no	no	-
+Review	Language	Translate	review.translate	missing	no	no	-
+Review	Language	Language	review.language	live	no	no	-
+Review	Comments	New Comment	review.newComment	live	no	no	-
+Review	Comments	Delete	review.deleteComment	live	no	no	-
+Review	Comments	Previous	review.previousComment	live	no	no	-
+Review	Comments	Next	review.nextComment	live	no	no	-
+Review	Comments	Show Comments	review.comments	live	no	no	-
+Review	Comments	Resolve	review.resolveComment	live	no	no	-
+Review	Comments	Reply	review.reply	live	no	no	-
+Review	Tracking	Track Changes	review.trackChanges	live	no	no	-
+Review	Tracking	Display for Review	review.markup	live	no	no	-
+Review	Tracking	Show Markup	review.showMarkup	live	no	no	-
+Review	Tracking	Reviewing Pane	review.changes	live	no	no	-
+Review	Tracking	Track Changes Options	review.trackingOptions	live	no	no	-
+Review	Changes	Accept	review.accept	live	no	no	-
+Review	Changes	Reject	review.reject	live	no	no	-
+Review	Changes	Accept All	review.acceptAll	live	no	no	-
+Review	Changes	Reject All	review.rejectAll	live	no	no	-
+Review	Changes	Previous Change	review.previousChange	live	no	no	-
+Review	Changes	Next Change	review.nextChange	live	no	no	-
+Review	Compare	Compare	review.compare	live	no	no	-
+Review	Compare	Combine	review.combine	live	no	no	-
+Review	Protect	Block Authors	review.blockAuthors	missing	no	no	-
+Review	Protect	Restrict Editing	review.restrict	live	no	no	-
+Review	Ink	Hide Ink	review.hideInk	live	no	no	-
+View	Views	Read Mode	view.readMode	live	no	no	-
+View	Views	Print Layout	view.printLayout	live	no	no	-
+View	Views	Web Layout	view.webLayout	live	no	no	-
+View	Views	Outline	view.outline	live	no	no	-
+View	Views	Draft	view.draft	live	no	no	-
+View	Immersive	Focus	view.focus	live	no	no	-
+View	Immersive	Immersive Reader	view.immersive	live	no	no	-
+View	Page Movement	Vertical	view.vertical	live	no	no	-
+View	Page Movement	Side to Side	view.sideToSide	live	no	no	-
+View	Show	Ruler	view.ruler	live	no	no	-
+View	Show	Gridlines	view.gridlines	live	no	no	-
+View	Show	Navigation Pane	view.navigationPane	live	no	no	-
+View	Zoom	Zoom	view.zoom	live	partial	no	-
+View	Zoom	100%	view.zoom100	live	no	no	-
+View	Zoom	One Page	view.onePage	live	no	no	-
+View	Zoom	Multiple Pages	view.multiplePages	live	no	no	-
+View	Zoom	Page Width	view.pageWidth	live	no	no	-
+View	Zoom	Zoom In	view.zoomIn	live	partial	no	-
+View	Zoom	Zoom Out	view.zoomOut	live	partial	no	-
+View	Dark Mode	Switch Modes	view.darkMode	live	no	no	-
+View	Window	New Window	view.newWindow	live	no	no	-
+View	Window	Arrange All	view.arrangeAll	missing	no	no	-
+View	Window	Split	view.split	live	no	no	-
+View	Window	View Side by Side	view.sideBySide	missing	no	no	-
+View	Window	Synchronous Scrolling	view.syncScroll	missing	no	no	-
+View	Window	Switch Windows	view.switchWindows	missing	no	no	-
+View	Macros	Macros	tools.macros	live	no	no	-
+View	Macros	Record Macro	tools.recordMacro	live	no	no	-
+View	SharePoint	Properties	file.properties	live	no	no	-
+Developer	Controls	Rich Text Content Control	developer.richText	live	no	no	-
+Developer	Controls	Plain Text Content Control	developer.plainText	live	no	no	-
+Developer	Controls	Picture Content Control	developer.picture	live	no	no	-
+Developer	Controls	Building Block Gallery Content Control	developer.buildingBlock	live	no	no	-
+Developer	Controls	Check Box Content Control	developer.checkBox	live	no	no	-
+Developer	Controls	Combo Box Content Control	developer.comboBox	live	no	no	-
+Developer	Controls	Drop-Down List Content Control	developer.dropDown	live	no	no	-
+Developer	Controls	Date Picker Content Control	developer.datePicker	live	no	no	-
+Developer	Controls	Repeating Section Content Control	developer.repeatingSection	live	no	no	-
+Developer	Controls	Design Mode	developer.designMode	live	no	no	-
+Developer	Controls	Properties	developer.properties	live	no	no	-
+Table Design	Table Style Options	Table Style Options	table.look	live	no	no	-
+Table Design	Table Styles	Table Styles	table.style	live	no	no	-
+Table Design	Table Styles	New Table Style	table.newStyle	live	no	no	-
+Table Design	Table Styles	Modify Table Style	table.modifyStyle	live	no	no	-
+Table Design	Table Styles	Delete Table Style	table.deleteStyle	live	no	no	-
+Table Design	Table Styles	Shading	table.shading	live	no	no	-
+Table Design	Borders	Borders	table.borders	live	no	no	-
+Table Design	Borders	Border Painter	table.borderPainter	live	no	no	-
+Table Layout	Table	Select Table	table.selectTable	live	no	no	-
+Table Layout	Table	Select Row	table.selectRow	live	no	no	-
+Table Layout	Table	Select Column	table.selectColumn	live	no	no	-
+Table Layout	Table	Select Cell	table.selectCell	live	no	no	-
+Table Layout	Table	View Gridlines	table.viewGridlines	live	no	no	-
+Table Layout	Table	Properties	table.properties	live	no	no	-
+Table Layout	Table	Alt Text	table.altText	live	no	no	-
+Table Layout	Table	Table Direction	table.rtl	live	no	no	-
+Table Layout	Draw	Draw Table	table.draw	live	no	no	-
+Table Layout	Draw	Eraser	table.eraser	live	no	no	-
+Table Layout	Rows & Columns	Delete Cells	table.deleteCells	live	no	no	-
+Table Layout	Rows & Columns	Delete Rows	table.deleteRow	live	partial	no	-
+Table Layout	Rows & Columns	Delete Columns	table.deleteColumn	live	no	no	-
+Table Layout	Rows & Columns	Delete Table	table.deleteTable	live	no	no	-
+Table Layout	Rows & Columns	Insert Above	table.insertRowAbove	live	no	no	-
+Table Layout	Rows & Columns	Insert Below	table.insertRowBelow	live	partial	no	-
+Table Layout	Rows & Columns	Insert Left	table.insertColumnLeft	live	no	no	-
+Table Layout	Rows & Columns	Insert Right	table.insertColumnRight	live	no	no	-
+Table Layout	Merge	Merge Cells	table.merge	live	no	no	-
+Table Layout	Merge	Split Cells	table.split	live	no	no	-
+Table Layout	Merge	Split Table	table.splitTable	live	no	no	-
+Table Layout	Cell Size	AutoFit	table.autofit	live	no	no	-
+Table Layout	Cell Size	Row Height	table.rowHeight	live	no	no	-
+Table Layout	Cell Size	Column Width	table.columnWidth	live	no	no	-
+Table Layout	Cell Size	Distribute Rows	table.distributeRows	live	no	no	-
+Table Layout	Cell Size	Distribute Columns	table.distributeColumns	live	no	no	-
+Table Layout	Alignment	Alignment	table.cellAlign	live	no	no	-
+Table Layout	Alignment	Text Direction	table.textDirection	live	no	no	-
+Table Layout	Alignment	Cell Margins	table.cellMargins	live	no	no	-
+Table Layout	Data	Sort	table.sort	live	no	no	-
+Table Layout	Data	Repeat Header Rows	table.repeatHeader	live	no	no	-
+Table Layout	Data	Convert to Text	table.toText	live	no	no	-
+Table Layout	Data	Formula	table.formula	live	no	no	-
+Equation	Tools	Equation	insert.equation	live	no	no	-
+Equation	Tools	Ink Equation	insert.inkEquation	missing	no	no	-
+Equation	Conversions	Unicode	equation.inputFormat	live	no	no	-
+Equation	Conversions	LaTeX	equation.inputFormat	live	no	no	-
+Equation	Conversions	Convert	equation.convert	live	no	no	-
+Equation	Conversions	Normal Text	equation.normalText	live	no	no	-
+Equation	Symbols	Symbols	equation.insertSymbol	live	no	no	-
+Equation	Structures	Fraction	equation.insertStructure	live	no	no	-
+Equation	Structures	Script	equation.insertStructure	live	no	no	-
+Equation	Structures	Radical	equation.insertStructure	live	no	no	-
+Equation	Structures	Integral	equation.insertStructure	live	no	no	-
+Equation	Structures	Large Operator	equation.insertStructure	live	no	no	-
+Equation	Structures	Bracket	equation.insertStructure	live	no	no	-
+Equation	Structures	Function	equation.insertStructure	live	no	no	-
+Equation	Structures	Accent	equation.insertStructure	live	no	no	-
+Equation	Structures	Limit and Log	equation.insertStructure	live	no	no	-
+Equation	Structures	Operator	equation.insertStructure	live	no	no	-
+Equation	Structures	Matrix	equation.insertStructure	live	no	no	-
+Equation	Equation Options	Change to Inline / Display	equation.display	live	no	no	-
+Equation	Equation Options	Justification	equation.justify	live	no	no	-
+Equation	Equation Options	Equation Number (#)	equation.number	live	no	no	-
+Equation	Equation Options	Structure Commands	equation.structure	live	no	no	-
+Outlining	Outline Tools	Promote to Heading 1	outline.promoteToHeading1	live	no	no	-
+Outlining	Outline Tools	Promote	outline.promote	live	no	no	-
+Outlining	Outline Tools	Outline Level	outline.level	live	no	no	-
+Outlining	Outline Tools	Demote	outline.demote	live	no	no	-
+Outlining	Outline Tools	Demote to Body Text	outline.demoteToBody	live	no	no	-
+Outlining	Outline Tools	Move Up	outline.moveUp	live	no	no	-
+Outlining	Outline Tools	Move Down	outline.moveDown	live	no	no	-
+Outlining	Outline Tools	Expand	outline.expand	live	no	no	-
+Outlining	Outline Tools	Collapse	outline.collapse	live	no	no	-
+Outlining	Outline Tools	Show Level	outline.showLevel	live	no	no	-
+Outlining	Outline Tools	Show Text Formatting	outline.showFormatting	live	no	no	-
+Outlining	Outline Tools	Show First Line Only	outline.firstLineOnly	live	no	no	-
+Outlining	Close	Close Outline View	outline.close	live	no	no	-
+Picture Format	Adjust	Remove Background	picture.removeBackground	live	no	no	-
+Picture Format	Adjust	Corrections	picture.corrections	live	no	no	-
+Picture Format	Adjust	Color	picture.color	live	no	no	-
+Picture Format	Adjust	Artistic Effects	picture.effects	live	no	no	-
+Picture Format	Adjust	Transparency	picture.transparency	live	no	no	-
+Picture Format	Adjust	Compress Pictures	picture.compress	live	no	no	-
+Picture Format	Adjust	Change Picture	picture.change	live	no	no	-
+Picture Format	Adjust	Reset Picture	picture.reset	live	no	no	-
+Picture Format	Picture Styles	Picture Styles	picture.style	live	no	no	-
+Picture Format	Picture Styles	Picture Border	picture.border	live	no	no	-
+Picture Format	Accessibility	Alt Text	picture.altText	live	no	no	-
+Shape Format	Accessibility	Alt Text	object.altText	live	no	no	-
+Picture Format	Size	Crop	picture.crop	live	no	no	-
+Picture Format	Size	Size	picture.size	live	no	no	-
+Picture Format	Size	Rotation	arrange.rotation	live	no	no	-
+SmartArt Design	Create Graphic	Add Shape	smartArt.addShape	live	no	no	-
+SmartArt Design	Create Graphic	Promote	smartArt.promote	live	no	no	-
+SmartArt Design	Create Graphic	Demote	smartArt.demote	live	no	no	-
+SmartArt Design	Create Graphic	Text Pane	smartArt.textPane	live	no	no	-
+SmartArt Design	Layouts	Layouts	smartArt.layout	live	no	no	-
+SmartArt Design	SmartArt Styles	Change Colors	smartArt.colors	live	no	no	-
+SmartArt Design	Reset	Reset Graphic	smartArt.reset	live	no	no	-
+Chart Design	Type	Change Chart Type	chart.type	live	no	no	-
+Chart Design	Data	Edit Data	chart.editData	live	no	no	-
+Chart Design	Chart Layouts	Chart Title	chart.title	live	no	no	-
+Chart Design	Chart Layouts	Legend	chart.legend	live	no	no	-
+Chart Design	Chart Layouts	Data Labels	chart.dataLabels	live	no	no	-
+Shape Format	Shape Styles	Shape Fill	shape.fill	live	no	no	-
+Shape Format	Shape Styles	Shape Outline	shape.outline	live	no	no	-
+Shape Format	Shape Styles	Shape Effects	shape.effects	live	no	no	-
+Shape Format	WordArt Styles	WordArt Quick Styles	wordArt.style	live	no	no	-
+Shape Format	WordArt Styles	Text Fill	wordArt.textFill	live	no	no	-
+Shape Format	WordArt Styles	Text Outline	wordArt.textOutline	live	no	no	-
+Shape Format	WordArt Styles	Text Effects Transform	wordArt.transform	live	no	no	-
+Shape Format	Text	Text Direction	shape.textDirection	live	no	no	-
+Shape Format	Text	Align Text	shape.alignText	live	no	no	-
+Shape Format	Text	Create Link	shape.link	live	no	no	-
+Header & Footer	Navigation	Go to Header	insert.editHeader	live	no	no	-
+Header & Footer	Navigation	Go to Footer	insert.editFooter	live	no	no	-
+Header & Footer	Navigation	Previous Section	hf.previous	live	no	no	-
+Header & Footer	Navigation	Next Section	hf.next	live	no	no	-
+Header & Footer	Position	Header from Top	hf.position	live	no	no	-
+Editing	Keyboard	Type Text	text.insert	live	no	no	-
+Editing	Keyboard	New Paragraph	text.newParagraph	live	no	no	-
+Editing	Keyboard	Line Break	text.lineBreak	live	no	no	-
+Editing	Keyboard	Column Break	text.columnBreak	live	no	no	-
+Editing	Keyboard	Tab	text.tab	live	no	no	-
+Editing	Keyboard	Backspace	text.backspace	live	no	no	-
+Editing	Keyboard	Delete	text.delete	live	no	no	-
+Editing	Keyboard	Delete Previous Word	text.deleteWordBack	live	no	no	-
+Editing	Keyboard	Delete Next Word	text.deleteWordForward	live	no	no	-
+Editing	Keyboard	Move Paragraph Up	para.moveUp	live	no	no	-
+Editing	Keyboard	Move Paragraph Down	para.moveDown	live	no	no	-
+Editing	Keyboard	Promote	para.promote	live	no	no	-
+Editing	Keyboard	Demote	para.demote	live	no	no	-
+Editing	Keyboard	Toggle Unicode Character	text.toggleUnicode	live	no	no	-
+Editing	Navigation	Word Left	caret.wordLeft	live	no	no	-
+Editing	Navigation	Word Right	caret.wordRight	live	no	no	-
+Editing	Navigation	Line Start	caret.home	live	no	no	-
+Editing	Navigation	Line End	caret.end	live	no	no	-
+Editing	Navigation	Paragraph Up	caret.paraUp	live	no	no	-
+Editing	Navigation	Paragraph Down	caret.paraDown	live	no	no	-
+Editing	Navigation	Document Start	caret.docStart	live	no	no	-
+Editing	Navigation	Document End	caret.docEnd	live	no	no	-
+Editing	Navigation	Page Up	caret.pageUp	live	no	no	-
+Editing	Navigation	Page Down	caret.pageDown	live	no	no	-
+Editing	Navigation	Go Back	edit.goBack	live	no	no	-
+Editing	Selection	Select Word	select.word	live	no	no	-
+Editing	Selection	Select Sentence	select.sentence	live	no	no	-
+Editing	Selection	Select Paragraph	select.paragraph	live	no	no	-
+Editing	Selection	Extend Selection (F8)	select.extend	live	no	no	-
+Editing	Selection	Column Selection	select.column	live	no	no	-
+Editing	Fields	Show Field Codes	view.fieldCodes	live	no	no	-
+Editing	Fields	Toggle Field Codes	fields.toggleCode	live	no	no	-
+Editing	Fields	Edit Field Code	fields.setCode	live	no	no	-
+Editing	Fields	Unlink Fields	fields.unlink	live	no	no	-
+Editing	Fields	Lock Fields	fields.lock	live	no	no	-
+Editing	Fields	Unlock Fields	fields.unlock	live	no	no	-
+Editing	Fields	Next Field	fields.next	live	no	no	-
+Editing	Fields	Previous Field	fields.previous	live	no	no	-
+Tools	Proofing	AutoCorrect Options	tools.autocorrect	live	no	no	-
+Tools	Proofing	Set Proofing Language	review.language	live	no	no	-
+Tools	Customize	Customize Ribbon	tools.customizeRibbon	live	no	no	-
+Tools	Customize	Customize Keyboard	tools.customizeKeyboard	live	no	no	-
+Tools	Protection	Encrypt with Password	file.encrypt	live	no	no	-
+Tools	Templates	Templates and Add-ins	tools.templates	live	no	no	-
