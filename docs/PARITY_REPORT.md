@@ -10,15 +10,15 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | File | 22 | 22 | 1.5 | 3 |
 | Quick Access | 5 | 5 | 2 | 2 |
 | Title Bar | 1 | 1 | 0 | 0 |
-| Home | 103 | 102 | 13 | 13 |
+| Home | 103 | 102 | 13 | 23 |
 | Insert | 53 | 47 | 1 | 0.5 |
 | Draw | 11 | 10 | 0 | 0 |
 | Design | 10 | 10 | 0 | 0 |
 | Layout | 22 | 22 | 0 | 0 |
 | References | 25 | 25 | 0 | 0 |
 | Mailings | 17 | 17 | 0 | 0 |
-| Review | 31 | 29 | 0 | 0 |
-| View | 29 | 25 | 1.5 | 0 |
+| Review | 31 | 29 | 0 | 0.5 |
+| View | 29 | 25 | 1.5 | 6 |
 | Developer | 11 | 11 | 0 | 0 |
 | Table Design | 8 | 8 | 0 | 0 |
 | Table Layout | 33 | 33 | 1 | 0 |
@@ -31,7 +31,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Header & Footer | 5 | 5 | 0 | 0 |
 | Editing | 38 | 38 | 0 | 0 |
 | Tools | 6 | 6 | 0 | 0 |
-| **Total** | **502** | **487 (97.0%)** | **20 (4.0%)** | **18.5 (3.7%)** |
+| **Total** | **502** | **487 (97.0%)** | **20 (4.0%)** | **35 (7.0%)** |
 
 ## OOXML read and write (C2, C3)
 
@@ -73,7 +73,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 
 | id | metric | unit | better | WordCraft | Ranger docx_viewer | RangerDocx | target |
 |---|---|---|---|---:|---:|---:|---:|
-| C1 | Ribbon/menu catalog features with a working command | count of 502 | higher | 487 | 20 | 18.5 | 300 |
+| C1 | Ribbon/menu catalog features with a working command | count of 502 | higher | 487 | 20 | 35 | 300 |
 | C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 13.5 | 40 |
 | C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 14 | 35 |
 | C4 | Typing-behaviour scenarios that pass | count of 42 | higher | 42 | 0 | 0 | 30 |
@@ -88,10 +88,10 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | P3 | Scroll frame, 1,096-page table document | ms | lower | 4.5 | unmeasured | unmeasured | 16 |
 | U1 | Ribbon tabs present | count of 24 | higher | 24 | 0 | 0 | 10 |
 | U2 | Modal dialogs | count (Word ~100) | higher | 54 | 2 | 2 | 25 |
-| U3 | Side panes (navigation, styles, comments...) | count | higher | 7 | 0 | 0 | 3 |
+| U3 | Side panes (navigation, styles, comments...) | count | higher | 7 | 0 | 1 | 3 |
 | R1 | Hostile inputs that crash or hang | count | lower | 0 | unmeasured | unmeasured | 0 |
 | R2 | Fuzz iterations without a crash | count | higher | 0 | 0 | 0 | 100000 |
 | X1 | Other formats read or written (PDF, RTF, ODT, HTML, MD, TXT, LaTeX, .doc) | count of 8 | higher | 8 | 1 | 1 | 4 |
 | A1 | Accessibility tree for the document canvas | yes/no | higher | 1 | 1 | 1 | 1 |
-| T1 | Automated tests | count | higher | 1930 | unmeasured | 705 checks | 500 |
+| T1 | Automated tests | count | higher | 1930 | unmeasured | 757 checks | 500 |
 

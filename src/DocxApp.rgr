@@ -34,6 +34,7 @@ Import "DocxA11y.rgr"
 Import "pkg:evg_window/EVGToolbarView.rgr"
 Import "pkg:evg_window/EVGWindow.rgr"
 Import "pkg:evg/EVGCommands.rgr"
+Import "DocxChrome.rgr"
 
 ; Which buttons a document has. The strip itself is shared; this is the only
 ; part that is about documents.
@@ -217,8 +218,102 @@ class DocxApp {
     ; Ctrl+wheel moves it, and everything that maps a press back onto the
     ; paper divides by it.
     def zoom:double 1.0
+    ; --- the word-processor frame (DocxChrome) ------------------------------------
+    ;
+    ; Off, the app is the compact strip every editor here shares — what the
+    ; markdown page's DOCX tab and the tests use. On, it is a word processor's
+    ; frame: a title bar, a ribbon of grouped commands, the navigation pane,
+    ; both rulers and a status bar with a zoom slider.
+    def ribbonUi:boolean false
+    def ribbon:DocxRibbon (new DocxRibbon)
+    def nav:DocxNavPane (new DocxNavPane)
+    def chrome:DocxChromePainter (new DocxChromePainter)
+    def titleH:int 44
+    def showRuler:boolean true
+    def vRulerW:int 18
+    def docName:string ""
+    def openedRevision:int 0
+    ; Text a Copy or Cut button took, for the host to put on the clipboard —
+    ; announced through `fileRequest` = "copy".
+    def clipboardOut:string ""
+    def sliderDrag:boolean false
+    ; Which part of the title bar the pointer is over: 1 search, 2 download,
+    ; 3 save, 4 undo, 5 redo.
+    def titleHot:int -1
+    def lastPx:int 0
+    def lastPy:int 0
+    def wordCountRev:int -1
+    def wordCountVal:int 0
 
     Constructor () {
+    }
+
+    fn setRibbonUi:void (on:boolean) {
+        ribbonUi = on
+        if on {
+            statusH = 28
+            toolbar.hot = -1
+        } {
+            statusH = 22
+        }
+    }
+
+    ; The file has just been opened: nothing in it is an edit yet.
+    fn markOpened:void (name:string) {
+        docName = name
+        openedRevision = viewer.doc.revision
+        nav.markDirty()
+    }
+
+    fn chromeTop:int () {
+        if ribbonUi {
+            return (titleH + (ribbon.height()))
+        }
+        return toolbarH
+    }
+
+    fn rulerShown:boolean () {
+        if ribbonUi {
+            return showRuler
+        }
+        return true
+    }
+
+    fn navRight:int () {
+        if ribbonUi {
+            if nav.visible {
+                return nav.w
+            }
+        }
+        return 0
+    }
+
+    ; Where the desk the pages lie on starts: after the pane and the vertical
+    ; ruler.
+    fn deskLeft:int () {
+        if (ribbonUi == false) {
+            return 0
+        }
+        def x:int (this.navRight())
+        if showRuler {
+            x = (x + vRulerW)
+        }
+        return x
+    }
+
+    ; The paper's left edge, centred on the desk.
+    fn centrePage:int (pw:int) {
+        def dl:int (this.deskLeft())
+        def x:int (dl + (idiv ((W - dl) - pw) 2))
+        if (x < (dl + 8)) {
+            if (dl > 0) {
+                x = (dl + 8)
+            }
+        }
+        if (x < 0) {
+            x = 0
+        }
+        return x
     }
 
     fn setContinuous:void (on:boolean) {
@@ -425,6 +520,20 @@ class DocxApp {
         commands.addArg("page.goto" "Go to page" "View" "")
         commands.add("view.rtl" "Right-to-left layout" "View" "")
         commands.add("file.print" "Print" "File" "Ctrl+P")
+        commands.add("file.open" "Open" "File" "Ctrl+O")
+        commands.add("edit.copy" "Copy" "Edit" "Ctrl+C")
+        commands.add("edit.cut" "Cut" "Edit" "Ctrl+X")
+        commands.add("edit.paste" "Paste" "Edit" "Ctrl+V")
+        commands.add("edit.find" "Find" "Edit" "Ctrl+F")
+        commands.add("edit.selectAll" "Select all" "Edit" "Ctrl+A")
+        commands.addArg("para.align" "Align paragraph" "Format" "")
+        commands.addArg("format.style" "Paragraph style" "Format" "")
+        commands.add("view.nav" "Navigation pane" "View" "")
+        commands.add("view.ruler" "Ruler" "View" "")
+        commands.add("view.continuous" "Print layout" "View" "")
+        commands.add("view.zoom.in" "Zoom in" "View" "")
+        commands.add("view.zoom.out" "Zoom out" "View" "")
+        commands.add("view.zoom.reset" "Zoom 100%" "View" "")
     }
 
     ; --- geometry -------------------------------------------------------------
@@ -433,9 +542,9 @@ class DocxApp {
     ; section is a different page — and the indents change with every
     ; keystroke that moves the caret into another paragraph.
     fn syncRuler:void (pw:int) {
-        ruler.x = 0
-        ruler.y = toolbarH
-        ruler.w = W
+        ruler.x = (this.navRight())
+        ruler.y = (this.chromeTop())
+        ruler.w = (W - (this.navRight()))
         ruler.h = rulerH
         ruler.pageX = pageX
         ruler.pageW = pw
@@ -486,10 +595,19 @@ class DocxApp {
     }
 
     fn pageTop:int () {
+        if ribbonUi {
+            if showRuler {
+                return ((this.chromeTop()) + rulerH)
+            }
+            return (this.chromeTop())
+        }
         return (toolbarH + rulerH)
     }
 
     fn pageAreaH:int () {
+        if ribbonUi {
+            return ((H - (this.pageTop())) - statusH)
+        }
         return ((H - toolbarH) - statusH)
     }
 
@@ -550,6 +668,51 @@ class DocxApp {
         if (id == "file.print") {
             fileRequest = "print"
             return true
+        }
+        if (id == "file.open") {
+            fileRequest = "open"
+            return true
+        }
+        if (id == "edit.copy") {
+            clipboardOut = (viewer.copySelection())
+            fileRequest = "copy"
+            return true
+        }
+        if (id == "edit.cut") {
+            clipboardOut = (viewer.cutSelection())
+            fileRequest = "copy"
+            return true
+        }
+        if (id == "edit.paste") {
+            fileRequest = "paste"
+            return true
+        }
+        if (id == "edit.find") {
+            nav.visible = true
+            nav.mode = 2
+            nav.searchFocused = true
+            return true
+        }
+        if (id == "view.nav") {
+            nav.visible = (nav.visible == false)
+            return true
+        }
+        if (id == "view.ruler") {
+            showRuler = (showRuler == false)
+            return true
+        }
+        if (id == "view.continuous") {
+            this.setContinuous((continuous == false))
+            return true
+        }
+        if (id == "view.zoom.in") {
+            return (this.zoomBy(1.1))
+        }
+        if (id == "view.zoom.out") {
+            return (this.zoomBy((1.0 / 1.1)))
+        }
+        if (id == "view.zoom.reset") {
+            return (this.zoomBy((1.0 / zoom)))
         }
         if (id == "view.rtl") {
             ; Any use of this switch is a decision, and the automatic half
@@ -639,6 +802,20 @@ class DocxApp {
             viewer.edit.toggleRun("underline")
             viewer.renderPage(viewer.currentPage)
             return true
+        }
+        if (id == "edit.selectAll") {
+            viewer.keySelectAll()
+            return true
+        }
+        if (id == "para.align") {
+            def aligned:boolean (viewer.edit.formatParagraphs("align" arg viewer.parser.resolver))
+            viewer.renderPage(viewer.currentPage)
+            return aligned
+        }
+        if (id == "format.style") {
+            def styled:boolean (viewer.edit.formatParagraphs("style" arg viewer.parser.resolver))
+            viewer.renderPage(viewer.currentPage)
+            return styled
         }
         if (id == "format.font") {
             if ((strlen arg) == 0) {
@@ -780,7 +957,7 @@ class DocxApp {
         push labels "Close"
         fontDialog.addButtonRow(ids labels 1491)
         fontDialog.finish()
-        fontDialog.openWithin((idiv (W - fontDialog.w) 2) (toolbarH + 30) W H)
+        fontDialog.openWithin((idiv (W - fontDialog.w) 2) ((this.chromeTop()) + 30) W H)
         windows.raise(fontDialog)
     }
 
@@ -802,7 +979,7 @@ class DocxApp {
         push labels "Close"
         colorDialog.addButtonRow(ids labels 1491)
         colorDialog.finish()
-        colorDialog.openWithin((idiv (W - colorDialog.w) 2) (toolbarH + 30) W H)
+        colorDialog.openWithin((idiv (W - colorDialog.w) 2) ((this.chromeTop()) + 30) W H)
         windows.raise(colorDialog)
     }
 
@@ -873,6 +1050,13 @@ class DocxApp {
     ; onto the notes strip used to leave the button lit, because the notes
     ; took the move before the strip was asked.
     fn pointer:boolean (px:int py:int pressed:boolean down:boolean released:boolean extend:boolean) {
+        lastPx = px
+        lastPy = py
+        if ribbonUi {
+            def hoverChanged:boolean (this.ribbonHover(px py))
+            def tookR:boolean (this.routePointer(px py pressed down released extend))
+            return (tookR || hoverChanged)
+        }
         def wasHot:int toolbar.hot
         toolbar.hot = (toolbar.hit(px py))
         def took:boolean (this.routePointer(px py pressed down released extend))
@@ -887,7 +1071,16 @@ class DocxApp {
             this.pollDialogs()
             return true
         }
-        if pressed {
+        if ribbonUi {
+            def r:int (this.chromePointer(px py pressed down released))
+            if (r == 1) {
+                return true
+            }
+            if (r == 2) {
+                return false
+            }
+        }
+        if (pressed && (ribbonUi == false)) {
             ; A press on a page name shows that page. Checked before the
             ; buttons, because the two rows are one strip and the names sit
             ; where a button never does.
@@ -907,50 +1100,63 @@ class DocxApp {
                 this.runCommand(t.command t.arg)
                 return true
             }
-            if (py >= (this.pageTop())) {
-                if (py < (H - statusH)) {
-                    if continuous {
-                        ; The page under the press becomes the viewer's page
-                        ; first, because the viewer's hit test only knows the
-                        ; page it is on. A press on the gap between two pages
-                        ; is a press on the desk.
-                        this.syncPages()
-                        def hit:int (this.pageAtFrameY(py))
-                        if (hit < 0) {
-                            pageDrag = false
-                            return true
-                        }
-                        if (hit != viewer.currentPage) {
-                            viewer.goToPage(hit)
-                        }
-                    }
-                    def lx:int (this.paperX(px))
-                    def ly:int (this.paperY(py))
-                    ; A handle on the selected drawing's frame takes the
-                    ; press before anything: it sits just outside the
-                    ; drawing, on what would otherwise be the text beside it.
-                    if (viewer.beginDrawingDrag(lx ly)) {
-                        drawingDrag = true
+            return (this.pressPage(px py extend))
+        }
+        if pressed {
+            return (this.pressPage(px py extend))
+        }
+        return (this.dragPage(px py down released))
+    }
+
+    ; A press under the chrome: on the paper, a caret, a drawing or a chart;
+    ; on the desk, nothing.
+    fn pressPage:boolean (px:int py:int extend:boolean) {
+        if (py >= (this.pageTop())) {
+            if (py < (H - statusH)) {
+                if continuous {
+                    ; The page under the press becomes the viewer's page
+                    ; first, because the viewer's hit test only knows the
+                    ; page it is on. A press on the gap between two pages
+                    ; is a press on the desk.
+                    this.syncPages()
+                    def hit:int (this.pageAtFrameY(py))
+                    if (hit < 0) {
                         pageDrag = false
                         return true
                     }
-                    ; A chart or a drawing takes the click before the caret
-                    ; does — it is an object on the page rather than a place
-                    ; in the text.
-                    if ((viewer.clickChart(lx ly)) == false) {
-                        if ((viewer.clickDrawing(lx ly)) == false) {
-                            viewer.clickAt(lx ly extend)
-                        }
+                    if (hit != viewer.currentPage) {
+                        viewer.goToPage(hit)
                     }
-                    ; The press is the anchor; every move until the button
-                    ; comes up drags the other end of the selection.
-                    pageDrag = true
+                }
+                def lx:int (this.paperX(px))
+                def ly:int (this.paperY(py))
+                ; A handle on the selected drawing's frame takes the
+                ; press before anything: it sits just outside the
+                ; drawing, on what would otherwise be the text beside it.
+                if (viewer.beginDrawingDrag(lx ly)) {
+                    drawingDrag = true
+                    pageDrag = false
                     return true
                 }
+                ; A chart or a drawing takes the click before the caret
+                ; does — it is an object on the page rather than a place
+                ; in the text.
+                if ((viewer.clickChart(lx ly)) == false) {
+                    if ((viewer.clickDrawing(lx ly)) == false) {
+                        viewer.clickAt(lx ly extend)
+                    }
+                }
+                ; The press is the anchor; every move until the button
+                ; comes up drags the other end of the selection.
+                pageDrag = true
+                return true
             }
-            pageDrag = false
-            return false
         }
+        pageDrag = false
+        return false
+    }
+
+    fn dragPage:boolean (px:int py:int down:boolean released:boolean) {
         if released {
             if drawingDrag {
                 viewer.dragDrawingTo((this.paperX(px)) (this.paperY(py)))
@@ -982,6 +1188,149 @@ class DocxApp {
         return false
     }
 
+    ; --- the word-processor frame's pointer ---------------------------------------
+    ; Which button, tab, title-bar part and pane row the pointer is over.
+    ; Answers whether any of that changed, which is a reason to redraw.
+    fn ribbonHover:boolean (px:int py:int) {
+        def was:string ((to_string ribbon.hot) + "," + (to_string ribbon.hotTab) + "," + (to_string nav.hot) + "," + (to_string titleHot))
+        ribbon.hot = (ribbon.hit(px py))
+        ribbon.hotTab = (ribbon.hitTab(px py))
+        nav.hot = -1
+        if ((nav.hitPart(px py)) == 10) {
+            nav.hot = (nav.entryAt(py))
+        }
+        titleHot = (this.titlePart(px py))
+        def now:string ((to_string ribbon.hot) + "," + (to_string ribbon.hotTab) + "," + (to_string nav.hot) + "," + (to_string titleHot))
+        return (was != now)
+    }
+
+    fn titlePart:int (px:int py:int) {
+        if ((py < 8) || (py >= 36)) {
+            return -1
+        }
+        if ((px >= ((W - 120) - 12)) && (px < (W - 12))) {
+            return 2
+        }
+        def sx:int ((W - 260) - 150)
+        if ((px >= sx) && (px < (sx + 260))) {
+            return 1
+        }
+        if ((px >= 48) && (px < 76)) { return 3 }
+        if ((px >= 78) && (px < 106)) { return 4 }
+        if ((px >= 108) && (px < 136)) { return 5 }
+        return -1
+    }
+
+    fn pillHit:boolean (px:int py:int) {
+        def y0:int titleH
+        def px0:int (W - (104 + 14))
+        return ((((px >= px0) && (px < (px0 + 104))) && (py >= (y0 + 5))) && (py < (y0 + 31)))
+    }
+
+    ; 1 the chrome took it, 2 the chrome ate it without changing anything,
+    ; 0 it is the page's.
+    fn chromePointer:int (px:int py:int pressed:boolean down:boolean released:boolean) {
+        def sy:int (H - statusH)
+        if sliderDrag {
+            if (down || released) {
+                this.zoomBy(((chrome.zoomAtSlider(W px)) / zoom))
+                if released {
+                    sliderDrag = false
+                }
+                return 1
+            }
+        }
+        if (pressed == false) {
+            return 0
+        }
+        if (py >= sy) {
+            def sx:int (chrome.sliderX(W))
+            if ((px >= (sx - 4)) && (px < (sx + 124))) {
+                sliderDrag = true
+                this.zoomBy(((chrome.zoomAtSlider(W px)) / zoom))
+                return 1
+            }
+            if ((px >= (sx - 24)) && (px < (sx - 4))) {
+                this.runCommand("view.zoom.out" "")
+                return 1
+            }
+            if ((px >= (sx + 124)) && (px < (sx + 146))) {
+                this.runCommand("view.zoom.in" "")
+                return 1
+            }
+            return 2
+        }
+        if (py < titleH) {
+            def part:int (this.titlePart(px py))
+            if (part == 1) { this.runCommand("edit.find" "") }
+            if (part == 2) { this.runCommand("file.save" "") }
+            if (part == 3) { this.runCommand("file.save" "") }
+            if (part == 4) { this.runCommand("edit.undo" "") }
+            if (part == 5) { this.runCommand("edit.redo" "") }
+            return 1
+        }
+        if (py < (this.chromeTop())) {
+            nav.searchFocused = false
+            if (this.pillHit(px py)) {
+                this.runCommand("edit.mode" "")
+                return 1
+            }
+            def tb:int (ribbon.hitTab(px py))
+            if (tb >= 0) {
+                ribbon.selectTab(tb)
+                ribbon.build()
+                return 1
+            }
+            def hi:int (ribbon.hit(px py))
+            if (hi >= 0) {
+                def it:RibbonItem (ribbon.at(hi))
+                if it.enabled {
+                    this.runCommand(it.command it.arg)
+                }
+            }
+            return 1
+        }
+        def part2:int (nav.hitPart(px py))
+        if (part2 > 0) {
+            if (part2 == 1) {
+                nav.visible = false
+                nav.searchFocused = false
+                return 1
+            }
+            if (part2 == 2) {
+                nav.searchFocused = true
+                return 1
+            }
+            nav.searchFocused = false
+            if ((part2 >= 3) && (part2 <= 5)) {
+                nav.mode = (part2 - 3)
+                nav.scroll = 0
+                return 1
+            }
+            if (part2 == 10) {
+                def ei:int (nav.entryAt(py))
+                if (ei >= 0) {
+                    def e:NavEntry (itemAt nav.entries ei)
+                    if (nav.mode == 1) {
+                        this.runCommand("page.goto" (to_string e.page))
+                    } {
+                        this.navigateTo(e.paragraphId e.page)
+                    }
+                    nav.current = ei
+                }
+            }
+            return 1
+        }
+        nav.searchFocused = false
+        if (px < (this.deskLeft())) {
+            return 2
+        }
+        if (showRuler && (py < (this.pageTop()))) {
+            return 2
+        }
+        return 0
+    }
+
     ; A frame coordinate, on the paper of the page the viewer is on, in the
     ; layout's own pixels: through the zoom, and in a stack through the page's
     ; place in it.
@@ -995,6 +1344,17 @@ class DocxApp {
     }
 
     fn wheel:boolean (dy:int) {
+        if ribbonUi {
+            if ((nav.hitPart(lastPx lastPy)) == 10) {
+                def rows:int (array_length nav.entries)
+                def maxS:int (((rows * 30) - nav.h) + 160)
+                if (maxS < 0) { maxS = 0 }
+                nav.scroll = (nav.scroll + dy)
+                if (nav.scroll > maxS) { nav.scroll = maxS }
+                if (nav.scroll < 0) { nav.scroll = 0 }
+                return true
+            }
+        }
         if continuous {
             if (dy == 0) {
                 return false
@@ -1018,7 +1378,14 @@ class DocxApp {
     }
 
     fn keyInner:boolean (name:string shift:boolean ctrl:boolean) {
+        if (ribbonUi && nav.searchFocused) {
+            if (this.searchKey(name ctrl)) {
+                return true
+            }
+        }
         if ctrl {
+            if (name == "f") { return (this.runCommand("edit.find" "")) }
+            if (name == "o") { return (this.runCommand("file.open" "")) }
             if (name == "b") { return (this.runCommand("format.bold" "")) }
             if (name == "i") { return (this.runCommand("format.italic" "")) }
             if (name == "u") { return (this.runCommand("format.underline" "")) }
@@ -1048,7 +1415,123 @@ class DocxApp {
         return false
     }
 
+    ; Is a keystroke text for the app rather than for the document? The host
+    ; asks before it decides a key in reading mode is nobody's.
+    fn wantsText:boolean () {
+        return (ribbonUi && nav.searchFocused)
+    }
+
+    ; Keys while the search field has the focus. Arrows and Tab leave it;
+    ; Enter goes to the next result.
+    fn searchKey:boolean (name:string ctrl:boolean) {
+        if ctrl {
+            return false
+        }
+        if (name == "backspace") {
+            def n:int (strlen nav.query)
+            if (n > 0) {
+                nav.query = (substring nav.query 0 (n - 1))
+            }
+            return true
+        }
+        if (name == "enter") {
+            this.nextResult()
+            return true
+        }
+        if ((name == "tab") || (name == "escape")) {
+            nav.searchFocused = false
+            return true
+        }
+        if ((name == "up") || (name == "down")) {
+            nav.searchFocused = false
+            return false
+        }
+        return true
+    }
+
+    fn nextResult:void () {
+        nav.refresh(viewer.doc viewer.view.layout)
+        def n:int (array_length nav.entries)
+        if (n == 0) {
+            return
+        }
+        def next:int (nav.current + 1)
+        if ((next < 0) || (next >= n)) {
+            next = 0
+        }
+        def e:NavEntry (itemAt nav.entries next)
+        this.navigateTo(e.paragraphId e.page)
+        nav.current = next
+    }
+
+    ; Put the caret at the start of a paragraph and bring it into view: what a
+    ; heading or a search result does when clicked.
+    ; `page` is where the pane found it, or -1 to ask the layout.
+    fn navigateTo:void (pid:int page:int) {
+        if (pid <= 0) {
+            return
+        }
+        viewer.edit.setCaret(pid 0)
+        viewer.view.layout.layoutIfNeeded(viewer.doc viewer.view.ctx.tr viewer.numbering)
+        def p:int page
+        if (p < 0) {
+            p = (viewer.pageOfCaret())
+        }
+        if continuous {
+            this.syncPages()
+            if ((p >= 0) && (p < (array_length pageTops))) {
+                def cy:int (viewer.edit.caretPixelY(viewer.view.layout p))
+                if (cy < 0) {
+                    cy = 0
+                }
+                docScroll = (((itemAt pageTops p) + (to_int ((to_double cy) * zoom))) - 24)
+                this.syncPages()
+                viewer.currentPage = p
+                viewer.view.pageIndex = p
+            }
+        } {
+            viewer.goToPage(p)
+        }
+    }
+
+    fn wordCount:int () {
+        if (wordCountRev == viewer.doc.revision) {
+            return wordCountVal
+        }
+        def n:int 0
+        def i:int 0
+        while (i < (array_length viewer.doc.paragraphs)) {
+            def p:Paragraph (itemAt viewer.doc.paragraphs i)
+            def inWord:boolean false
+            def k:int 0
+            def len:int (strlen p.text)
+            while (k < len) {
+                def c:int (charAt p.text k)
+                def space:boolean ((((c == 32) || (c == 9)) || (c == 10)) || (c == 160))
+                if space {
+                    inWord = false
+                } {
+                    if (inWord == false) {
+                        n = (n + 1)
+                    }
+                    inWord = true
+                }
+                k = (k + 1)
+            }
+            i = (i + 1)
+        }
+        wordCountRev = viewer.doc.revision
+        wordCountVal = n
+        return n
+    }
+
     fn text:void (s:string) {
+        if (ribbonUi && nav.searchFocused) {
+            nav.query = (nav.query + s)
+            nav.mode = 2
+            nav.current = -1
+            return
+        }
         viewer.typeText(s)
         this.followCaretInStack()
     }
@@ -1057,6 +1540,9 @@ class DocxApp {
     ; The page, the strip above it, the status line under it, and whatever
     ; windows are open on top. One display list, as everything here is.
     fn buildDisplayList:EVGDisplayList () {
+        if ribbonUi {
+            return (this.buildWordFrame())
+        }
         def framed:EVGDisplayList (new EVGDisplayList)
         framed.addRect(0.0 0.0 (to_double W) (to_double H) (EVGColor.rgb(228 232 238)))
         if continuous {
@@ -1108,6 +1594,132 @@ class DocxApp {
         return framed
     }
 
+    ; What the ribbon shows pressed, and the text in its two boxes. The
+    ; ribbon cannot know: "is this bold" is a question about the run under
+    ; the caret.
+    fn refreshRibbon:void () {
+        ribbon.build()
+        def editing:boolean (viewer.editMode())
+        def style:string (viewer.edit.caretStyle())
+        def align:int (viewer.edit.caretAlign())
+        def i:int 0
+        while (i < (array_length ribbon.items)) {
+            def it:RibbonItem (ribbon.at(i))
+            it.pressed = false
+            if ((strlen it.toggleOp) > 0) {
+                if editing {
+                    it.pressed = (viewer.edit.caretIsOn(it.toggleOp))
+                }
+            }
+            if (it.command == "para.align") {
+                it.pressed = (editing && ((to_string align) == it.arg))
+            }
+            if (it.kind == 4) {
+                it.pressed = (editing && (style == it.styleId))
+                it.enabled = ((it.styleId == "Normal") || (DocxParaFormat.hasStyle(viewer.parser.resolver it.styleId)))
+            }
+            if (it.command == "edit.mode") { it.pressed = editing }
+            if (it.command == "view.nav") { it.pressed = nav.visible }
+            if (it.command == "view.ruler") { it.pressed = showRuler }
+            if (it.command == "view.continuous") { it.pressed = continuous }
+            if (it.command == "view.rtl") { it.pressed = uiRtl }
+            if (it.command == "format.font") {
+                def nm:string (viewer.edit.caretFont())
+                if ((strlen nm) == 0) {
+                    nm = "Open Sans"
+                }
+                it.text = nm
+            }
+            if (it.command == "format.size.pick") {
+                it.text = (to_string (to_int (viewer.edit.caretSize())))
+            }
+            i = (i + 1)
+        }
+    }
+
+    ; The word processor's frame around the pages: the pages first, then the
+    ; chrome over them, so a page scrolled up under the ribbon is covered by
+    ; it rather than drawn across it.
+    fn buildWordFrame:EVGDisplayList () {
+        def framed:EVGDisplayList (new EVGDisplayList)
+        chrome.attach(viewer.view.ctx)
+        framed.addRect(0.0 0.0 (to_double W) (to_double H) chrome.theme.desk)
+        this.adoptDocumentDirection(viewer.doc)
+        if continuous {
+            this.paintStack(framed)
+        } {
+            this.paintOnePage(framed)
+        }
+        def editing:boolean (viewer.editMode())
+
+        ; The title bar.
+        def title:string docName
+        if ((strlen title) == 0) {
+            title = viewer.doc.title
+        }
+        chrome.paintTitleBar(framed W titleH title (viewer.doc.revision != openedRevision) (titleHot == 1))
+
+        ; The ribbon.
+        this.refreshRibbon()
+        ribbon.layout(0 titleH W chrome.view)
+        chrome.paintRibbon(framed ribbon editing)
+
+        ; The rulers.
+        if showRuler {
+            rulerView.attach(viewer.view.ctx "Open Sans")
+            rulerView.theme.bg = chrome.theme.window
+            rulerView.paint(framed ruler)
+            def pg@(optional):LaidPage (viewer.view.layout.pageAt(viewer.currentPage))
+            if (!null? pg) {
+                def page:LaidPage (unwrap pg)
+                def top:int (this.pageFrameY(viewer.currentPage))
+                def ph:int (to_int (((to_double page.height) * zoom) + 0.5))
+                def mb:int ((page.height - page.contentY) - page.contentH)
+                if (mb < 0) {
+                    mb = 0
+                }
+                chrome.paintVRuler(framed (this.navRight()) (this.chromeTop()) ((H - (this.chromeTop())) - statusH) top ph page.contentY mb zoom (this.pageTop()))
+            }
+        }
+
+        ; The navigation pane.
+        if nav.visible {
+            nav.x = 0
+            nav.y = (this.chromeTop())
+            nav.h = ((H - statusH) - nav.y)
+            nav.refresh(viewer.doc viewer.view.layout)
+            if (nav.mode != 2) {
+                nav.settleCurrent(viewer.currentPage viewer.edit.sel.focus.paragraphId)
+            }
+            chrome.paintNav(framed nav)
+        }
+
+        ; The status bar.
+        def left:string ("Page " + (to_string (viewer.currentPage + 1)) + " of " + (to_string (viewer.pageCount())))
+        left = (left + "      " + (to_string (this.wordCount())) + " words")
+        if editing {
+            left = (left + "      Editing")
+        } {
+            left = (left + "      Reading")
+        }
+        if ((strlen status) > 0) {
+            if ((status != "edit") && (status != "reading")) {
+                left = (left + "      " + status)
+            }
+        }
+        chrome.paintStatus(framed (H - statusH) W statusH left zoom)
+
+        chrome.paintTip(framed ribbon W)
+        def wi:int 0
+        while (wi < (array_length windows.windows)) {
+            def wnd:EVGWindow (itemAt windows.windows wi)
+            wnd.paint(framed viewer.view.ctx.tr W H)
+            wnd.paintOverlay(framed viewer.view.ctx.tr)
+            wi = (wi + 1)
+        }
+        return framed
+    }
+
     ; One page, the way the viewer shows it: the current page, scrolled
     ; within itself, centred under the strip.
     fn paintOnePage:void (framed:EVGDisplayList) {
@@ -1120,10 +1732,7 @@ class DocxApp {
         ; allocates. It answers zero there, and a zero-wide page centres itself
         ; half a window to the right of where the paper is.
         def pw:int (to_int (((to_double (viewer.view.sceneWidth())) * zoom) + 0.5))
-        pageX = (idiv (W - pw) 2)
-        if (pageX < 0) {
-            pageX = 0
-        }
+        pageX = (this.centrePage(pw))
         ; How far down the page the window is looking, in the page's own
         ; pixels. Clicks already subtract `pageY` and divide by the zoom, so
         ; the caret lands where the glyphs are without anything else being
@@ -1150,10 +1759,7 @@ class DocxApp {
             def first:LaidPage (viewer.view.layout.pageAt(0))
             pw = (to_int (((to_double first.width) * zoom) + 0.5))
         }
-        pageX = (idiv (W - pw) 2)
-        if (pageX < 0) {
-            pageX = 0
-        }
+        pageX = (this.centrePage(pw))
         pageY = (this.pageTop())
         this.syncRuler(pw)
         def keep:int viewer.currentPage

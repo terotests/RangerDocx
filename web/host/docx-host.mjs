@@ -34,6 +34,7 @@ export const KEYS = {
   End: "end",
   PageUp: "pageUp",
   PageDown: "pageDown",
+  Escape: "escape",
 };
 
 /**
@@ -239,9 +240,13 @@ export function attachKeys({ web, draw, afterInput, enabled, target, onCopy, onC
       settled();
       return;
     }
-    if (ev.key.length === 1 && web.editMode()) {
+    // Text goes to the app when it has a field of its own focused (the
+    // search box of the word-processor frame), otherwise to the document.
+    const fieldWants = typeof web.wantsText === "function" && web.wantsText();
+    if (ev.key.length === 1 && (web.editMode() || fieldWants)) {
       ev.preventDefault();
-      web.typeText(ev.key);
+      if (typeof web.frameText === "function") web.frameText(ev.key);
+      else web.typeText(ev.key);
       await redraw();
       settled();
     }

@@ -1,0 +1,149 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; DocxParaFormat.rgr — paragraph-level formatting commands, undoable.
+; ==============================================================================
+;
+; Alignment and styles change a paragraph's properties and (for a style) the
+; look of every run in it. The undo history records text edits as small
+; diffs; a property change is recorded as a SNAPSHOT of the paragraph's
+; formatting before and after, so any later paragraph command (spacing,
+; indents, lists) gets undo for nothing by going through `apply`.
+;
+; The snapshot is the paragraph's properties and its spans, written as text:
+; it rides in a `DocEditOp`'s two strings, which is all an op can carry.
+; ==============================================================================
+
+Import "RichDocument.rgr"
+Import "WordStyleResolver.rgr"
+
+class DocxParaFormat {
+
+    ; The undo kind, outside the range the shared text editor uses.
+    sfn opKind:int () {
+        return 40
+    }
+
+    sfn b:string (v:boolean) {
+        if v {
+            return "1"
+        }
+        return "0"
+    }
+
+    sfn num:double (s:string) {
+        def d@(optional):double (to_double s)
+        if (!null? d) {
+            return (unwrap d)
+        }
+        return 0.0
+    }
+
+    sfn int:int (s:string) {
+        return (to_int (DocxParaFormat.num(s)))
+    }
+
+    ; The paragraph's formatting, as one string. Text is not in it: a format
+    ; change never changes the text, and undoing one must not either.
+    sfn snapshot:string (p:Paragraph) {
+        def s:string (p.styleId + "\t" + (to_string p.align) + "\t" + (to_string p.bidi))
+        s = (s + "\t" + (to_string p.listKind) + "\t" + (to_string p.listLevel) + "\t" + (to_string p.listNumId))
+        s = (s + "\t" + p.listFmt + "\t" + p.listText)
+        s = (s + "\t" + (to_string p.spaceBeforePt) + "\t" + (to_string p.spaceAfterPt) + "\t" + (to_string p.lineSpacing))
+        s = (s + "\t" + (to_string p.indentLeftPt) + "\t" + (to_string p.indentRightPt) + "\t" + (to_string p.indentFirstLinePt))
+        s = (s + "\t" + (DocxParaFormat.b(p.pageBreakBefore)))
+        def i:int 0
+        while (i < (array_length p.spans)) {
+            def sp:TextSpan (itemAt p.spans i)
+            s = (s + "\n" + (to_string sp.start) + "\t" + (to_string sp.end))
+            s = (s + "\t" + (DocxParaFormat.b(sp.bold)) + "\t" + (DocxParaFormat.b(sp.italic)) + "\t" + (DocxParaFormat.b(sp.underline)))
+            s = (s + "\t" + (to_string sp.fontSizePt) + "\t" + sp.fontFamily + "\t" + sp.colorHex + "\t" + sp.hyperlink)
+            i = (i + 1)
+        }
+        return s
+    }
+
+    sfn restore:void (p:Paragraph snap:string) {
+        def lines:[string] (strsplit snap "\n")
+        if ((array_length lines) == 0) {
+            return
+        }
+        def f:[string] (strsplit (itemAt lines 0) "\t")
+        if ((array_length f) < 15) {
+            return
+        }
+        p.styleId = (itemAt f 0)
+        p.align = (DocxParaFormat.int((itemAt f 1)))
+        p.bidi = (DocxParaFormat.int((itemAt f 2)))
+        p.listKind = (DocxParaFormat.int((itemAt f 3)))
+        p.listLevel = (DocxParaFormat.int((itemAt f 4)))
+        p.listNumId = (DocxParaFormat.int((itemAt f 5)))
+        p.listFmt = (itemAt f 6)
+        p.listText = (itemAt f 7)
+        p.spaceBeforePt = (DocxParaFormat.num((itemAt f 8)))
+        p.spaceAfterPt = (DocxParaFormat.num((itemAt f 9)))
+        p.lineSpacing = (DocxParaFormat.num((itemAt f 10)))
+        p.indentLeftPt = (DocxParaFormat.num((itemAt f 11)))
+        p.indentRightPt = (DocxParaFormat.num((itemAt f 12)))
+        p.indentFirstLinePt = (DocxParaFormat.num((itemAt f 13)))
+        p.pageBreakBefore = ((itemAt f 14) == "1")
+        clear p.spans
+        def i:int 1
+        while (i < (array_length lines)) {
+            def g:[string] (strsplit (itemAt lines i) "\t")
+            if ((array_length g) >= 9) {
+                def sp:TextSpan (TextSpan.create((DocxParaFormat.int((itemAt g 0))) (DocxParaFormat.int((itemAt g 1)))))
+                sp.bold = ((itemAt g 2) == "1")
+                sp.italic = ((itemAt g 3) == "1")
+                sp.underline = ((itemAt g 4) == "1")
+                sp.fontSizePt = (DocxParaFormat.num((itemAt g 5)))
+                sp.fontFamily = (itemAt g 6)
+                sp.colorHex = (itemAt g 7)
+                sp.hyperlink = (itemAt g 8)
+                push p.spans sp
+            }
+            i = (i + 1)
+        }
+    }
+
+    ; --- the commands -----------------------------------------------------------
+    sfn setAlign:void (p:Paragraph align:int) {
+        p.align = align
+    }
+
+    ; Give the paragraph a style. Properties the paragraph had FROM its old
+    ; style take the new style's values; ones set on the paragraph or run
+    ; directly (a bold word, a red word) are kept — which is what Word does,
+    ; and what makes "Heading 1" not wipe out the italic in a heading.
+    sfn applyStyle:void (p:Paragraph styleId:string resolver:WordStyleResolver) {
+        def was:ResolvedParagraphStyle (resolver.resolveParagraphStyle(p.styleId))
+        def now:ResolvedParagraphStyle (resolver.resolveParagraphStyle(styleId))
+        p.styleId = styleId
+        if (p.align == was.align) { p.align = now.align }
+        if (p.spaceBeforePt == was.spaceBeforePt) { p.spaceBeforePt = now.spaceBeforePt }
+        if (p.spaceAfterPt == was.spaceAfterPt) { p.spaceAfterPt = now.spaceAfterPt }
+        if (p.lineSpacing == was.lineSpacing) { p.lineSpacing = now.lineSpacing }
+        if (p.indentLeftPt == was.indentLeftPt) { p.indentLeftPt = now.indentLeftPt }
+        if (p.indentRightPt == was.indentRightPt) { p.indentRightPt = now.indentRightPt }
+        if (p.indentFirstLinePt == was.indentFirstLinePt) { p.indentFirstLinePt = now.indentFirstLinePt }
+        def o:ResolvedRunStyle was.run
+        def n:ResolvedRunStyle now.run
+        def i:int 0
+        while (i < (array_length p.spans)) {
+            def sp:TextSpan (itemAt p.spans i)
+            if (sp.bold == o.bold) { sp.bold = n.bold }
+            if (sp.italic == o.italic) { sp.italic = n.italic }
+            if (sp.underline == o.underline) { sp.underline = n.underline }
+            if (sp.fontSizePt == o.fontSizePt) { sp.fontSizePt = n.fontSizePt }
+            if (sp.fontFamily == o.fontFamily) { sp.fontFamily = n.fontFamily }
+            if (sp.colorHex == o.colorHex) { sp.colorHex = n.colorHex }
+            i = (i + 1)
+        }
+    }
+
+    ; Does the document define this style? Only the styles a file has can be
+    ; written back into it.
+    sfn hasStyle:boolean (resolver:WordStyleResolver styleId:string) {
+        return (has resolver.styles styleId)
+    }
+}

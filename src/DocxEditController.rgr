@@ -15,6 +15,7 @@ Import "ClipboardTable.rgr"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "DocxTextMetrics.rgr"
 Import "DocxLayout.rgr"
+Import "DocxParaFormat.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 Import "../../game_engine/ui/UITextRenderer.rgr"
 Import "../../office/editor/OfficeHistory.rgr"
@@ -1664,6 +1665,105 @@ class DocxEditController {
         active = true
     }
 
+    ; --- paragraph formatting ---------------------------------------------------
+    ; The paragraphs the selection touches, in document order; the caret's
+    ; paragraph alone when nothing is selected. A paragraph in a table cell is
+    ; not in the body order, so a selection inside one is that paragraph.
+    fn selectedParagraphIds:void (out:[int]) {
+        clear out
+        def aPid:int sel.anchor.paragraphId
+        def bPid:int sel.focus.paragraphId
+        if (aPid <= 0) {
+            return
+        }
+        if (aPid == bPid) {
+            push out aPid
+            return
+        }
+        def ao:int (adapter.bodyOrderOf(aPid))
+        def bo:int (adapter.bodyOrderOf(bPid))
+        if ((ao < 0) || (bo < 0)) {
+            push out bPid
+            return
+        }
+        if (ao > bo) {
+            def t:int ao
+            ao = bo
+            bo = t
+        }
+        def i:int ao
+        while (i <= bo) {
+            push out (adapter.bodyParagraphIdAt(i))
+            i = (i + 1)
+        }
+    }
+
+    ; Alignment ("align", "0".."3") or a style ("style", its id) on every
+    ; selected paragraph, as one undoable action.
+    fn formatParagraphs:boolean (what:string arg:string resolver:WordStyleResolver) {
+        if ((this.isActive()) == false) {
+            return false
+        }
+        def ids:[int]
+        this.selectedParagraphIds(ids)
+        if ((array_length ids) == 0) {
+            return false
+        }
+        this.beginAction()
+        def i:int 0
+        while (i < (array_length ids)) {
+            def pid:int (itemAt ids i)
+            if (adapter.paragraphExists(pid)) {
+                def p:Paragraph (adapter.findParagraph(pid))
+                def before:string (DocxParaFormat.snapshot(p))
+                if (what == "align") {
+                    DocxParaFormat.setAlign(p (DocxParaFormat.int(arg)))
+                }
+                if (what == "style") {
+                    DocxParaFormat.applyStyle(p arg resolver)
+                }
+                def after:string (DocxParaFormat.snapshot(p))
+                if (after != before) {
+                    def op:DocEditOp (new DocEditOp)
+                    op.kind = (DocxParaFormat.opKind())
+                    op.paragraphId = pid
+                    op.oldText = before
+                    op.newText = after
+                    this.pushUndo(op)
+                }
+            }
+            i = (i + 1)
+        }
+        this.endAction()
+        adapter.doc.touch()
+        return true
+    }
+
+    ; The style of the caret's paragraph, for the gallery to show pressed.
+    fn caretStyle:string () {
+        def pid:int sel.focus.paragraphId
+        if (pid <= 0) {
+            return ""
+        }
+        if ((adapter.paragraphExists(pid)) == false) {
+            return ""
+        }
+        def p:Paragraph (adapter.findParagraph(pid))
+        return p.styleId
+    }
+
+    fn caretAlign:int () {
+        def pid:int sel.focus.paragraphId
+        if (pid <= 0) {
+            return -1
+        }
+        if ((adapter.paragraphExists(pid)) == false) {
+            return -1
+        }
+        def p:Paragraph (adapter.findParagraph(pid))
+        return p.align
+    }
+
     ; --- undo and redo, which are ONE function with a direction ---------------
     ;
     ; They used to be two switches over `op.kind`, and they drifted: `undo`
@@ -1673,6 +1773,20 @@ class DocxEditController {
     ; there. Written as one function that cannot happen: a kind is handled in
     ; both directions or in neither.
     fn applyOp:boolean (op:DocEditOp forward:boolean) {
+        if (op.kind == (DocxParaFormat.opKind())) {
+            if (adapter.paragraphExists(op.paragraphId)) {
+                def fp:Paragraph (adapter.findParagraph(op.paragraphId))
+                if forward {
+                    DocxParaFormat.restore(fp op.newText)
+                } {
+                    DocxParaFormat.restore(fp op.oldText)
+                }
+                adapter.doc.touch()
+                this.setCaret(op.paragraphId 0)
+                return true
+            }
+            return false
+        }
         if (op.kind == (DocEditKind.text())) {
             if forward {
                 adapter.replaceRange(op.paragraphId op.start (op.start + (strlen op.oldText)) op.newText)

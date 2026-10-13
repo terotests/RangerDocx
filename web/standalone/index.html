@@ -2,69 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Ranger DOCX viewer — running entirely in the browser</title>
+    <title>RangerDocx</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       /* NO `@font-face` HERE, deliberately — see the note in
-         gallery/pptx/web/standalone/index.html. The rules declared families
-         from the files the page already fetches, nothing in this stylesheet
-         uses one, and a canvas asking for a CSS-declared family makes the
-         browser load the CSS copy on top of the bytes the page has.
-         `registerBrowserFaces` gives `document.fonts` those bytes before
-         anything is drawn. */
-      :root { --ink: #1a1f2b; --muted: #5c6b80; --accent: #2864d2; }
+         gallery/pptx/web/standalone/index.html. `registerBrowserFaces` gives
+         `document.fonts` the bytes the page already fetched. */
       * { box-sizing: border-box; }
-      html, body {
-        margin: 0; min-height: 100%;
-        background: linear-gradient(180deg, #eef1f6 0%, #dde3ec 100%);
-        color: #1a1f2b;
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      }
-      body { display: grid; place-items: start center; padding: 24px; }
-      .stage { width: min(1120px, 100%); }
-      h1 { margin: 0 0 6px; font-size: 1.3rem; font-weight: 650; }
-      p.hint { margin: 0 0 14px; color: #9fb0c4; font-size: 0.9rem; }
-      .frame { background: #c9ced8; border: 1px solid #b3bac6; padding: 12px; box-shadow: 0 16px 40px rgba(30,50,80,0.16); max-height: 78vh; overflow: auto; }
-      canvas { display: block; margin: 0 auto; background: #fff; outline: none; box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
-      .bar { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; color: #5c6b80; font-size: 0.82rem; align-items: center; }
-      .bar strong { color: #2864d2; font-weight: 600; }
-      button { font: inherit; font-size: 0.82rem; padding: 3px 10px; background: #f4f6fa; color: #1a1f2b; border: 1px solid #b3bac6; cursor: pointer; }
-      button[aria-pressed="true"] { background: #2864d2; color: #fff; border-color: #2864d2; }
-      input[type="file"] { font-size: 0.78rem; color: #5c6b80; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #e9ebf0; }
+      body { font-family: "Open Sans", "Segoe UI", sans-serif; color: #20242c; }
+      /* The whole editor is one canvas: title bar, ribbon, panes, pages and
+         status bar are drawn by the engine (DocxChrome), not by this page. */
+      canvas { display: block; outline: none; touch-action: none; }
+      /* What the self test and the smoke script read. Not furniture. */
+      #debug { position: fixed; left: -10000px; top: 0; }
+      #file { display: none; }
     </style>
   </head>
   <body>
-    <div class="stage">
-      <h1>Ranger DOCX · no server, no PNG</h1>
-      <p class="hint">
-        The document is parsed, laid out and drawn in this page: OPC/ZIP →
-        WordprocessingML → styles, numbering, tables and sections →
-        <code>EVGDisplayList</code> → WebGL 2. It used to be rasterized on a
-        server and shipped here as a picture of a page. Turn on <b>Edit</b> to
-        type; paste a chart copied from the spreadsheet and it stays a chart.
-      </p>
-      <div class="frame">
-        <canvas id="screen" tabindex="0" width="816" height="1056"></canvas>
-      </div>
-      <div class="bar">
-        <button type="button" id="prev">◀ Prev</button>
-        <span>page <strong id="slide">—</strong></span>
-        <button type="button" id="next">Next ▶</button>
-        <button type="button" id="edit" aria-pressed="false">Edit</button>
-        <span id="chartTools" hidden>
-          <button type="button" id="chartType">Chart type ▸</button>
-          <button type="button" id="chartStyle">Style ▸</button>
-          <button type="button" id="chartDelete">Delete chart</button>
-        </span>
-        <span>status: <strong id="status">starting…</strong></span>
-        <span>backend: <strong id="backend">—</strong></span>
-        <span>cmds: <strong id="cmds">—</strong></span>
-        <!-- Which build this is: the hash build.sh put on every file the
-             page loads. A page that looks unfixed is usually a page the
-             browser kept from last time. -->
-        <span>build: <strong id="build">__BUILD__</strong></span>
-        <label>open a .docx <input id="file" type="file" accept=".docx" /></label>
-        <button type="button" id="save">Save .docx</button>
-      </div>
+    <canvas id="screen" tabindex="0" width="1280" height="800"></canvas>
+    <input id="file" type="file" accept=".docx" />
+    <div id="debug" aria-hidden="true">
+      <span>page <strong id="slide">—</strong></span>
+      <span>status: <strong id="status">starting…</strong></span>
+      <span>backend: <strong id="backend">—</strong></span>
+      <span>cmds: <strong id="cmds">—</strong></span>
+      <!-- Which build this is: the hash build.sh put on every file the
+           page loads. A page that looks unfixed is usually a page the
+           browser kept from last time. -->
+      <span>build: <strong id="build">__BUILD__</strong></span>
     </div>
     <!-- The compiled engine. A missing file here is silent — the tag 404s and
          the module below runs anyway — so it says so out loud. -->

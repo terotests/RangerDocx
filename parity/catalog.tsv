@@ -82,10 +82,10 @@ Home	Paragraph	Decrease Indent	para.outdent	live	yes	yes	tests/DocxTest.rgr
 Home	Paragraph	Increase Indent	para.indent	live	yes	yes	tests/DocxTest.rgr
 Home	Paragraph	Sort	para.sort	live	no	no	-
 Home	Paragraph	Show/Hide Marks	view.marks	live	no	no	-
-Home	Paragraph	Align Left	para.alignLeft	live	no	no	-
-Home	Paragraph	Center	para.alignCenter	live	no	no	-
-Home	Paragraph	Align Right	para.alignRight	live	no	no	-
-Home	Paragraph	Justify	para.justify	live	no	no	-
+Home	Paragraph	Align Left	para.alignLeft	live	no	yes	tests/DocxChromeTest.rgr
+Home	Paragraph	Center	para.alignCenter	live	no	yes	tests/DocxChromeTest.rgr
+Home	Paragraph	Align Right	para.alignRight	live	no	yes	tests/DocxChromeTest.rgr
+Home	Paragraph	Justify	para.justify	live	no	partial	tests/DocxChromeTest.rgr
 Home	Paragraph	Distributed	para.distribute	live	no	no	-
 Home	Paragraph	Line Spacing	para.lineSpacing	live	no	no	-
 Home	Paragraph	Add Space Before	para.addSpaceBefore	live	no	no	-
@@ -104,10 +104,10 @@ Home	Paragraph	Hanging Indent	para.hangingIndent	live	no	no	-
 Home	Paragraph	Right-to-Left Text Direction	para.rtl	live	partial	partial	tests/DocxTest.rgr
 Home	Paragraph	Left-to-Right Text Direction	para.ltr	live	no	no	-
 Home	Paragraph	Asian Typography	para.asianTypography	live	no	no	-
-Home	Styles	Styles Gallery	para.style	live	no	no	-
-Home	Styles	Normal	para.normal	live	no	no	-
-Home	Styles	Heading 1	para.heading1	live	no	no	-
-Home	Styles	Heading 2	para.heading2	live	no	no	-
+Home	Styles	Styles Gallery	para.style	live	no	yes	tests/DocxChromeTest.rgr
+Home	Styles	Normal	para.normal	live	no	yes	tests/DocxChromeTest.rgr
+Home	Styles	Heading 1	para.heading1	live	no	yes	tests/DocxChromeTest.rgr
+Home	Styles	Heading 2	para.heading2	live	no	yes	tests/DocxChromeTest.rgr
 Home	Styles	Heading 3	para.heading3	live	no	no	-
 Home	Styles	Create a Style	styles.create	live	no	no	-
 Home	Styles	Modify Style	styles.modify	live	no	no	-
@@ -116,10 +116,10 @@ Home	Styles	Delete Style	styles.delete	live	no	no	-
 Home	Styles	Styles Pane	styles.pane	live	no	no	-
 Home	Styles	Style Inspector	styles.inspector	live	no	no	-
 Home	Styles	Manage Styles	styles.manage	live	no	no	-
-Home	Styles	Apply Styles	styles.apply	live	no	no	-
+Home	Styles	Apply Styles	styles.apply	live	no	partial	tests/DocxChromeTest.rgr
 Home	Styles	Character Style	format.charStyle	live	no	no	-
-Home	Editing	Find	edit.find	live	no	no	-
-Home	Editing	Find Next	edit.findNext	live	no	no	-
+Home	Editing	Find	edit.find	live	no	yes	tests/DocxChromeTest.rgr
+Home	Editing	Find Next	edit.findNext	live	no	yes	tests/DocxChromeTest.rgr
 Home	Editing	Find Previous	edit.findPrevious	live	no	no	-
 Home	Editing	Advanced Find	edit.advancedFind	live	no	no	-
 Home	Editing	Replace	edit.replace	live	no	no	-
@@ -270,7 +270,7 @@ Mailings	Preview Results	Check for Errors	mailings.checkErrors	live	no	no	-
 Mailings	Finish	Finish & Merge	mailings.finish	live	no	no	-
 Review	Proofing	Spelling & Grammar	review.spelling	live	no	no	-
 Review	Proofing	Thesaurus	review.thesaurus	live	no	no	-
-Review	Proofing	Word Count	review.wordCount	live	no	no	-
+Review	Proofing	Word Count	review.wordCount	live	no	partial	tests/DocxChromeTest.rgr
 Review	Speech	Read Aloud	review.readAloud	live	no	no	-
 Review	Accessibility	Check Accessibility	file.accessibility	live	no	no	-
 Review	Accessibility	Alt Text	view.altTextPane	live	no	no	-
@@ -308,16 +308,16 @@ View	Immersive	Focus	view.focus	live	no	no	-
 View	Immersive	Immersive Reader	view.immersive	live	no	no	-
 View	Page Movement	Vertical	view.vertical	live	no	no	-
 View	Page Movement	Side to Side	view.sideToSide	live	no	no	-
-View	Show	Ruler	view.ruler	live	no	no	-
+View	Show	Ruler	view.ruler	live	no	yes	tests/DocxChromeTest.rgr
 View	Show	Gridlines	view.gridlines	live	no	no	-
-View	Show	Navigation Pane	view.navigationPane	live	no	no	-
-View	Zoom	Zoom	view.zoom	live	partial	impl	-
-View	Zoom	100%	view.zoom100	live	no	no	-
+View	Show	Navigation Pane	view.navigationPane	live	no	yes	tests/DocxChromeTest.rgr
+View	Zoom	Zoom	view.zoom	live	partial	yes	tests/DocxChromeTest.rgr
+View	Zoom	100%	view.zoom100	live	no	yes	tests/DocxChromeTest.rgr
 View	Zoom	One Page	view.onePage	live	no	no	-
 View	Zoom	Multiple Pages	view.multiplePages	live	no	no	-
 View	Zoom	Page Width	view.pageWidth	live	no	no	-
-View	Zoom	Zoom In	view.zoomIn	live	partial	impl	-
-View	Zoom	Zoom Out	view.zoomOut	live	partial	impl	-
+View	Zoom	Zoom In	view.zoomIn	live	partial	yes	tests/DocxChromeTest.rgr
+View	Zoom	Zoom Out	view.zoomOut	live	partial	yes	tests/DocxChromeTest.rgr
 View	Dark Mode	Switch Modes	view.darkMode	live	no	no	-
 View	Window	New Window	view.newWindow	live	no	no	-
 View	Window	Arrange All	view.arrangeAll	missing	no	no	-

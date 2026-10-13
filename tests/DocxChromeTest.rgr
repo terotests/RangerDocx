@@ -1,0 +1,293 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; DocxChromeTest — the word processor's frame: ribbon, navigation pane, rulers
+; and status bar (src/DocxChrome.rgr), and the paragraph commands it brought
+; (alignment and styles, src/DocxParaFormat.rgr).
+;
+;   npm run docx_viewer:chrome:test
+; ==============================================================================
+
+Import "../src/DocxApp.rgr"
+
+class ChromeCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class DocxChromeTest {
+    sfn build:DocxApp (file:string) {
+        def app:DocxApp (new DocxApp)
+        app.init()
+        app.setRibbonUi(true)
+        app.resize(1400 900)
+        app.setContinuous(true)
+        if ((app.viewer.openFile("gallery/docx_viewer/fixtures" file)) == false) {
+            print ("  could not open " + file)
+        }
+        app.markOpened(file)
+        app.buildDisplayList()
+        return app
+    }
+
+    sfn click:void (app:DocxApp x:int y:int) {
+        app.pointer(x y true true false false)
+        app.pointer(x y false false true false)
+    }
+
+    ; The first body paragraph whose style is `sid`.
+    sfn firstWithStyle:int (app:DocxApp sid:string) {
+        def d:RichDocument app.viewer.doc
+        def i:int 0
+        while (i < (array_length d.blocks)) {
+            def b:DocBlock (itemAt d.blocks i)
+            if (b.kind == (DocBlockKind.para())) {
+                if (b.paragraph.styleId == sid) {
+                    return b.paragraph.id
+                }
+            }
+            i = (i + 1)
+        }
+        return 0
+    }
+
+    sfn paragraph:Paragraph (app:DocxApp pid:int) {
+        return (app.viewer.edit.adapter.findParagraph(pid))
+    }
+
+    sfn main:void () {
+        def c:ChromeCheck (new ChromeCheck)
+
+        print "-- the ribbon --"
+        def app:DocxApp (DocxChromeTest.build("20-business-report.docx"))
+        c.eqStr("the ribbon opens on Home" (app.ribbon.tabName()) "Home")
+        def names:string ""
+        def gi:int 0
+        while (gi < (array_length app.ribbon.groups)) {
+            def g:RibbonGroup (itemAt app.ribbon.groups gi)
+            names = (names + g.name + ",")
+            gi = (gi + 1)
+        }
+        c.eqStr("Home has the groups a word processor has" names "Clipboard,Font,Paragraph,Styles,Editing,Mode,")
+        def unplaced:int 0
+        def ii:int 0
+        while (ii < (array_length app.ribbon.items)) {
+            def it:RibbonItem (app.ribbon.at(ii))
+            if ((it.w <= 0) || (it.h <= 0)) {
+                unplaced = (unplaced + 1)
+            }
+            ii = (ii + 1)
+        }
+        c.eqInt("every button on the page has a place" unplaced 0)
+        def bi:int (app.ribbon.indexOf("format.bold" ""))
+        def bold:RibbonItem (app.ribbon.at(bi))
+        def italic:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.italic" ""))))
+        def font:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.font" ""))))
+        c.ok("Font's two rows: the boxes above, bold below" (bold.y > font.y))
+        c.ok("and bold sits left of italic" (bold.x < italic.x))
+        def groupLabelsInside:boolean true
+        def gj:int 0
+        while (gj < (array_length app.ribbon.groups)) {
+            def g2:RibbonGroup (itemAt app.ribbon.groups gj)
+            def ci:int 0
+            while (ci < (array_length g2.cells)) {
+                def cell:RibbonCell (itemAt g2.cells ci)
+                if ((cell.x + cell.w) > (g2.x + g2.w)) {
+                    groupLabelsInside = false
+                }
+                ci = (ci + 1)
+            }
+            gj = (gj + 1)
+        }
+        c.ok("every column stays inside its group" groupLabelsInside)
+        def strike:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.strike" ""))))
+        c.ok("a command that does not exist yet is drawn greyed" (strike.enabled == false))
+
+        ; Switching pages.
+        def view:int (app.ribbon.tabIndex("View"))
+        DocxChromeTest.click(app ((itemAt app.ribbon.tabX view) + 5) (app.titleH + 10))
+        c.eqStr("a press on View shows the View page" (app.ribbon.tabName()) "View")
+        app.buildDisplayList()
+        def navBtn:RibbonItem (app.ribbon.at((app.ribbon.indexOf("view.nav" ""))))
+        c.ok("the pane's switch shows it on" navBtn.pressed)
+        DocxChromeTest.click(app (navBtn.x + 4) (navBtn.y + 4))
+        c.ok("and pressing it hides the pane" (app.nav.visible == false))
+        DocxChromeTest.click(app (navBtn.x + 4) (navBtn.y + 4))
+        c.ok("and again shows it" app.nav.visible)
+        def home:int (app.ribbon.tabIndex("Home"))
+        DocxChromeTest.click(app ((itemAt app.ribbon.tabX home) + 5) (app.titleH + 10))
+        app.buildDisplayList()
+
+        print "-- the frame's geometry --"
+        c.ok("the paper starts right of the pane and the ruler" (app.pageX >= (app.nav.w + app.vRulerW)))
+        c.ok("and under the ribbon and the ruler" ((app.pageTop()) == ((app.titleH + (app.ribbon.height())) + app.rulerH)))
+        c.eqInt("the status bar is the frame's foot" ((app.pageTop()) + (app.pageAreaH()) + app.statusH) app.H)
+
+        print "-- the navigation pane --"
+        def titleStyle:int (DocxChromeTest.firstWithStyle(app "Title"))
+        def headings:int 0
+        def h1:int 0
+        def ni:int 0
+        while (ni < (array_length app.nav.entries)) {
+            def e:NavEntry (itemAt app.nav.entries ni)
+            headings = (headings + 1)
+            if (e.level == 1) {
+                h1 = (h1 + 1)
+            }
+            ni = (ni + 1)
+        }
+        c.ok("the pane lists the headings" (headings >= 6))
+        c.ok("with the top level among them" (h1 >= 4))
+        def first:NavEntry (itemAt app.nav.entries 0)
+        c.ok("the title is not a heading" (first.paragraphId != titleStyle))
+        def last:NavEntry (itemAt app.nav.entries ((array_length app.nav.entries) - 1))
+        c.ok("a later heading is on a later page" (last.page > 0))
+        ; Clicking it goes there.
+        app.buildDisplayList()
+        DocxChromeTest.click(app (app.nav.x + 40) (last.y + 6))
+        c.eqInt("a click on a heading goes to its page" app.viewer.currentPage last.page)
+        c.eqInt("and puts the caret on it" app.viewer.edit.sel.focus.paragraphId last.paragraphId)
+        c.ok("scrolling the desk there" (app.docScroll > 0))
+
+        print "-- search --"
+        app.runCommand("edit.find" "")
+        c.ok("Find opens the pane on its results" ((app.nav.mode == 2) && app.nav.searchFocused))
+        app.text("revenue")
+        c.eqStr("typing goes into the search field, not the document" app.nav.query "revenue")
+        app.buildDisplayList()
+        c.ok("and finds paragraphs" ((array_length app.nav.entries) > 0))
+        app.key("backspace" false false)
+        c.eqStr("Backspace edits the query" app.nav.query "revenu")
+        app.key("enter" false false)
+        def hitE:NavEntry (itemAt app.nav.entries 0)
+        c.eqInt("Enter goes to the first result" app.viewer.edit.sel.focus.paragraphId hitE.paragraphId)
+        app.key("tab" false false)
+        c.ok("Tab leaves the field" (app.nav.searchFocused == false))
+
+        print "-- alignment --"
+        def a2:DocxApp (DocxChromeTest.build("20-business-report.docx"))
+        a2.viewer.setEditMode(true)
+        def pid:int (DocxChromeTest.firstWithStyle(a2 "Normal"))
+        c.ok("there is a body paragraph" (pid > 0))
+        a2.viewer.edit.setCaret(pid 2)
+        def before:int (DocxChromeTest.alignOf(a2 pid))
+        def rev:int a2.viewer.doc.revision
+        c.ok("Centre runs" (a2.runCommand("para.align" "1")))
+        c.eqInt("and centres the paragraph" (DocxChromeTest.alignOf(a2 pid)) 1)
+        c.ok("the document says it changed" (a2.viewer.doc.revision > rev))
+        a2.buildDisplayList()
+        def centre:RibbonItem (a2.ribbon.at((a2.ribbon.indexOf("para.align" "1"))))
+        c.ok("the ribbon shows Centre pressed" centre.pressed)
+        a2.runCommand("edit.undo" "")
+        c.eqInt("undo puts the alignment back" (DocxChromeTest.alignOf(a2 pid)) before)
+        a2.runCommand("edit.redo" "")
+        c.eqInt("and redo centres it again" (DocxChromeTest.alignOf(a2 pid)) 1)
+
+        ; Across a selection of three paragraphs.
+        def o0:int (a2.viewer.edit.adapter.bodyOrderOf(pid))
+        def p2:int (a2.viewer.edit.adapter.bodyParagraphIdAt((o0 + 2)))
+        a2.viewer.edit.setCaret(pid 0)
+        a2.viewer.edit.extendTo(p2 1)
+        a2.runCommand("para.align" "2")
+        def mid:int (a2.viewer.edit.adapter.bodyParagraphIdAt((o0 + 1)))
+        c.eqInt("a selection aligns every paragraph in it" (DocxChromeTest.alignOf(a2 mid)) 2)
+        c.eqInt("to the last one" (DocxChromeTest.alignOf(a2 p2)) 2)
+
+        print "-- styles --"
+        def a3:DocxApp (DocxChromeTest.build("20-business-report.docx"))
+        a3.viewer.setEditMode(true)
+        def sp:int (DocxChromeTest.firstWithStyle(a3 "Normal"))
+        a3.viewer.edit.setCaret(sp 0)
+        def para:Paragraph (DocxChromeTest.paragraph(a3 sp))
+        def span0:TextSpan (itemAt para.spans 0)
+        def sizeBefore:double span0.fontSizePt
+        def h1Style:ResolvedParagraphStyle (a3.viewer.parser.resolver.resolveParagraphStyle("Heading1"))
+        c.ok("Heading 1 runs" (a3.runCommand("format.style" "Heading1")))
+        def styled:Paragraph (DocxChromeTest.paragraph(a3 sp))
+        c.eqStr("the paragraph is a Heading 1" styled.styleId "Heading1")
+        def firstSpan:TextSpan (itemAt styled.spans 0)
+        c.ok("its text took the heading's size" (firstSpan.fontSizePt == h1Style.run.fontSizePt))
+        c.ok("which is not the body size" (firstSpan.fontSizePt != sizeBefore))
+        a3.buildDisplayList()
+        def tileI:int (a3.ribbon.indexOf("format.style" "Heading1"))
+        def tile:RibbonItem (a3.ribbon.at(tileI))
+        c.ok("the gallery shows Heading 1 pressed" tile.pressed)
+        def noSp:RibbonItem (a3.ribbon.at((a3.ribbon.indexOf("format.style" "NoSpacing"))))
+        c.ok("a style the file does not have is greyed" (noSp.enabled == false))
+        c.ok("the new heading is in the pane" (DocxChromeTest.navHas(a3 sp)))
+        a3.runCommand("edit.undo" "")
+        def back:Paragraph (DocxChromeTest.paragraph(a3 sp))
+        c.eqStr("undo makes it body text again" back.styleId "Normal")
+        def backSpan:TextSpan (itemAt back.spans 0)
+        c.ok("at the body size" (backSpan.fontSizePt == sizeBefore))
+
+        ; Saved and read back.
+        a3.runCommand("edit.redo" "")
+        def bytes:buffer (a3.viewer.saveBytes())
+        def a4:DocxApp (new DocxApp)
+        a4.init()
+        c.ok("the styled document saves and opens" (a4.viewer.openBytes(bytes "styled.docx")))
+        def again:Paragraph (DocxChromeTest.paragraph(a4 sp))
+        c.eqStr("with the heading style kept" again.styleId "Heading1")
+
+        print "-- the status bar --"
+        c.ok("words are counted" ((app.wordCount()) > 500))
+        def z0:double app.zoom
+        def sx:int (app.chrome.sliderX(app.W))
+        DocxChromeTest.click(app (sx + 110) (app.H - 10))
+        c.ok("a press right on the slider zooms in" (app.zoom > z0))
+        DocxChromeTest.click(app (sx + 60) (app.H - 10))
+        c.ok("and its middle is actual size" ((app.zoom > 0.99) && (app.zoom < 1.01)))
+
+        print "-- and the whole frame draws --"
+        def dl:EVGDisplayList (app.buildDisplayList())
+        c.ok("there is a picture" ((array_length dl.cmds) > 200))
+        def compact:DocxApp (new DocxApp)
+        compact.init()
+        compact.resize(900 700)
+        c.ok("the compact strip is still the default" (compact.ribbonUi == false))
+
+        print ""
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        } {
+            print "FAILURES"
+        }
+    }
+
+    sfn alignOf:int (app:DocxApp pid:int) {
+        def p:Paragraph (DocxChromeTest.paragraph(app pid))
+        return p.align
+    }
+
+    sfn navHas:boolean (app:DocxApp pid:int) {
+        def i:int 0
+        while (i < (array_length app.nav.entries)) {
+            def e:NavEntry (itemAt app.nav.entries i)
+            if (e.paragraphId == pid) {
+                return true
+            }
+            i = (i + 1)
+        }
+        return false
+    }
+}

@@ -120,6 +120,15 @@ See `harness/ORACLES.md`.
 
 ## Running it in a browser, with no host and no PNG
 
+The page is the word-processor frame (`src/DocxChrome.rgr`, turned on with
+`DocxWeb.setRibbon(true)`): a title bar, a ribbon of grouped commands (Home,
+Insert, Layout, References, Review, View, File), the navigation pane
+(headings, pages, search results), both rulers, and a status bar with the word
+count and a zoom slider. All of it is drawn by the engine into the same display
+list as the pages. Commands that do not exist yet are drawn greyed, so the
+ribbon doubles as the parity checklist. `npm run docx_viewer:chrome:test`
+checks it. The compact strip is still the default for other hosts.
+
 Every push to `main` builds this page and publishes it to GitHub Pages
 (<https://terotests.github.io/RangerDocx/>, workflow `.github/workflows/pages.yml`).
 

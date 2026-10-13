@@ -27,8 +27,6 @@ const backendEl = document.getElementById("backend");
 const cmdsEl = document.getElementById("cmds");
 const pageEl = document.getElementById("slide");
 const fileEl = document.getElementById("file");
-const editEl = document.getElementById("edit");
-const chartToolsEl = document.getElementById("chartTools");
 
 const gl = canvas.getContext("webgl2", { antialias: true, premultipliedAlpha: false, stencil: true });
 if (!gl) {
@@ -134,6 +132,11 @@ function engineOrExplain(name, script, command) {
 
 const web = new (engineOrExplain("DocxWeb", "docx_web.js", "docx_viewer:web"))();
 web.start();
+// The word processor's frame (title bar, ribbon, navigation pane, rulers,
+// status bar) and every page stacked down the desk, as a word processor shows
+// a document.
+web.setRibbon(true);
+web.setContinuous(true);
 
 let page = 0;
 let lastScene = "";
@@ -196,14 +199,40 @@ function downloadDocx() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   statusEl.textContent = "saved " + docName;
 }
-document.getElementById("save")?.addEventListener("click", downloadDocx);
+
+// What a ribbon button asked of the page: files and the clipboard are the
+// browser's, not the engine's.
+async function serveRequest() {
+  const want = web.takeFileRequest();
+  if (!want) return;
+  if (want === "saveAs") downloadDocx();
+  else if (want === "open") fileEl?.click();
+  else if (want === "print") window.print();
+  else if (want === "copy") {
+    const text = web.takeClipboard();
+    if (text) navigator.clipboard?.writeText(text).catch(() => {});
+  } else if (want === "paste") {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) web.paste("", text);
+    } catch (_) {
+      statusEl.textContent = "paste: use Ctrl+V (the browser did not allow reading the clipboard)";
+    }
+  }
+}
+
+// The frame is the window.
+function fitWindow() {
+  web.frameSize(Math.max(640, window.innerWidth | 0), Math.max(420, window.innerHeight | 0));
+}
+window.addEventListener("resize", () => {
+  fitWindow();
+  draw(true);
+});
 
 async function draw(force) {
-  if (web.takeFileRequest() === "saveAs") downloadDocx();
-  // The app lays the page out and sizes the frame around it in one call: a
-  // Word page is not one size, and measuring before laying out measures the
-  // page you were on.
-  web.frameFit(720);
+  await serveRequest();
+  fitWindow();
   const text = web.frame();
   if (!force && text === lastScene) return;
   lastScene = text;
@@ -227,7 +256,6 @@ async function draw(force) {
   page = web.page() | 0;
   cmdsEl.textContent = String(doc.list.cmds.length);
   pageEl.textContent = `${page + 1} / ${web.pageCount() | 0}`;
-  if (chartToolsEl) chartToolsEl.hidden = (web.selectedChart() | 0) === 0;
   window.__evgStats = stats;
   window.__docxDoc = doc;
 }
@@ -245,7 +273,7 @@ async function scrollBy(dy) {
   if (!dy || scrollBusy) return;
   scrollBusy = true;
   try {
-    if (web.scroll(Math.round(dy))) {
+    if (web.frameWheel(Math.round(dy))) {
       page = web.page() | 0;
       await draw(true);
     }
@@ -309,41 +337,12 @@ window.addEventListener("paste", async (ev) => {
   await draw(true);
 });
 
-document.getElementById("next")?.addEventListener("click", async () => {
-  web.goToPage(page + 1);
-  page = web.page() | 0;
-  await draw(true);
-});
-document.getElementById("prev")?.addEventListener("click", async () => {
-  web.goToPage(page - 1);
-  page = web.page() | 0;
-  await draw(true);
-});
-editEl?.addEventListener("click", async () => {
-  const on = !web.editMode();
-  web.setEditMode(on);
-  editEl.setAttribute("aria-pressed", String(on));
-  canvas.focus();
-  await draw(true);
-});
-document.getElementById("chartType")?.addEventListener("click", async () => {
-  web.editChart("kind.next", "1");
-  await draw(true);
-});
-document.getElementById("chartStyle")?.addEventListener("click", async () => {
-  web.editChart("style.next", "1");
-  await draw(true);
-});
-document.getElementById("chartDelete")?.addEventListener("click", async () => {
-  web.deleteChart();
-  await draw(true);
-});
-
 fileEl?.addEventListener("change", async (ev) => {
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   const ok = web.openDocument(asRangerBuffer(await file.arrayBuffer()), file.name);
   if (ok) docName = file.name;
+  fileEl.value = "";
   statusEl.textContent = ok ? "opened " + file.name : "could not open: " + web.note;
   page = 0;
   refreshMedia();
@@ -407,6 +406,17 @@ async function selftest() {
     ok("the frame is wider than the paper", (web.frameWidth() | 0) > 0);
   }
 
+  // The word-processor frame: a ribbon button aligns the paragraph, and a
+  // heading in the navigation pane is a place to go.
+  {
+    web.setEditMode(true);
+    web.click(120, 200, false);
+    ok("Centre on the ribbon centres the paragraph", web.run("para.align", "1"));
+    web.run("edit.undo", "");
+    ok("the frame has room for the pane and the rulers", (web.framePageX() | 0) > 280);
+    web.setEditMode(false);
+  }
+
   // Typing, through the same path a keystroke takes.
   web.setEditMode(true);
   web.click(120, 200, false);
@@ -429,23 +439,27 @@ async function selftest() {
   // a drag across text selected nothing at all.
   {
     web.setEditMode(true);
-    const y = 200;
-    web.framePointer(120, y, true, true, false, false);
+    await draw(true);
+    // Paper coordinates, turned into frame ones: the page sits right of the
+    // navigation pane and under the ribbon.
+    const fx = (x) => (web.framePageX() | 0) + x;
+    const y = (web.framePageY() | 0) + 200;
+    web.framePointer(fx(120), y, true, true, false, false);
     await draw(true);
     const beforeDrag = web.copySelection() || "";
     ok("a press alone selects nothing", beforeDrag.length === 0);
     // Held, and moved — several steps, the way a real drag arrives.
     for (const x of [200, 320, 460]) {
-      web.framePointer(x, y, false, true, false, false);
+      web.framePointer(fx(x), y, false, true, false, false);
     }
-    web.framePointer(460, y, false, false, true, false);
+    web.framePointer(fx(460), y, false, false, true, false);
     await draw(true);
     const dragged = web.copySelection() || "";
     ok("dragging with the button held selects text", dragged.length > 0);
     // And letting go leaves it selected rather than collapsing it.
     ok("and letting go keeps it", (web.copySelection() || "").length > 0);
-    web.framePointer(120, y, true, true, false, false);
-    web.framePointer(120, y, false, false, true, false);
+    web.framePointer(fx(120), y, true, true, false, false);
+    web.framePointer(fx(120), y, false, false, true, false);
     await draw(true);
   }
 

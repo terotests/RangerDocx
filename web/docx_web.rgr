@@ -65,6 +65,38 @@ class DocxWeb {
         return (app.pointer(x y pressed down released extend))
     }
 
+    ; The word-processor frame: title bar, ribbon, navigation pane, both
+    ; rulers and a status bar, instead of the compact strip.
+    fn setRibbon:void (on:boolean) {
+        app.setRibbonUi(on)
+    }
+
+    ; Where the paper of the current page is drawn in the frame, so a host (or
+    ; a test) can turn a point on the page into a frame point.
+    fn framePageX:int () {
+        return app.pageX
+    }
+
+    fn framePageY:int () {
+        return (app.pageFrameY(viewer.currentPage))
+    }
+
+    ; Typed text through the app, which may want it for its search field.
+    fn frameText:void (s:string) {
+        app.text(s)
+    }
+
+    fn wantsText:boolean () {
+        return (app.wantsText())
+    }
+
+    ; What Copy or Cut on the ribbon took, after `takeFileRequest` said "copy".
+    fn takeClipboard:string () {
+        def t:string app.clipboardOut
+        app.clipboardOut = ""
+        return t
+    }
+
     fn frameWheel:boolean (dy:int) {
         return (app.wheel(dy))
     }
@@ -143,6 +175,7 @@ class DocxWeb {
             note = viewer.lastError
         } {
             note = ""
+            app.markOpened(name)
         }
         return ok
     }
