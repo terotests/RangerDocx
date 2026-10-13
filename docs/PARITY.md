@@ -7,9 +7,10 @@ alpha, itself measured against Word for Mac 16.113.4). WordCraft's code is not
 copied; only its feature *lists* are used as the yardstick (see
 [ATTRIBUTION.md](../ATTRIBUTION.md)).
 
-The starting point is Ranger's `gallery/docx_viewer` (reader, layout, editing
-MVP, no writer). It is scored as a third column so progress is visible from
-day one.
+The code started as Ranger's `gallery/docx_viewer` (reader, layout, editing
+MVP, no writer), moved here from Ranger commit 1b3126b. The "Ranger
+docx_viewer" column is that snapshot, kept frozen as the baseline; the
+RangerDocx column counts only what this repository's tests cover.
 
 The numbers live in `parity/*.tsv`. `tools/parity/ParityReport.rgr` reads them
 and writes [PARITY_REPORT.md](PARITY_REPORT.md); the same program compiles to
@@ -80,7 +81,7 @@ collapsible ribbon. Visual changes do not change command ids.
 
 ## What the baseline shows
 
-- docx_viewer already covers 20 of 502 catalog features (bold, italic,
+- The moved code covers 20 of 502 catalog features (bold, italic,
   underline, font, size, colour, indents, undo/redo, select all; partial
   clipboard, table and chart insertion) and reads 14 of 55 OOXML groups.
 - It writes nothing (C3 = 0, F2 = 0). A DOCX writer that preserves unknown

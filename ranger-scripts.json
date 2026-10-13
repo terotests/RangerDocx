@@ -1,0 +1,25 @@
+{
+  "_comment": "npm scripts for Ranger package.json, run from the Ranger root with this repo cloned to gallery/docx_viewer",
+  "scripts": {
+    "docx:audit": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tools/docx_audit.rgr ./gallery/docx_viewer/bin docx_audit.js",
+    "docx:audit:check": "node dist/rgrc.js -es6 ./gallery/docx_viewer/tools/docx_audit.rgr -d=./gallery/docx_viewer/bin -o=docx_audit.js -nodecli && node ./gallery/docx_viewer/bin/docx_audit.js --check",
+    "docx:bench": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/bench/docx_bench.rgr ./gallery/docx_viewer/bin docx_bench.js",
+    "docx_viewer:a11y:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxA11yTest.rgr ./gallery/docx_viewer/bin DocxA11yTest.js",
+    "docx_viewer:app:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxAppTest.rgr ./gallery/docx_viewer/bin DocxAppTest.js",
+    "docx_viewer:chart:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/ChartPasteTest.rgr ./gallery/docx_viewer/bin ChartPasteTest.js",
+    "docx_viewer:demo": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/src/docx_demo.rgr ./gallery/docx_viewer/bin docx_demo.js",
+    "docx_viewer:fixtures": "python3 gallery/docx_viewer/fixtures/make_fixtures.py",
+    "docx_viewer:load:test": "bash gallery/docx_viewer/tools/run_load_test.sh",
+    "docx_viewer:module": "node dist/rgrc.js -es6 -nodemodule ./gallery/docx_viewer/src/DocxViewer.rgr -d=./gallery/docx_viewer/bin -o=docx_viewer_module.cjs",
+    "docx_viewer:oracles": "node gallery/docx_viewer/harness/run_oracles.mjs --skip-visual",
+    "docx_viewer:oracles:visual": "node gallery/docx_viewer/harness/run_oracles.mjs",
+    "docx_viewer:paging:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxPagingTest.rgr ./gallery/docx_viewer/bin DocxPagingTest.js",
+    "docx_viewer:rtl:shot": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/src/docx_rtl_shot.rgr ./gallery/docx_viewer/bin docx_rtl_shot.js",
+    "docx_viewer:scroll:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxScrollTest.rgr ./gallery/docx_viewer/bin DocxScrollTest.js",
+    "docx_viewer:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxTest.rgr ./gallery/docx_viewer/bin DocxTest.js",
+    "docx_viewer:web": "bash gallery/docx_viewer/web/standalone/build.sh",
+    "docx_viewer:web:serve": "bash gallery/docx_viewer/web/standalone/build.sh && python3 -m http.server -d gallery/docx_viewer/web/standalone/dist 8002",
+    "docx_viewer:web:test": "bash gallery/docx_viewer/web/standalone/build.sh && node gallery/docx_viewer/web/standalone/smoke.mjs",
+    "docx_viewer:window": "npm run docx_viewer:module && node gallery/docx_viewer/web/serve.mjs --open"
+  }
+}

@@ -2,7 +2,7 @@
 # Regenerates docs/PARITY_REPORT.md from parity/*.tsv.
 #   tools/parity/run.sh          # JavaScript target (node)
 #   tools/parity/run.sh rust     # Rust target (rustc), same output
-# Needs a Ranger checkout: $RANGER, or this repo cloned to <ranger>/gallery/docx.
+# Needs a Ranger checkout: $RANGER, or this repo cloned to <ranger>/gallery/docx_viewer.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"

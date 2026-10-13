@@ -1,29 +1,29 @@
 area	feature	elements	wordcraft_read	wordcraft_write	ranger_viewer_read	ranger_viewer_write	rangerdocx_read	rangerdocx_write	test
-Text	Paragraphs, runs, text, breaks	w:p w:r w:t w:br w:tab w:cr	yes	yes	partial	no	no	no	-
-Text	Run props: bold/italic/underline/strike	w:b w:i w:u w:strike w:dstrike	yes	yes	partial	no	no	no	-
-Text	Run props: size, colour, fonts	w:sz w:color w:rFonts	yes	yes	yes	no	no	no	-
+Text	Paragraphs, runs, text, breaks	w:p w:r w:t w:br w:tab w:cr	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
+Text	Run props: bold/italic/underline/strike	w:b w:i w:u w:strike w:dstrike	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
+Text	Run props: size, colour, fonts	w:sz w:color w:rFonts	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Text	Run props: highlight, shading, caps, vertAlign, spacing	w:highlight w:shd w:caps w:smallCaps w:vertAlign w:spacing w:kern w:position	yes	yes	no	no	no	no	-
-Text	Complex-script and East Asian props	w:rtl w:cs w:szCs w:bCs w:iCs w:eastAsia	yes	yes	partial	no	no	no	-
+Text	Complex-script and East Asian props	w:rtl w:cs w:szCs w:bCs w:iCs w:eastAsia	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
 Text	Symbols	w:sym	yes	yes	no	no	no	no	-
-Paragraph	Alignment, indents, spacing	w:jc w:ind w:spacing	yes	yes	yes	no	no	no	-
+Paragraph	Alignment, indents, spacing	w:jc w:ind w:spacing	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Paragraph	Tab stops	w:tabs w:tab	yes	yes	no	no	no	no	-
-Paragraph	Keeps, widow control, page break before	w:keepNext w:keepLines w:widowControl w:pageBreakBefore	yes	yes	partial	no	no	no	-
+Paragraph	Keeps, widow control, page break before	w:keepNext w:keepLines w:widowControl w:pageBreakBefore	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
 Paragraph	Borders and shading	w:pBdr w:shd	yes	yes	no	no	no	no	-
-Paragraph	Paragraph direction	w:bidi	yes	yes	yes	no	no	no	-
+Paragraph	Paragraph direction	w:bidi	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Paragraph	Text frames and drop caps	w:framePr	yes	yes	no	no	no	no	-
-Styles	Styles, basedOn chain, docDefaults	w:style w:basedOn w:docDefaults w:pPrDefault w:rPrDefault	yes	yes	yes	no	no	no	-
+Styles	Styles, basedOn chain, docDefaults	w:style w:basedOn w:docDefaults w:pPrDefault w:rPrDefault	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Styles	Latent styles, linked styles, table styles	w:latentStyles w:link w:tblStylePr	yes	yes	no	no	no	no	-
-Numbering	Lists: abstractNum, num, lvl, lvlText	w:abstractNum w:num w:lvl w:lvlText w:numFmt w:numPr w:ilvl	yes	yes	yes	no	no	no	-
+Numbering	Lists: abstractNum, num, lvl, lvlText	w:abstractNum w:num w:lvl w:lvlText w:numFmt w:numPr w:ilvl	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Numbering	Overrides, restarts, picture bullets	w:lvlOverride w:startOverride w:lvlPicBulletId	yes	yes	no	no	no	no	-
-Tables	Grid, rows, cells, spans	w:tbl w:tblGrid w:tr w:tc w:gridSpan	yes	yes	yes	no	no	no	-
+Tables	Grid, rows, cells, spans	w:tbl w:tblGrid w:tr w:tc w:gridSpan	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Tables	Vertical merge, nested tables	w:vMerge (nested w:tbl)	yes	yes	no	no	no	no	-
-Tables	Borders, shading, widths, margins	w:tblBorders w:tcBorders w:shd w:tcW w:tblCellMar	yes	yes	partial	no	no	no	-
+Tables	Borders, shading, widths, margins	w:tblBorders w:tcBorders w:shd w:tcW w:tblCellMar	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
 Tables	Header rows, row height, cantSplit	w:tblHeader w:trHeight w:cantSplit	yes	yes	no	no	no	no	-
 Tables	Floating and RTL tables	w:tblpPr w:bidiVisual	yes	yes	no	no	no	no	-
-Sections	Page size, margins, orientation, section breaks	w:sectPr w:pgSz w:pgMar w:type	yes	yes	yes	no	no	no	-
+Sections	Page size, margins, orientation, section breaks	w:sectPr w:pgSz w:pgMar w:type	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Sections	Columns, line numbers, page borders, vAlign, docGrid	w:cols w:lnNumType w:pgBorders w:vAlign w:docGrid	yes	yes	no	no	no	no	-
 Sections	Section text direction	w:textDirection	yes	yes	no	no	no	no	-
-Headers	Default header/footer	w:headerReference w:footerReference	yes	yes	yes	no	no	no	-
+Headers	Default header/footer	w:headerReference w:footerReference	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Headers	First-page and even/odd headers	w:titlePg w:evenAndOddHeaders	yes	yes	no	no	no	no	-
 Notes	Footnotes and endnotes	w:footnoteReference w:endnoteReference w:footnotePr	yes	yes	no	no	no	no	-
 Review	Comments	w:commentRangeStart w:commentReference comments.xml	yes	yes	no	no	no	no	-
@@ -31,14 +31,14 @@ Review	Tracked insertions/deletions	w:ins w:del	yes	yes	no	no	no	no	-
 Review	Formatting revisions	w:rPrChange w:pPrChange w:sectPrChange w:tblPrChange	yes	yes	no	no	no	no	-
 Review	Move tracking	w:moveFrom w:moveTo	yes	yes	no	no	no	no	-
 Fields	Complex and simple fields, TOC, cross-references	w:fldChar w:instrText w:fldSimple	yes	yes	no	no	no	no	-
-Links	Hyperlinks and bookmarks	w:hyperlink w:bookmarkStart w:bookmarkEnd	yes	yes	partial	no	no	no	-
-Drawing	Inline pictures	wp:inline a:blip	yes	yes	yes	no	no	no	-
+Links	Hyperlinks and bookmarks	w:hyperlink w:bookmarkStart w:bookmarkEnd	yes	yes	partial	no	impl	no	-
+Drawing	Inline pictures	wp:inline a:blip	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Drawing	Anchored pictures and wrapping	wp:anchor wp:wrapSquare wp:wrapTight wp:wrapPolygon	yes	yes	no	no	no	no	-
 Drawing	Shapes and text boxes	wps:wsp wps:txbx a:prstGeom	yes	yes	no	no	no	no	-
 Drawing	Groups and canvases	wpg:wgp wpc:wpc	yes	yes	no	no	no	no	-
 Drawing	Freeform geometry	a:custGeom	yes	yes	no	no	no	no	-
-Drawing	VML legacy	w:pict v:shape v:textbox	partial	no	partial	no	no	no	-
-Drawing	Alt text and decorative mark	wp:docPr@descr adec:decorative w:tblCaption	yes	yes	yes	no	no	no	-
+Drawing	VML legacy	w:pict v:shape v:textbox	partial	no	partial	no	partial	no	tests/DocxTest.rgr
+Drawing	Alt text and decorative mark	wp:docPr@descr adec:decorative w:tblCaption	yes	yes	yes	no	yes	no	tests/DocxTest.rgr
 Drawing	Charts and SmartArt	c:chart dgm:relIds	yes	yes	no	no	no	no	-
 Drawing	OLE objects	w:object	partial	yes	no	no	no	no	-
 Drawing	WordArt text effects	w14:textFill w14:textOutline w14:glow	yes	yes	no	no	no	no	-
@@ -46,7 +46,7 @@ Math	Equations (OMML)	m:oMath m:oMathPara	yes	yes	no	no	no	no	-
 Controls	Content controls	w:sdt w:sdtPr w:sdtContent	yes	yes	no	no	no	no	-
 Controls	Legacy form fields	w:ffData	no	no	no	no	no	no	-
 East Asian	Ruby, eastAsianLayout, fitText	w:ruby w:eastAsianLayout w:fitText	partial	partial	no	no	no	no	-
-Package	Theme, font table, settings, core/app props	theme1.xml fontTable.xml settings.xml docProps	yes	yes	partial	no	no	no	-
+Package	Theme, font table, settings, core/app props	theme1.xml fontTable.xml settings.xml docProps	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
 Package	Custom XML parts	customXml/item*.xml	partial	partial	no	no	no	no	-
 Package	Macro-enabled and template packages	docm dotx dotm	yes	yes	no	no	no	no	-
 Package	Strict namespace	purl.oclc.org/ooxml	yes	no	no	no	no	no	-

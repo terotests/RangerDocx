@@ -1,9 +1,9 @@
 tab	group	feature	command	wordcraft	ranger_viewer	rangerdocx	test
 File	Backstage	New	file.new	live	no	no	-
-File	Backstage	Open	file.open	live	yes	no	-
+File	Backstage	Open	file.open	live	yes	yes	tests/DocxTest.rgr
 File	Backstage	Save	file.save	live	no	no	-
 File	Backstage	Save As	file.saveAs	live	no	no	-
-File	Backstage	Print	file.print	live	partial	no	-
+File	Backstage	Print	file.print	live	partial	impl	-
 File	Backstage	Print Markup	file.printMarkup	live	no	no	-
 File	Backstage	Close	file.close	live	no	no	-
 File	Backstage	Info	file.info	live	no	no	-
@@ -21,31 +21,31 @@ File	Backstage	Version History	file.versions	live	no	no	-
 File	Backstage	Recover Unsaved	file.recover	live	no	no	-
 File	Backstage	New from Template	file.newFromTemplate	live	no	no	-
 File	Backstage	Save as Template	file.saveTemplate	live	no	no	-
-Quick Access	Toolbar	Undo	edit.undo	live	yes	no	-
+Quick Access	Toolbar	Undo	edit.undo	live	yes	yes	tests/DocxAppTest.rgr
 Quick Access	Toolbar	Undo List	edit.undoTo	live	no	no	-
-Quick Access	Toolbar	Redo	edit.redo	live	yes	no	-
+Quick Access	Toolbar	Redo	edit.redo	live	yes	yes	tests/DocxAppTest.rgr
 Quick Access	Toolbar	Repeat	edit.repeat	live	no	no	-
 Quick Access	Toolbar	AutoSave	file.autosave	live	no	no	-
 Title Bar	Search	Search (Tell Me)	tools.search	live	no	no	-
-Home	Clipboard	Paste	edit.paste	live	partial	no	-
-Home	Clipboard	Paste Keep Text Only	edit.pasteText	live	partial	no	-
+Home	Clipboard	Paste	edit.paste	live	partial	partial	tests/DocxTest.rgr
+Home	Clipboard	Paste Keep Text Only	edit.pasteText	live	partial	partial	tests/DocxTest.rgr
 Home	Clipboard	Paste Merge Formatting	edit.pasteMerge	live	no	no	-
 Home	Clipboard	Paste Special	edit.pasteSpecial	live	no	no	-
-Home	Clipboard	Cut	edit.cut	live	partial	no	-
-Home	Clipboard	Copy	edit.copy	live	partial	no	-
+Home	Clipboard	Cut	edit.cut	live	partial	partial	tests/DocxAppTest.rgr
+Home	Clipboard	Copy	edit.copy	live	partial	partial	tests/DocxAppTest.rgr
 Home	Clipboard	Format Painter	edit.formatPainter	live	no	no	-
 Home	Clipboard	Copy Formatting	edit.copyFormat	live	no	no	-
 Home	Clipboard	Paste Formatting	edit.pasteFormat	live	no	no	-
 Home	Clipboard	Clipboard Pane	edit.clipboardPane	live	no	no	-
-Home	Font	Font	format.font	live	yes	no	-
-Home	Font	Font Size	format.size	live	partial	no	-
-Home	Font	Increase Font Size	format.growFont	live	yes	no	-
-Home	Font	Decrease Font Size	format.shrinkFont	live	yes	no	-
+Home	Font	Font	format.font	live	yes	yes	tests/DocxAppTest.rgr
+Home	Font	Font Size	format.size	live	partial	partial	tests/DocxAppTest.rgr
+Home	Font	Increase Font Size	format.growFont	live	yes	yes	tests/DocxAppTest.rgr
+Home	Font	Decrease Font Size	format.shrinkFont	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Change Case	format.changeCase	live	no	no	-
 Home	Font	Clear All Formatting	format.clear	live	no	no	-
-Home	Font	Bold	format.bold	live	yes	no	-
-Home	Font	Italic	format.italic	live	yes	no	-
-Home	Font	Underline	format.underline	live	yes	no	-
+Home	Font	Bold	format.bold	live	yes	yes	tests/DocxAppTest.rgr
+Home	Font	Italic	format.italic	live	yes	yes	tests/DocxAppTest.rgr
+Home	Font	Underline	format.underline	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Double Underline	format.doubleUnderline	live	no	no	-
 Home	Font	Strikethrough	format.strikethrough	live	no	no	-
 Home	Font	Subscript	format.subscript	live	no	no	-
@@ -54,7 +54,7 @@ Home	Font	Text Effects Outline	format.outline	live	no	no	-
 Home	Font	Text Effects Shadow	format.shadow	live	no	no	-
 Home	Font	Text Effects and Typography	format.textEffects	live	no	no	-
 Home	Font	Text Highlight Color	format.highlight	live	no	no	-
-Home	Font	Font Color	format.color	live	yes	no	-
+Home	Font	Font Color	format.color	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Character Shading	format.shading	live	no	no	-
 Home	Font	Font Dialog	format.fontDialog	live	no	no	-
 Home	Font	Double Strikethrough	format.doubleStrikethrough	live	no	no	-
@@ -78,8 +78,8 @@ Home	Paragraph	Restart Numbering	para.restartNumbering	live	no	no	-
 Home	Paragraph	Define New Bullet	para.defineBullet	live	no	no	-
 Home	Paragraph	Define New Number Format	para.defineNumber	live	no	no	-
 Home	Paragraph	Set Numbering Value	para.setNumberingValue	live	no	no	-
-Home	Paragraph	Decrease Indent	para.outdent	live	yes	no	-
-Home	Paragraph	Increase Indent	para.indent	live	yes	no	-
+Home	Paragraph	Decrease Indent	para.outdent	live	yes	yes	tests/DocxTest.rgr
+Home	Paragraph	Increase Indent	para.indent	live	yes	yes	tests/DocxTest.rgr
 Home	Paragraph	Sort	para.sort	live	no	no	-
 Home	Paragraph	Show/Hide Marks	view.marks	live	no	no	-
 Home	Paragraph	Align Left	para.alignLeft	live	no	no	-
@@ -101,7 +101,7 @@ Home	Paragraph	Page Break Before	para.pageBreakBefore	live	no	no	-
 Home	Paragraph	Widow/Orphan Control	para.widowControl	live	no	no	-
 Home	Paragraph	Outline Level	para.outlineLevel	live	no	no	-
 Home	Paragraph	Hanging Indent	para.hangingIndent	live	no	no	-
-Home	Paragraph	Right-to-Left Text Direction	para.rtl	live	partial	no	-
+Home	Paragraph	Right-to-Left Text Direction	para.rtl	live	partial	partial	tests/DocxTest.rgr
 Home	Paragraph	Left-to-Right Text Direction	para.ltr	live	no	no	-
 Home	Paragraph	Asian Typography	para.asianTypography	live	no	no	-
 Home	Styles	Styles Gallery	para.style	live	no	no	-
@@ -125,7 +125,7 @@ Home	Editing	Advanced Find	edit.advancedFind	live	no	no	-
 Home	Editing	Replace	edit.replace	live	no	no	-
 Home	Editing	Replace All	edit.replaceAll	live	no	no	-
 Home	Editing	Go To	edit.goto	live	no	no	-
-Home	Editing	Select All	select.all	live	yes	no	-
+Home	Editing	Select All	select.all	live	yes	yes	tests/DocxTest.rgr
 Home	Editing	Select Objects	select.objects	live	no	no	-
 Home	Editing	Select Similar Formatting	select.similar	live	no	no	-
 Home	Voice	Dictate	tools.dictate	missing	no	no	-
@@ -133,7 +133,7 @@ Home	Editor	Editor	review.editor	live	no	no	-
 Insert	Pages	Cover Page	insert.coverPage	live	no	no	-
 Insert	Pages	Blank Page	insert.blankPage	live	no	no	-
 Insert	Pages	Page Break	insert.pageBreak	live	no	no	-
-Insert	Tables	Insert Table	insert.table	live	partial	no	-
+Insert	Tables	Insert Table	insert.table	live	partial	impl	-
 Insert	Tables	Draw Table	table.draw	live	no	no	-
 Insert	Tables	Convert Text to Table	table.fromText	live	no	no	-
 Insert	Tables	Excel Spreadsheet	insert.spreadsheet	live	no	no	-
@@ -144,7 +144,7 @@ Insert	Illustrations	Shapes	insert.shape	live	no	no	-
 Insert	Illustrations	Icons	insert.icon	live	no	no	-
 Insert	Illustrations	3D Models	insert.model3d	missing	no	no	-
 Insert	Illustrations	SmartArt	insert.smartArt	live	no	no	-
-Insert	Illustrations	Chart	insert.chart	live	partial	no	-
+Insert	Illustrations	Chart	insert.chart	live	partial	partial	tests/ChartPasteTest.rgr
 Insert	Illustrations	Screenshot	insert.screenshot	missing	no	no	-
 Insert	Illustrations	Drawing Canvas	insert.canvas	live	no	no	-
 Insert	Add-ins	Get Add-ins	addins.get	missing	no	no	-
@@ -311,13 +311,13 @@ View	Page Movement	Side to Side	view.sideToSide	live	no	no	-
 View	Show	Ruler	view.ruler	live	no	no	-
 View	Show	Gridlines	view.gridlines	live	no	no	-
 View	Show	Navigation Pane	view.navigationPane	live	no	no	-
-View	Zoom	Zoom	view.zoom	live	partial	no	-
+View	Zoom	Zoom	view.zoom	live	partial	impl	-
 View	Zoom	100%	view.zoom100	live	no	no	-
 View	Zoom	One Page	view.onePage	live	no	no	-
 View	Zoom	Multiple Pages	view.multiplePages	live	no	no	-
 View	Zoom	Page Width	view.pageWidth	live	no	no	-
-View	Zoom	Zoom In	view.zoomIn	live	partial	no	-
-View	Zoom	Zoom Out	view.zoomOut	live	partial	no	-
+View	Zoom	Zoom In	view.zoomIn	live	partial	impl	-
+View	Zoom	Zoom Out	view.zoomOut	live	partial	impl	-
 View	Dark Mode	Switch Modes	view.darkMode	live	no	no	-
 View	Window	New Window	view.newWindow	live	no	no	-
 View	Window	Arrange All	view.arrangeAll	missing	no	no	-
@@ -358,11 +358,11 @@ Table Layout	Table	Table Direction	table.rtl	live	no	no	-
 Table Layout	Draw	Draw Table	table.draw	live	no	no	-
 Table Layout	Draw	Eraser	table.eraser	live	no	no	-
 Table Layout	Rows & Columns	Delete Cells	table.deleteCells	live	no	no	-
-Table Layout	Rows & Columns	Delete Rows	table.deleteRow	live	partial	no	-
+Table Layout	Rows & Columns	Delete Rows	table.deleteRow	live	partial	impl	-
 Table Layout	Rows & Columns	Delete Columns	table.deleteColumn	live	no	no	-
 Table Layout	Rows & Columns	Delete Table	table.deleteTable	live	no	no	-
 Table Layout	Rows & Columns	Insert Above	table.insertRowAbove	live	no	no	-
-Table Layout	Rows & Columns	Insert Below	table.insertRowBelow	live	partial	no	-
+Table Layout	Rows & Columns	Insert Below	table.insertRowBelow	live	partial	impl	-
 Table Layout	Rows & Columns	Insert Left	table.insertColumnLeft	live	no	no	-
 Table Layout	Rows & Columns	Insert Right	table.insertColumnRight	live	no	no	-
 Table Layout	Merge	Merge Cells	table.merge	live	no	no	-
