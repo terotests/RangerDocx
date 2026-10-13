@@ -120,6 +120,9 @@ See `harness/ORACLES.md`.
 
 ## Running it in a browser, with no host and no PNG
 
+Every push to `main` builds this page and publishes it to GitHub Pages
+(<https://terotests.github.io/RangerDocx/>, workflow `.github/workflows/pages.yml`).
+
 ```bash
 npm run docx_viewer:web         # build gallery/docx_viewer/web/standalone/dist
 npm run docx_viewer:web:serve   # …and serve it on :8002

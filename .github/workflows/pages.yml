@@ -1,0 +1,63 @@
+# Builds the web editor (web/standalone) from main and publishes it to GitHub
+# Pages. RangerDocx builds inside a Ranger checkout at gallery/docx_viewer, so
+# the job checks out Ranger master, fetches its deps, swaps in this commit with
+# `npm run deps -- --from=...`, and runs the standalone build.
+name: Deploy test version to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out RangerDocx
+        uses: actions/checkout@v4
+        with:
+          path: rangerdocx
+      - name: Check out Ranger
+        uses: actions/checkout@v4
+        with:
+          repository: terotests/Ranger
+          ref: master
+          path: ranger
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: ranger/package-lock.json
+      - name: Install Ranger and its deps
+        working-directory: ranger
+        run: npm ci
+      - name: Use this commit as gallery/docx_viewer
+        working-directory: ranger
+        run: node scripts/deps.mjs --from="$GITHUB_WORKSPACE/rangerdocx"
+      - name: Build the web editor
+        working-directory: ranger
+        run: bash gallery/docx_viewer/web/standalone/build.sh --out "$GITHUB_WORKSPACE/site"
+      - name: Stamp the commit
+        run: echo "${GITHUB_SHA}" > site/commit.txt
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
