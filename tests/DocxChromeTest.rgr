@@ -118,8 +118,8 @@ class DocxChromeTest {
             gj = (gj + 1)
         }
         c.ok("every column stays inside its group" groupLabelsInside)
-        def strike:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.strike" ""))))
-        c.ok("a command that does not exist yet is drawn greyed" (strike.enabled == false))
+        def painter:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.painter" ""))))
+        c.ok("a command that does not exist yet is drawn greyed" (painter.enabled == false))
 
         ; Switching pages.
         def view:int (app.ribbon.tabIndex("View"))
@@ -247,6 +247,77 @@ class DocxChromeTest {
         c.ok("the styled document saves and opens" (a4.viewer.openBytes(bytes "styled.docx")))
         def again:Paragraph (DocxChromeTest.paragraph(a4 sp))
         c.eqStr("with the heading style kept" again.styleId "Heading1")
+
+        print "-- character formatting --"
+        def a5:DocxApp (DocxChromeTest.build("20-business-report.docx"))
+        a5.viewer.setEditMode(true)
+        def rp:int (DocxChromeTest.firstWithStyle(a5 "Normal"))
+        a5.viewer.edit.setRange(rp 0 7)
+        c.ok("Strikethrough runs" (a5.runCommand("format.strike" "")))
+        c.ok("and strikes the selection" (a5.viewer.edit.adapter.rangeIsOn(rp 0 7 "strike")))
+        a5.buildDisplayList()
+        def stBtn:RibbonItem (a5.ribbon.at((a5.ribbon.indexOf("format.strike" ""))))
+        c.ok("the button shows it pressed" stBtn.pressed)
+        a5.runCommand("edit.undo" "")
+        c.ok("undo takes it off" ((a5.viewer.edit.adapter.rangeIsOn(rp 0 7 "strike")) == false))
+        a5.viewer.edit.setRange(rp 0 3)
+        a5.runCommand("format.superscript" "")
+        c.ok("superscript" (a5.viewer.edit.adapter.rangeIsOn(rp 0 3 "super")))
+        a5.runCommand("format.subscript" "")
+        c.ok("subscript replaces it" ((a5.viewer.edit.adapter.rangeIsOn(rp 0 3 "sub")) && ((a5.viewer.edit.adapter.rangeIsOn(rp 0 3 "super")) == false)))
+        a5.viewer.edit.setRange(rp 3 9)
+        a5.runCommand("format.highlight" "")
+        c.ok("the highlighter paints yellow" (a5.viewer.edit.adapter.rangeIsOn(rp 3 9 "highlight")))
+        a5.viewer.edit.setRange(rp 0 9)
+        a5.runCommand("format.bold" "")
+        a5.runCommand("format.italic" "")
+        a5.runCommand("format.clear" "")
+        def cleared:boolean ((((a5.viewer.edit.adapter.rangeIsOn(rp 0 9 "bold")) || (a5.viewer.edit.adapter.rangeIsOn(rp 0 9 "italic"))) || (a5.viewer.edit.adapter.rangeIsOn(rp 3 9 "highlight"))) || (a5.viewer.edit.adapter.rangeIsOn(rp 0 3 "sub")))
+        c.ok("Clear formatting takes all of it off" (cleared == false))
+        def textBefore:string (a5.viewer.edit.adapter.getText(rp))
+        ; A stretch with lower case letters in it, so the first press has work.
+        def cs:int 0
+        while ((cs + 7) < (strlen textBefore)) {
+            def w:string (substring textBefore cs (cs + 7))
+            if ((w == (to_lowercase w)) && (w != (to_uppercase w))) {
+                break
+            }
+            cs = (cs + 1)
+        }
+        def orig:string (substring textBefore cs (cs + 7))
+        a5.viewer.edit.setRange(rp cs (cs + 7))
+        a5.runCommand("format.case" "")
+        def up:string (a5.viewer.edit.adapter.getText(rp))
+        c.eqStr("Change case: UPPER first" (substring up cs (cs + 7)) (to_uppercase orig))
+        a5.runCommand("format.case" "")
+        def tc:string (a5.viewer.edit.adapter.getText(rp))
+        c.eqStr("then Title Case" (substring tc cs (cs + 7)) (DocxParaFormat.titleCase(orig)))
+        a5.runCommand("format.case" "")
+        def lc:string (a5.viewer.edit.adapter.getText(rp))
+        c.eqStr("then lower case" (substring lc cs (cs + 7)) (to_lowercase orig))
+        a5.runCommand("edit.undo" "")
+        a5.runCommand("edit.undo" "")
+        a5.runCommand("edit.undo" "")
+        c.eqStr("undo restores the text" (a5.viewer.edit.adapter.getText(rp)) textBefore)
+        ; Typing after the button, with nothing selected, types struck text.
+        a5.viewer.edit.setCaret(rp 2)
+        a5.runCommand("format.strike" "")
+        a5.text("QQ")
+        c.ok("a toggle with no selection applies to what is typed" (a5.viewer.edit.adapter.rangeIsOn(rp 2 4 "strike")))
+        ; Written and read back.
+        a5.viewer.edit.setRange(rp 5 8)
+        a5.runCommand("format.superscript" "")
+        a5.viewer.edit.setRange(rp 8 10)
+        a5.runCommand("format.highlight" "green")
+        def b5:buffer (a5.viewer.saveBytes())
+        def a6:DocxApp (new DocxApp)
+        a6.init()
+        c.ok("saves and opens" (a6.viewer.openBytes(b5 "fmt.docx")))
+        c.ok("strikethrough survives the round trip" (a6.viewer.edit.adapter.rangeIsOn(rp 2 4 "strike")))
+        c.ok("so does superscript" (a6.viewer.edit.adapter.rangeIsOn(rp 5 8 "super")))
+        c.ok("and the highlight" (a6.viewer.edit.adapter.rangeIsOn(rp 8 10 "highlight")))
+        def dl6:EVGDisplayList (a6.viewer.pageDisplayList(0))
+        c.ok("and it all draws" ((array_length dl6.cmds) > 20))
 
         print "-- the status bar --"
         c.ok("words are counted" ((app.wordCount()) > 500))

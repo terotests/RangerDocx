@@ -177,6 +177,8 @@ class DocxWriter {
     ; --- runs --------------------------------------------------------------
 
     fn rPrDiff:string (sp:TextSpan base:ResolvedRunStyle) {
+        ; In the order CT_RPr lists them: Word refuses a file whose run
+        ; properties are out of order.
         def r:string ""
         if (sp.fontFamily != base.fontFamily) {
             def f:string (DocxWriter.esc(sp.fontFamily))
@@ -188,6 +190,9 @@ class DocxWriter {
         if (sp.italic != base.italic) {
             r = (r + (? sp.italic "<w:i/>" "<w:i w:val=\"0\"/>"))
         }
+        if (sp.strike != base.strike) {
+            r = (r + (? sp.strike "<w:strike/>" "<w:strike w:val=\"0\"/>"))
+        }
         if (sp.colorHex != base.colorHex) {
             r = (r + "<w:color w:val=\"" + (DocxWriter.esc(sp.colorHex)) + "\"/>")
         }
@@ -195,8 +200,19 @@ class DocxWriter {
             def hp:string (to_string (DocxWriter.halfPoints(sp.fontSizePt)))
             r = (r + "<w:sz w:val=\"" + hp + "\"/><w:szCs w:val=\"" + hp + "\"/>")
         }
+        if (sp.highlight != base.highlight) {
+            def hv:string sp.highlight
+            if ((strlen hv) == 0) { hv = "none" }
+            r = (r + "<w:highlight w:val=\"" + (DocxWriter.esc(hv)) + "\"/>")
+        }
         if (sp.underline != base.underline) {
             r = (r + (? sp.underline "<w:u w:val=\"single\"/>" "<w:u w:val=\"none\"/>"))
+        }
+        if (sp.vertAlign != base.vertAlign) {
+            def va:string "baseline"
+            if (sp.vertAlign == 1) { va = "superscript" }
+            if (sp.vertAlign == 2) { va = "subscript" }
+            r = (r + "<w:vertAlign w:val=\"" + va + "\"/>")
         }
         if ((strlen r) == 0) {
             return ""

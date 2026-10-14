@@ -244,6 +244,8 @@ class DocxApp {
     def lastPy:int 0
     def wordCountRev:int -1
     def wordCountVal:int 0
+    ; The highlighter's colour: the last one picked.
+    def highlightName:string "yellow"
 
     Constructor () {
     }
@@ -534,6 +536,12 @@ class DocxApp {
         commands.add("view.zoom.in" "Zoom in" "View" "")
         commands.add("view.zoom.out" "Zoom out" "View" "")
         commands.add("view.zoom.reset" "Zoom 100%" "View" "")
+        commands.add("format.strike" "Strikethrough" "Format" "")
+        commands.add("format.superscript" "Superscript" "Format" "Ctrl+Shift+=")
+        commands.add("format.subscript" "Subscript" "Format" "Ctrl+=")
+        commands.addArg("format.highlight" "Text highlight colour" "Format" "")
+        commands.add("format.clear" "Clear formatting" "Format" "")
+        commands.add("format.case" "Change case" "Format" "Shift+F3")
     }
 
     ; --- geometry -------------------------------------------------------------
@@ -794,14 +802,43 @@ class DocxApp {
             return true
         }
         if (id == "format.italic") {
-            viewer.edit.toggleRun("italic")
-            viewer.renderPage(viewer.currentPage)
-            return true
+            return (this.runFormat("italic" ""))
         }
         if (id == "format.underline") {
-            viewer.edit.toggleRun("underline")
-            viewer.renderPage(viewer.currentPage)
-            return true
+            return (this.runFormat("underline" ""))
+        }
+        if (id == "format.strike") {
+            return (this.runFormat("strike" ""))
+        }
+        if (id == "format.superscript") {
+            return (this.runFormat("super" ""))
+        }
+        if (id == "format.subscript") {
+            return (this.runFormat("sub" ""))
+        }
+        if (id == "format.highlight") {
+            ; The button paints the last colour picked, and a second press on
+            ; highlighted text takes it off, as Word's does.
+            def hl:string arg
+            if ((strlen hl) == 0) {
+                hl = highlightName
+                if (viewer.edit.caretIsOn("highlight")) {
+                    hl = ""
+                }
+            } {
+                if (hl == "none") {
+                    hl = ""
+                } {
+                    highlightName = hl
+                }
+            }
+            return (this.runFormat("highlight" hl))
+        }
+        if (id == "format.clear") {
+            return (this.runFormat("clear" ""))
+        }
+        if (id == "format.case") {
+            return (this.runFormat("case" ""))
         }
         if (id == "edit.selectAll") {
             viewer.keySelectAll()
@@ -830,9 +867,7 @@ class DocxApp {
                 this.openColorDialog()
                 return true
             }
-            viewer.edit.setRunColor((DocxApp.hexBody(arg)))
-            viewer.renderPage(viewer.currentPage)
-            return true
+            return (this.runFormat("color" (DocxApp.hexBody(arg))))
         }
         if (id == "format.size") {
             def pt@(optional):double (to_double arg)
@@ -857,6 +892,13 @@ class DocxApp {
             return (this.nudgeSize(-1.0))
         }
         return false
+    }
+
+    ; A character format through the editor's undoable path.
+    fn runFormat:boolean (what:string arg:string) {
+        def done:boolean (viewer.edit.formatRuns(what arg viewer.parser.resolver))
+        viewer.renderPage(viewer.currentPage)
+        return done
     }
 
     fn nudgeSize:boolean (delta:double) {
@@ -1385,6 +1427,11 @@ class DocxApp {
         }
         if ctrl {
             if (name == "f") { return (this.runCommand("edit.find" "")) }
+            if (name == "=") {
+                if shift { return (this.runCommand("format.superscript" "")) }
+                return (this.runCommand("format.subscript" ""))
+            }
+            if (name == "+") { return (this.runCommand("format.superscript" "")) }
             if (name == "o") { return (this.runCommand("file.open" "")) }
             if (name == "b") { return (this.runCommand("format.bold" "")) }
             if (name == "i") { return (this.runCommand("format.italic" "")) }

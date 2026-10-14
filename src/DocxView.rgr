@@ -652,13 +652,57 @@ class DocxView {
         ; Both the slant and the weight, and the SAME pair to the measure — the
         ; painter and the metrics drifting apart is how a caret ends up beside
         ; the glyphs rather than between them.
-        ink.textStyled(chunk x y runSize col sp.bold sp.italic)
+        ; The advance is the full-size width whatever is drawn: the layout and
+        ; the caret measure a line at one size, and a superscript drawn
+        ; smaller still occupies the room they gave it.
         def w:int (DocxTextMetrics.measureStyled(ctx.tr chunk runSize sp.bold sp.italic))
+        if ((strlen sp.highlight) > 0) {
+            ink.rect(x (y - 1) w ((to_int (runSize * 1.25)) + 2) (DocxView.highlightColor(sp.highlight)))
+        }
+        def drawSize:double runSize
+        def drawY:int y
+        if (sp.vertAlign == 1) {
+            drawSize = (runSize * 0.66)
+            drawY = (y - (to_int (runSize * 0.05)))
+        }
+        if (sp.vertAlign == 2) {
+            drawSize = (runSize * 0.66)
+            drawY = (y + (to_int (runSize * 0.45)))
+        }
+        ink.textStyled(chunk x drawY drawSize col sp.bold sp.italic)
         if sp.underline {
             def uy:int ((y + (to_int runSize)) + 1)
             ink.rect(x uy w 1 col)
         }
+        if sp.strike {
+            def sw:int w
+            if (sp.vertAlign != 0) {
+                sw = (DocxTextMetrics.measureStyled(ctx.tr chunk drawSize sp.bold sp.italic))
+            }
+            def sy:int (drawY + (to_int (drawSize * 0.62)))
+            ink.rect(x sy sw 1 col)
+        }
         return w
+    }
+
+    ; Word's highlight colours, by the names `w:highlight` uses.
+    sfn highlightColor:EVGColor (name:string) {
+        if (name == "yellow") { return (EVGColor.rgb(255 255 0)) }
+        if (name == "green") { return (EVGColor.rgb(0 255 0)) }
+        if (name == "cyan") { return (EVGColor.rgb(0 255 255)) }
+        if (name == "magenta") { return (EVGColor.rgb(255 0 255)) }
+        if (name == "blue") { return (EVGColor.rgb(0 0 255)) }
+        if (name == "red") { return (EVGColor.rgb(255 0 0)) }
+        if (name == "darkBlue") { return (EVGColor.rgb(0 0 139)) }
+        if (name == "darkCyan") { return (EVGColor.rgb(0 139 139)) }
+        if (name == "darkGreen") { return (EVGColor.rgb(0 100 0)) }
+        if (name == "darkMagenta") { return (EVGColor.rgb(139 0 139)) }
+        if (name == "darkRed") { return (EVGColor.rgb(139 0 0)) }
+        if (name == "darkYellow") { return (EVGColor.rgb(128 128 0)) }
+        if (name == "darkGray") { return (EVGColor.rgb(169 169 169)) }
+        if (name == "lightGray") { return (EVGColor.rgb(211 211 211)) }
+        if (name == "black") { return (EVGColor.rgb(0 0 0)) }
+        return (EVGColor.rgb(255 255 0))
     }
 
     fn hexColor:EVGColor (hex:string) {

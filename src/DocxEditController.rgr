@@ -39,6 +39,9 @@ class DocxEditController {
     def typingBold:boolean false
     def typingItalic:boolean false
     def typingUnderline:boolean false
+    def typingStrike:boolean false
+    def typingVert:int 0
+    def typingHighlight:string ""
     def typingFont:string "Open Sans"
     def typingSize:double 11.0
     def typingColor:string "000000"
@@ -385,6 +388,18 @@ class DocxEditController {
         }
         if typingUnderline {
             adapter.applyRun(pid off upTo "underline" true 0.0 "")
+        }
+        if typingStrike {
+            adapter.applyRun(pid off upTo "strike" true 0.0 "")
+        }
+        if (typingVert == 1) {
+            adapter.applyRun(pid off upTo "super" true 0.0 "")
+        }
+        if (typingVert == 2) {
+            adapter.applyRun(pid off upTo "sub" true 0.0 "")
+        }
+        if ((strlen typingHighlight) > 0) {
+            adapter.applyRun(pid off upTo "highlight" true 0.0 typingHighlight)
         }
         this.pushUndo(op)
         this.setCaret(pid (off + (strlen text)))
@@ -806,6 +821,15 @@ class DocxEditController {
             if (what == "underline") {
                 typingUnderline = (typingUnderline == false)
             }
+            if (what == "strike") {
+                typingStrike = (typingStrike == false)
+            }
+            if (what == "super") {
+                typingVert = (? (typingVert == 1) 0 1)
+            }
+            if (what == "sub") {
+                typingVert = (? (typingVert == 2) 0 2)
+            }
             return
         }
         if ((sel.sameParagraph()) == false) {
@@ -845,6 +869,15 @@ class DocxEditController {
         if (what == "underline") {
             typingUnderline = on
         }
+        if (what == "strike") {
+            typingStrike = on
+        }
+        if (what == "super") {
+            typingVert = (? on 1 0)
+        }
+        if (what == "sub") {
+            typingVert = (? on 2 0)
+        }
     }
 
     ; What the caret is standing in, for a toolbar that has to show it.
@@ -861,6 +894,18 @@ class DocxEditController {
             }
             if (what == "underline") {
                 return typingUnderline
+            }
+            if (what == "strike") {
+                return typingStrike
+            }
+            if (what == "super") {
+                return (typingVert == 1)
+            }
+            if (what == "sub") {
+                return (typingVert == 2)
+            }
+            if (what == "highlight") {
+                return ((strlen typingHighlight) > 0)
             }
             return false
         }
@@ -932,6 +977,15 @@ class DocxEditController {
             typingBold = (adapter.rangeIsOn(pid off probeEnd "bold"))
             typingItalic = (adapter.rangeIsOn(pid off probeEnd "italic"))
             typingUnderline = (adapter.rangeIsOn(pid off probeEnd "underline"))
+            typingStrike = (adapter.rangeIsOn(pid off probeEnd "strike"))
+            typingVert = 0
+            if (adapter.rangeIsOn(pid off probeEnd "super")) {
+                typingVert = 1
+            }
+            if (adapter.rangeIsOn(pid off probeEnd "sub")) {
+                typingVert = 2
+            }
+            typingHighlight = ""
         }
     }
 
@@ -1739,6 +1793,199 @@ class DocxEditController {
         return true
     }
 
+    ; --- run formatting, undoable ---------------------------------------------
+    ; The selection as (paragraph, from, to) triples in document order.
+    fn selectionRanges:void (pids:[int] froms:[int] tos:[int]) {
+        clear pids
+        clear froms
+        clear tos
+        if (sel.isCollapsed()) {
+            return
+        }
+        if (sel.sameParagraph()) {
+            push pids sel.anchor.paragraphId
+            push froms (sel.startOffset())
+            push tos (sel.endOffset())
+            return
+        }
+        def a:[int]
+        def b:[int]
+        this.orderedEnds(a b)
+        def sOrder:int (adapter.bodyOrderOf((itemAt a 0)))
+        def eOrder:int (adapter.bodyOrderOf((itemAt b 0)))
+        if ((sOrder < 0) || (eOrder < 0)) {
+            return
+        }
+        def o:int sOrder
+        while (o <= eOrder) {
+            def pid:int (adapter.bodyParagraphIdAt(o))
+            def len:int (adapter.textLength(pid))
+            def x0:int 0
+            def x1:int len
+            if (o == sOrder) {
+                x0 = (itemAt a 1)
+            }
+            if (o == eOrder) {
+                x1 = (itemAt b 1)
+            }
+            if (x1 > len) {
+                x1 = len
+            }
+            if (x0 < x1) {
+                push pids pid
+                push froms x0
+                push tos x1
+            }
+            o = (o + 1)
+        }
+    }
+
+    ; One character-formatting command over the selection, recorded as one
+    ; undoable action: the touched paragraphs' formatting before and after.
+    ; With nothing selected a toggle sets what the next keystroke types.
+    ;
+    ;   bold italic underline strike super sub   toggles
+    ;   highlight <name|"">  color <hex>  size <pt>  font <name>
+    ;   clear      back to the paragraph style's run
+    ;   case       lower → UPPER → Title → lower
+    fn formatRuns:boolean (what:string arg:string resolver:WordStyleResolver) {
+        if ((this.isActive()) == false) {
+            return false
+        }
+        def ids:[int]
+        this.selectedParagraphIds(ids)
+        def befores:[string]
+        def i:int 0
+        while (i < (array_length ids)) {
+            def p0:Paragraph (adapter.findParagraph((itemAt ids i)))
+            push befores (DocxParaFormat.snapshot(p0))
+            i = (i + 1)
+        }
+        def pids:[int]
+        def froms:[int]
+        def tos:[int]
+        this.selectionRanges(pids froms tos)
+        this.beginAction()
+        suppressUndo = true
+        def toggles:boolean ((((((what == "bold") || (what == "italic")) || (what == "underline")) || (what == "strike")) || (what == "super")) || (what == "sub"))
+        if toggles {
+            this.toggleRun(what)
+        }
+        if (what == "highlight") {
+            if (sel.isCollapsed()) {
+                typingHighlight = arg
+            }
+            this.applyToSelection("highlight" false 0.0 arg)
+        }
+        if (what == "color") {
+            this.setRunColor(arg)
+        }
+        if (what == "size") {
+            this.setRunSize((DocxParaFormat.num(arg)))
+        }
+        if (what == "font") {
+            this.setFont(arg)
+        }
+        if (what == "clear") {
+            typingBold = false
+            typingItalic = false
+            typingUnderline = false
+            typingStrike = false
+            typingVert = 0
+            typingHighlight = ""
+            def k:int 0
+            while (k < (array_length pids)) {
+                def cp:Paragraph (adapter.findParagraph((itemAt pids k)))
+                def ps:ResolvedParagraphStyle (resolver.resolveParagraphStyle(cp.styleId))
+                this.clearRange((itemAt pids k) (itemAt froms k) (itemAt tos k) ps.run)
+                k = (k + 1)
+            }
+        }
+        suppressUndo = false
+        if (what == "case") {
+            this.cycleCase(pids froms tos)
+        }
+        def j:int 0
+        while (j < (array_length ids)) {
+            def pid:int (itemAt ids j)
+            def p1:Paragraph (adapter.findParagraph(pid))
+            def after:string (DocxParaFormat.snapshot(p1))
+            def before:string (itemAt befores j)
+            if (after != before) {
+                def op:DocEditOp (new DocEditOp)
+                op.kind = (DocxParaFormat.opKind())
+                op.paragraphId = pid
+                op.oldText = before
+                op.newText = after
+                this.pushUndo(op)
+            }
+            j = (j + 1)
+        }
+        this.endAction()
+        adapter.doc.touch()
+        return true
+    }
+
+    fn clearRange:void (pid:int a:int b:int base:ResolvedRunStyle) {
+        adapter.applyRun(pid a b "bold" base.bold 0.0 "")
+        adapter.applyRun(pid a b "italic" base.italic 0.0 "")
+        adapter.applyRun(pid a b "underline" base.underline 0.0 "")
+        adapter.applyRun(pid a b "strike" base.strike 0.0 "")
+        adapter.applyRun(pid a b "super" false 0.0 "")
+        adapter.applyRun(pid a b "highlight" false 0.0 "")
+        adapter.applyRun(pid a b "size" false base.fontSizePt "")
+        adapter.applyRun(pid a b "font" false 0.0 base.fontFamily)
+        adapter.applyRun(pid a b "color" false 0.0 base.colorHex)
+    }
+
+    ; Change case across the selection. What it becomes is decided from the
+    ; whole selection, so one press turns a mixed selection uniformly.
+    fn cycleCase:void (pids:[int] froms:[int] tos:[int]) {
+        def all:string ""
+        def k:int 0
+        while (k < (array_length pids)) {
+            def t:string (adapter.getText((itemAt pids k)))
+            all = (all + (substring t (itemAt froms k) (itemAt tos k)))
+            k = (k + 1)
+        }
+        def mode:string "upper"
+        if (all == (to_uppercase all)) {
+            mode = "title"
+        }
+        if ((all == (DocxParaFormat.titleCase(all))) && (all != (to_uppercase all))) {
+            mode = "lower"
+        }
+        def m:int 0
+        while (m < (array_length pids)) {
+            def pid:int (itemAt pids m)
+            def a:int (itemAt froms m)
+            def b:int (itemAt tos m)
+            def text:string (adapter.getText(pid))
+            def old:string (substring text a b)
+            def nw:string (to_lowercase old)
+            if (mode == "upper") {
+                nw = (to_uppercase old)
+            }
+            if (mode == "title") {
+                nw = (DocxParaFormat.titleCase(old))
+            }
+            ; Only when the length is unchanged: the spans are offsets into
+            ; the text, and a case change must not move them.
+            if (((strlen nw) == (strlen old)) && (nw != old)) {
+                def p:Paragraph (adapter.findParagraph(pid))
+                p.text = ((substring text 0 a) + nw + (substring text b (strlen text)))
+                def op:DocEditOp (new DocEditOp)
+                op.kind = (DocxParaFormat.caseKind())
+                op.paragraphId = pid
+                op.start = a
+                op.oldText = old
+                op.newText = nw
+                this.pushUndo(op)
+            }
+            m = (m + 1)
+        }
+    }
+
     ; The style of the caret's paragraph, for the gallery to show pressed.
     fn caretStyle:string () {
         def pid:int sel.focus.paragraphId
@@ -1773,6 +2020,20 @@ class DocxEditController {
     ; there. Written as one function that cannot happen: a kind is handled in
     ; both directions or in neither.
     fn applyOp:boolean (op:DocEditOp forward:boolean) {
+        if (op.kind == (DocxParaFormat.caseKind())) {
+            if (adapter.paragraphExists(op.paragraphId)) {
+                def cp:Paragraph (adapter.findParagraph(op.paragraphId))
+                def put:string (? forward op.newText op.oldText)
+                def n:int (strlen put)
+                def tx:string cp.text
+                if ((op.start + n) <= (strlen tx)) {
+                    cp.text = ((substring tx 0 op.start) + put + (substring tx (op.start + n) (strlen tx)))
+                }
+                adapter.doc.touch()
+                return true
+            }
+            return false
+        }
         if (op.kind == (DocxParaFormat.opKind())) {
             if (adapter.paragraphExists(op.paragraphId)) {
                 def fp:Paragraph (adapter.findParagraph(op.paragraphId))

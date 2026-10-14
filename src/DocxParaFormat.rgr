@@ -24,6 +24,44 @@ class DocxParaFormat {
         return 40
     }
 
+    ; A change of case: same length, so the spans stay where they are.
+    sfn caseKind:int () {
+        return 41
+    }
+
+    ; Every word's first letter upper case, the rest lower.
+    sfn titleCase:string (s:string) {
+        def lower:string (to_lowercase s)
+        def upper:string (to_uppercase s)
+        if ((strlen lower) != (strlen s)) {
+            return s
+        }
+        if ((strlen upper) != (strlen s)) {
+            return s
+        }
+        def out:string ""
+        def start:boolean true
+        def i:int 0
+        def n:int (strlen s)
+        while (i < n) {
+            def c:int (charAt s i)
+            def space:boolean ((((c == 32) || (c == 9)) || (c == 10)) || (c == 45))
+            if space {
+                out = (out + (substring s i (i + 1)))
+                start = true
+            } {
+                if start {
+                    out = (out + (substring upper i (i + 1)))
+                } {
+                    out = (out + (substring lower i (i + 1)))
+                }
+                start = false
+            }
+            i = (i + 1)
+        }
+        return out
+    }
+
     sfn b:string (v:boolean) {
         if v {
             return "1"
@@ -58,6 +96,7 @@ class DocxParaFormat {
             s = (s + "\n" + (to_string sp.start) + "\t" + (to_string sp.end))
             s = (s + "\t" + (DocxParaFormat.b(sp.bold)) + "\t" + (DocxParaFormat.b(sp.italic)) + "\t" + (DocxParaFormat.b(sp.underline)))
             s = (s + "\t" + (to_string sp.fontSizePt) + "\t" + sp.fontFamily + "\t" + sp.colorHex + "\t" + sp.hyperlink)
+            s = (s + "\t" + (DocxParaFormat.b(sp.strike)) + "\t" + (to_string sp.vertAlign) + "\t" + sp.highlight)
             i = (i + 1)
         }
         return s
@@ -100,6 +139,11 @@ class DocxParaFormat {
                 sp.fontFamily = (itemAt g 6)
                 sp.colorHex = (itemAt g 7)
                 sp.hyperlink = (itemAt g 8)
+                if ((array_length g) >= 12) {
+                    sp.strike = ((itemAt g 9) == "1")
+                    sp.vertAlign = (DocxParaFormat.int((itemAt g 10)))
+                    sp.highlight = (itemAt g 11)
+                }
                 push p.spans sp
             }
             i = (i + 1)

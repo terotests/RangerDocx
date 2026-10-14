@@ -41,19 +41,19 @@ Home	Font	Font	format.font	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Font Size	format.size	live	partial	partial	tests/DocxAppTest.rgr
 Home	Font	Increase Font Size	format.growFont	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Decrease Font Size	format.shrinkFont	live	yes	yes	tests/DocxAppTest.rgr
-Home	Font	Change Case	format.changeCase	live	no	no	-
-Home	Font	Clear All Formatting	format.clear	live	no	no	-
+Home	Font	Change Case	format.changeCase	live	no	done	tests/DocxChromeTest.rgr
+Home	Font	Clear All Formatting	format.clear	live	no	done	tests/DocxChromeTest.rgr
 Home	Font	Bold	format.bold	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Italic	format.italic	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Underline	format.underline	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Double Underline	format.doubleUnderline	live	no	no	-
-Home	Font	Strikethrough	format.strikethrough	live	no	no	-
-Home	Font	Subscript	format.subscript	live	no	no	-
-Home	Font	Superscript	format.superscript	live	no	no	-
+Home	Font	Strikethrough	format.strikethrough	live	no	done	tests/DocxChromeTest.rgr
+Home	Font	Subscript	format.subscript	live	no	done	tests/DocxChromeTest.rgr
+Home	Font	Superscript	format.superscript	live	no	done	tests/DocxChromeTest.rgr
 Home	Font	Text Effects Outline	format.outline	live	no	no	-
 Home	Font	Text Effects Shadow	format.shadow	live	no	no	-
 Home	Font	Text Effects and Typography	format.textEffects	live	no	no	-
-Home	Font	Text Highlight Color	format.highlight	live	no	no	-
+Home	Font	Text Highlight Color	format.highlight	live	no	done	tests/DocxChromeTest.rgr
 Home	Font	Font Color	format.color	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Character Shading	format.shading	live	no	no	-
 Home	Font	Font Dialog	format.fontDialog	live	no	no	-

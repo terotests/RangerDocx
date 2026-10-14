@@ -22,6 +22,9 @@ class ResolvedRunStyle {
     def fontSizePt:double 11.0
     def fontFamily:string "Open Sans"
     def colorHex:string "000000"
+    def strike:boolean false
+    def vertAlign:int 0
+    def highlight:string ""
 
     Constructor () {
     }
@@ -34,6 +37,9 @@ class ResolvedRunStyle {
         o.fontSizePt = fontSizePt
         o.fontFamily = fontFamily
         o.colorHex = colorHex
+        o.strike = strike
+        o.vertAlign = vertAlign
+        o.highlight = highlight
         return o
     }
 
@@ -44,6 +50,9 @@ class ResolvedRunStyle {
         span.fontSizePt = fontSizePt
         span.fontFamily = fontFamily
         span.colorHex = colorHex
+        span.strike = strike
+        span.vertAlign = vertAlign
+        span.highlight = highlight
     }
 
     fn mergeFrom:void (other:ResolvedRunStyle) {
@@ -54,6 +63,9 @@ class ResolvedRunStyle {
         fontSizePt = other.fontSizePt
         fontFamily = other.fontFamily
         colorHex = other.colorHex
+        strike = other.strike
+        vertAlign = other.vertAlign
+        highlight = other.highlight
     }
 }
 
@@ -467,6 +479,30 @@ class WordStyleResolver {
         if stated.underline.isSet {
             into.underline = stated.underline.value
         }
+        if stated.strike.isSet {
+            into.strike = stated.strike.value
+        }
+        def va:int (WordXml.findNext(xml "w:vertAlign" 0))
+        if (va >= 0) {
+            def vaEl:string (WordXml.sliceElement(xml "w:vertAlign" va))
+            def vv:string (WordXml.attr((WordXml.openTag(vaEl)) "w:val"))
+            into.vertAlign = 0
+            if (vv == "superscript") {
+                into.vertAlign = 1
+            }
+            if (vv == "subscript") {
+                into.vertAlign = 2
+            }
+        }
+        def hl:int (WordXml.findNext(xml "w:highlight" 0))
+        if (hl >= 0) {
+            def hlEl:string (WordXml.sliceElement(xml "w:highlight" hl))
+            def hv:string (WordXml.attr((WordXml.openTag(hlEl)) "w:val"))
+            if (hv == "none") {
+                hv = ""
+            }
+            into.highlight = hv
+        }
         def sz:int (WordXml.findNext(xml "w:sz" 0))
         if (sz >= 0) {
             def szEl:string (WordXml.sliceElement(xml "w:sz" sz))
@@ -793,6 +829,9 @@ class WordStyleResolver {
             r.fontSizePt = tip.fontSizePt
             r.fontFamily = tip.fontFamily
             r.colorHex = tip.colorHex
+            r.strike = tip.strike
+            r.vertAlign = tip.vertAlign
+            r.highlight = tip.highlight
         }
         return r
     }

@@ -871,6 +871,18 @@ class RichDocumentEdit {
                 if (what == "color") {
                     s.colorHex = text
                 }
+                if (what == "strike") {
+                    s.strike = on
+                }
+                if (what == "super") {
+                    s.vertAlign = (? on 1 0)
+                }
+                if (what == "sub") {
+                    s.vertAlign = (? on 2 0)
+                }
+                if (what == "highlight") {
+                    s.highlight = text
+                }
             }
             i = (i + 1)
         }
@@ -911,6 +923,18 @@ class RichDocumentEdit {
                 }
                 if (what == "underline") {
                     on = s.underline
+                }
+                if (what == "strike") {
+                    on = s.strike
+                }
+                if (what == "super") {
+                    on = (s.vertAlign == 1)
+                }
+                if (what == "sub") {
+                    on = (s.vertAlign == 2)
+                }
+                if (what == "highlight") {
+                    on = ((strlen s.highlight) > 0)
                 }
                 if (on == false) {
                     return false

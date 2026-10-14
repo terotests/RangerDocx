@@ -329,10 +329,8 @@ class DocxRibbon {
         this.combo("format.size.pick" "Font size" 48)
         this.small("format.size.up" "Grow font" (ToolIcon.sizeUp()))
         this.small("format.size.down" "Shrink font" (ToolIcon.sizeDown()))
-        def cc:RibbonItem (this.glyphButton("format.case" "Change case" "Aa"))
-        cc.enabled = false
-        def cf:RibbonItem (this.small("format.clear" "Clear formatting" (ToolIcon.clearFmt())))
-        cf.enabled = false
+        this.glyphButton("format.case" "Change case" "Aa")
+        this.small("format.clear" "Clear formatting" (ToolIcon.clearFmt()))
         this.row()
         def b:RibbonItem (this.small("format.bold" "Bold (Ctrl+B)" (ToolIcon.bold())))
         b.toggleOp = "bold"
@@ -341,13 +339,13 @@ class DocxRibbon {
         def u:RibbonItem (this.small("format.underline" "Underline (Ctrl+U)" (ToolIcon.underline())))
         u.toggleOp = "underline"
         def s:RibbonItem (this.small("format.strike" "Strikethrough" (ToolIcon.strike())))
-        s.enabled = false
-        def sub:RibbonItem (this.glyphButton("format.subscript" "Subscript" "x₂"))
-        sub.enabled = false
-        def sup:RibbonItem (this.glyphButton("format.superscript" "Superscript" "x²"))
-        sup.enabled = false
+        s.toggleOp = "strike"
+        def sub:RibbonItem (this.glyphButton("format.subscript" "Subscript (Ctrl+=)" "x₂"))
+        sub.toggleOp = "sub"
+        def sup:RibbonItem (this.glyphButton("format.superscript" "Superscript (Ctrl+Shift+=)" "x²"))
+        sup.toggleOp = "super"
         def hl:RibbonItem (this.small("format.highlight" "Text highlight colour" (ToolIcon.fill())))
-        hl.enabled = false
+        hl.toggleOp = "highlight"
         this.small("format.color" "Font colour" (ToolIcon.textColor()))
 
         this.group("Paragraph" 2)

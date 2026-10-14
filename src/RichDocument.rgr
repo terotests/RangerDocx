@@ -61,6 +61,11 @@ class TextSpan {
     def fontFamily:string "Open Sans"
     def colorHex:string "000000"
     def hyperlink:string ""
+    def strike:boolean false
+    ; 0 on the line, 1 superscript, 2 subscript (`w:vertAlign`).
+    def vertAlign:int 0
+    ; A highlight colour by Word's name ("yellow", "green"...), "" for none.
+    def highlight:string ""
 
     Constructor () {
     }
@@ -81,6 +86,9 @@ class TextSpan {
         s.fontFamily = fontFamily
         s.colorHex = colorHex
         s.hyperlink = hyperlink
+        s.strike = strike
+        s.vertAlign = vertAlign
+        s.highlight = highlight
         return s
     }
 
@@ -104,6 +112,15 @@ class TextSpan {
             return false
         }
         if (hyperlink != other.hyperlink) {
+            return false
+        }
+        if (strike != other.strike) {
+            return false
+        }
+        if (vertAlign != other.vertAlign) {
+            return false
+        }
+        if (highlight != other.highlight) {
             return false
         }
         return true
