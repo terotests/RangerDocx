@@ -61,6 +61,7 @@ class DocxViewer {
             doc.title = file
         }
         edit.bindDocument(doc)
+        edit.numbering = numbering
         ; A different document: nothing the layout holds is about this one.
         view.layout.invalidate()
         currentPage = 0
@@ -72,10 +73,12 @@ class DocxViewer {
     ; this viewer without a file behind it.
     fn attachDocument:void (d:RichDocument) {
         doc = d
+        numbering = (new WordNumbering)
         if ((strlen doc.title) == 0) {
             doc.title = "untitled"
         }
         edit.bindDocument(doc)
+        edit.numbering = numbering
         ; A different document: nothing the layout holds is about this one.
         view.layout.invalidate()
         currentPage = 0
@@ -90,6 +93,7 @@ class DocxViewer {
     fn saveBytes:buffer () {
         def w:DocxWriter (new DocxWriter)
         w.resolver = parser.resolver
+        w.numbering = numbering
         def b:buffer (w.toBuffer(doc))
         saveWarnings = w.warnings
         return b
@@ -98,6 +102,7 @@ class DocxViewer {
     fn saveFile:void (dir:string file:string) {
         def w:DocxWriter (new DocxWriter)
         w.resolver = parser.resolver
+        w.numbering = numbering
         w.save(doc dir file)
         saveWarnings = w.warnings
     }
@@ -122,6 +127,7 @@ class DocxViewer {
             doc.title = name
         }
         edit.bindDocument(doc)
+        edit.numbering = numbering
         ; A different document: nothing the layout holds is about this one.
         view.layout.invalidate()
         currentPage = 0
@@ -603,6 +609,16 @@ class DocxViewer {
             moved = (edit.tabCell(false))
         } {
             moved = (edit.tabCell(true))
+        }
+        ; Tab at the start of a list item moves it a level, as in Word.
+        if (moved == false) {
+            if ((edit.sel.isCollapsed()) && (edit.sel.focus.textOffset == 0)) {
+                def p:Paragraph (edit.caretParagraph())
+                if (p.listNumId > 0) {
+                    moved = (edit.formatParagraphs((? backward "outdent" "indent") "" parser.resolver))
+                    this.renderPage(currentPage)
+                }
+            }
         }
         if moved {
             this.followCaret()

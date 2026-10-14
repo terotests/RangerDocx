@@ -542,6 +542,11 @@ class DocxApp {
         commands.addArg("format.highlight" "Text highlight colour" "Format" "")
         commands.add("format.clear" "Clear formatting" "Format" "")
         commands.add("format.case" "Change case" "Format" "Shift+F3")
+        commands.addArg("para.bullets" "Bullets" "Format" "")
+        commands.addArg("para.numbering" "Numbering" "Format" "")
+        commands.addArg("para.spacing" "Line spacing" "Format" "")
+        commands.add("para.spaceBefore" "Space before paragraph" "Format" "")
+        commands.add("para.spaceAfter" "Space after paragraph" "Format" "")
     }
 
     ; --- geometry -------------------------------------------------------------
@@ -777,10 +782,16 @@ class DocxApp {
         ; Tab and Shift+Tab, as buttons: what the keys do to a list item,
         ; reachable by somebody who does not know the keys do it.
         if (id == "text.indent") {
-            return (viewer.keyTab(false))
+            if (viewer.caretInTable()) {
+                return (viewer.keyTab(false))
+            }
+            return (this.paraFormat("indent" ""))
         }
         if (id == "text.outdent") {
-            return (viewer.keyTab(true))
+            if (viewer.caretInTable()) {
+                return (viewer.keyTab(true))
+            }
+            return (this.paraFormat("outdent" ""))
         }
         if (id == "format.size.up") {
             if ((viewer.selectedDrawing()) != 0) {
@@ -849,6 +860,26 @@ class DocxApp {
             viewer.renderPage(viewer.currentPage)
             return aligned
         }
+        if (id == "para.bullets") {
+            return (this.paraFormat("list" (? ((strlen arg) == 0) "bullet" arg)))
+        }
+        if (id == "para.numbering") {
+            return (this.paraFormat("list" (? ((strlen arg) == 0) "number" arg)))
+        }
+        if (id == "para.spacing") {
+            if ((strlen arg) == 0) {
+                return false
+            }
+            return (this.paraFormat("spacing" arg))
+        }
+        if (id == "para.spaceBefore") {
+            def pb:Paragraph (viewer.edit.caretParagraph())
+            return (this.paraFormat("before" (? (pb.spaceBeforePt > 0.0) "0" "12")))
+        }
+        if (id == "para.spaceAfter") {
+            def pa:Paragraph (viewer.edit.caretParagraph())
+            return (this.paraFormat("after" (? (pa.spaceAfterPt > 0.0) "0" "8")))
+        }
         if (id == "format.style") {
             def styled:boolean (viewer.edit.formatParagraphs("style" arg viewer.parser.resolver))
             viewer.renderPage(viewer.currentPage)
@@ -892,6 +923,143 @@ class DocxApp {
             return (this.nudgeSize(-1.0))
         }
         return false
+    }
+
+    ; A paragraph format through the editor's undoable path.
+    fn paraFormat:boolean (what:string arg:string) {
+        def done:boolean (viewer.edit.formatParagraphs(what arg viewer.parser.resolver))
+        viewer.renderPage(viewer.currentPage)
+        return done
+    }
+
+    ; Fills the ribbon's dropdown for a button and opens it under it.
+    fn openMenu:void (it:RibbonItem) {
+        def m:RibbonMenu ribbon.menu
+        if (m.open && (m.owner == it.command)) {
+            m.close()
+            return
+        }
+        m.reset(it.command)
+        def c:string it.command
+        if (c == "para.spacing") {
+            def p:Paragraph (viewer.edit.caretParagraph())
+            def vals:[string]
+            push vals "1.0"
+            push vals "1.15"
+            push vals "1.5"
+            push vals "2.0"
+            push vals "2.5"
+            push vals "3.0"
+            for vals v:string vi {
+                def d:double (DocxParaFormat.num(v))
+                def diff:double (d - p.lineSpacing)
+                m.add(v "para.spacing" v ((diff < 0.01) && (diff > -0.01)))
+            }
+            def sb:RibbonMenuEntry (m.add((? (p.spaceBeforePt > 0.0) "Remove space before paragraph" "Add space before paragraph") "para.spaceBefore" "" false))
+            sb.rule = true
+            m.add((? (p.spaceAfterPt > 0.0) "Remove space after paragraph" "Add space after paragraph") "para.spaceAfter" "" false)
+        }
+        if (c == "format.case") {
+            m.add("Sentence case." "format.case" "sentence" false)
+            m.add("lowercase" "format.case" "lower" false)
+            m.add("UPPERCASE" "format.case" "upper" false)
+            m.add("Capitalize Each Word" "format.case" "title" false)
+            m.add("tOGGLE cASE" "format.case" "toggle" false)
+        }
+        if (c == "para.bullets") {
+            def cur:string (viewer.edit.caretListStyle())
+            m.add("None" "para.bullets" "none" ((strlen cur) == 0))
+            def looks:[string]
+            push looks "•"
+            push looks "○"
+            push looks "■"
+            push looks "◆"
+            push looks "–"
+            push looks "✓"
+            for looks g:string gi {
+                def e:RibbonMenuEntry (m.add("" "para.bullets" ("bullet:" + g) (cur == ("bullet:" + g))))
+                e.sample = g
+                e.label = (DocxApp.bulletName(g))
+            }
+        }
+        if (c == "para.numbering") {
+            def cur2:string (viewer.edit.caretListStyle())
+            m.add("None" "para.numbering" "none" ((strlen cur2) == 0))
+            def nf:[string]
+            push nf "decimal:%1.|1.|1, 2, 3"
+            push nf "decimal:%1)|1)|1) 2) 3)"
+            push nf "upperRoman:%1.|I.|I, II, III"
+            push nf "upperLetter:%1.|A.|A, B, C"
+            push nf "lowerLetter:%1)|a)|a) b) c)"
+            push nf "lowerLetter:%1.|a.|a, b, c"
+            push nf "lowerRoman:%1.|i.|i, ii, iii"
+            for nf spec:string si {
+                def parts:[string] (strsplit spec "|")
+                def look:string (itemAt parts 0)
+                def e2:RibbonMenuEntry (m.add((itemAt parts 2) "para.numbering" look (cur2 == look)))
+                e2.sample = (itemAt parts 1)
+            }
+        }
+        if (c == "format.highlight") {
+            def names:[string]
+            push names "yellow|Yellow"
+            push names "green|Bright green"
+            push names "cyan|Turquoise"
+            push names "magenta|Pink"
+            push names "blue|Blue"
+            push names "red|Red"
+            push names "lightGray|Grey 25%"
+            for names hn:string hi {
+                def hp:[string] (strsplit hn "|")
+                def e3:RibbonMenuEntry (m.add((itemAt hp 1) "format.highlight" (itemAt hp 0) (highlightName == (itemAt hp 0))))
+                e3.sample = "■"
+            }
+            def none:RibbonMenuEntry (m.add("No colour" "format.highlight" "none" false))
+            none.rule = true
+        }
+        if (c == "format.color") {
+            def cols:[string]
+            push cols "000000|Automatic"
+            push cols "C00000|Dark red"
+            push cols "FF0000|Red"
+            push cols "FFC000|Orange"
+            push cols "00B050|Green"
+            push cols "0070C0|Blue"
+            push cols "7030A0|Purple"
+            for cols cn:string ci {
+                def cp:[string] (strsplit cn "|")
+                def e4:RibbonMenuEntry (m.add((itemAt cp 1) "format.color" (itemAt cp 0) false))
+                e4.sample = "■"
+            }
+            def more:RibbonMenuEntry (m.add("More colours…" "format.color" "" false))
+            more.rule = true
+        }
+        def widest:int 120
+        for m.entries e5:RibbonMenuEntry ei {
+            def lw:int (to_int (chrome.textW(e5.label 12.5)))
+            if ((strlen e5.sample) > 0) {
+                lw = (lw + 30)
+            }
+            if ((lw + 48) > widest) {
+                widest = (lw + 48)
+            }
+        }
+        m.w = widest
+        m.x = it.x
+        if ((m.x + m.w) > (W - 6)) {
+            m.x = ((W - 6) - m.w)
+        }
+        m.y = ((it.y + it.h) + 4)
+    }
+
+    sfn bulletName:string (g:string) {
+        if (g == "•") { return "Filled round" }
+        if (g == "○") { return "Hollow round" }
+        if (g == "■") { return "Filled square" }
+        if (g == "◆") { return "Diamond" }
+        if (g == "–") { return "Dash" }
+        if (g == "✓") { return "Check mark" }
+        return g
     }
 
     ; A character format through the editor's undoable path.
@@ -1234,7 +1402,8 @@ class DocxApp {
     ; Which button, tab, title-bar part and pane row the pointer is over.
     ; Answers whether any of that changed, which is a reason to redraw.
     fn ribbonHover:boolean (px:int py:int) {
-        def was:string ((to_string ribbon.hot) + "," + (to_string ribbon.hotTab) + "," + (to_string nav.hot) + "," + (to_string titleHot))
+        def was:string ((to_string ribbon.hot) + "," + (to_string ribbon.hotTab) + "," + (to_string nav.hot) + "," + (to_string titleHot) + "," + (to_string ribbon.menu.hot))
+        ribbon.menu.hot = (ribbon.menu.hit(px py))
         ribbon.hot = (ribbon.hit(px py))
         ribbon.hotTab = (ribbon.hitTab(px py))
         nav.hot = -1
@@ -1242,7 +1411,7 @@ class DocxApp {
             nav.hot = (nav.entryAt(py))
         }
         titleHot = (this.titlePart(px py))
-        def now:string ((to_string ribbon.hot) + "," + (to_string ribbon.hotTab) + "," + (to_string nav.hot) + "," + (to_string titleHot))
+        def now:string ((to_string ribbon.hot) + "," + (to_string ribbon.hotTab) + "," + (to_string nav.hot) + "," + (to_string titleHot) + "," + (to_string ribbon.menu.hot))
         return (was != now)
     }
 
@@ -1284,6 +1453,26 @@ class DocxApp {
         }
         if (pressed == false) {
             return 0
+        }
+        ; An open dropdown takes the press: a line runs its command, and a
+        ; press anywhere else shuts it.
+        if ribbon.menu.open {
+            def mi:int (ribbon.menu.hit(px py))
+            def owner:string ribbon.menu.owner
+            if (mi >= 0) {
+                def e:RibbonMenuEntry (ribbon.menu.at(mi))
+                ribbon.menu.close()
+                this.runCommand(e.command e.arg)
+                return 1
+            }
+            ribbon.menu.close()
+            def oi:int (ribbon.hit(px py))
+            if (oi >= 0) {
+                def o:RibbonItem (ribbon.at(oi))
+                if ((o.command == owner) && (o.opensMenu(px))) {
+                    return 1
+                }
+            }
         }
         if (py >= sy) {
             def sx:int (chrome.sliderX(W))
@@ -1327,7 +1516,11 @@ class DocxApp {
             if (hi >= 0) {
                 def it:RibbonItem (ribbon.at(hi))
                 if it.enabled {
-                    this.runCommand(it.command it.arg)
+                    if (it.opensMenu(px)) {
+                        this.openMenu(it)
+                    } {
+                        this.runCommand(it.command it.arg)
+                    }
                 }
             }
             return 1
@@ -1649,6 +1842,7 @@ class DocxApp {
         def editing:boolean (viewer.editMode())
         def style:string (viewer.edit.caretStyle())
         def align:int (viewer.edit.caretAlign())
+        def listKind:string (viewer.edit.caretListKind())
         def i:int 0
         while (i < (array_length ribbon.items)) {
             def it:RibbonItem (ribbon.at(i))
@@ -1660,6 +1854,12 @@ class DocxApp {
             }
             if (it.command == "para.align") {
                 it.pressed = (editing && ((to_string align) == it.arg))
+            }
+            if (it.command == "para.bullets") {
+                it.pressed = (editing && (listKind == "bullet"))
+            }
+            if (it.command == "para.numbering") {
+                it.pressed = (editing && (listKind == "number"))
             }
             if (it.kind == 4) {
                 it.pressed = (editing && (style == it.styleId))
@@ -1757,6 +1957,7 @@ class DocxApp {
         chrome.paintStatus(framed (H - statusH) W statusH left zoom)
 
         chrome.paintTip(framed ribbon W)
+        chrome.paintMenu(framed ribbon.menu)
         def wi:int 0
         while (wi < (array_length windows.windows)) {
             def wnd:EVGWindow (itemAt windows.windows wi)

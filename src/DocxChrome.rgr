@@ -66,6 +66,9 @@ class RibbonItem {
     ; What a toggle asks the editor ("bold"), so the app can say whether the
     ; run under the caret has it.
     def toggleOp:string ""
+    ; 0 a plain button, 1 the whole button opens a list, 2 a split button
+    ; whose arrow opens the list and whose face runs the command.
+    def menu:int 0
     ; A combo box's text and width.
     def text:string ""
     def fieldW:int 0
@@ -88,6 +91,96 @@ class RibbonItem {
             return false
         }
         return ((((px >= x) && (px < (x + w))) && (py >= y)) && (py < (y + h)))
+    }
+
+    ; Does a press here open the item's list rather than run it?
+    fn opensMenu:boolean (px:int) {
+        if (menu == 1) {
+            return true
+        }
+        if (menu == 2) {
+            return (px >= ((x + w) - 12))
+        }
+        return false
+    }
+}
+
+; A line in a ribbon dropdown.
+class RibbonMenuEntry {
+    def label:string ""
+    def command:string ""
+    def arg:string ""
+    def checked:boolean false
+    ; Drawn in front of the label: the bullet or number a list would get.
+    def sample:string ""
+    ; A rule above this line.
+    def rule:boolean false
+
+    Constructor () {
+    }
+}
+
+; The list a dropdown button opens, hanging under it.
+class RibbonMenu {
+    def open:boolean false
+    def owner:string ""
+    def entries:[RibbonMenuEntry]
+    def x:int 0
+    def y:int 0
+    def w:int 180
+    def hot:int -1
+
+    Constructor () {
+    }
+
+    fn reset:void (owner0:string) {
+        clear entries
+        owner = owner0
+        hot = -1
+        open = true
+    }
+
+    fn close:void () {
+        open = false
+        owner = ""
+        hot = -1
+    }
+
+    fn add:RibbonMenuEntry (label:string command:string arg:string checked:boolean) {
+        def e:RibbonMenuEntry (new RibbonMenuEntry)
+        e.label = label
+        e.command = command
+        e.arg = arg
+        e.checked = checked
+        push entries e
+        return e
+    }
+
+    fn rowH:int () {
+        return 28
+    }
+
+    fn height:int () {
+        return ((array_length entries) * (this.rowH())) + 10
+    }
+
+    fn contains:boolean (px:int py:int) {
+        return ((((px >= x) && (px < (x + w))) && (py >= y)) && (py < (y + (this.height()))))
+    }
+
+    fn hit:int (px:int py:int) {
+        if ((open == false) || ((this.contains(px py)) == false)) {
+            return -1
+        }
+        def k:int (idiv ((py - y) - 5) (this.rowH()))
+        if ((k < 0) || (k >= (array_length entries))) {
+            return -1
+        }
+        return k
+    }
+
+    fn at:RibbonMenuEntry (i:int) {
+        return (itemAt entries i)
     }
 }
 
@@ -134,6 +227,7 @@ class DocxRibbon {
     def tabRowH:int 36
     def bodyH:int 108
     def built:string ""
+    def menu:RibbonMenu (new RibbonMenu)
 
     Constructor () {
         push tabs "File"
@@ -285,6 +379,7 @@ class DocxRibbon {
             return
         }
         built = name
+        menu.close()
         clear items
         clear groups
         hot = -1
@@ -329,7 +424,8 @@ class DocxRibbon {
         this.combo("format.size.pick" "Font size" 48)
         this.small("format.size.up" "Grow font" (ToolIcon.sizeUp()))
         this.small("format.size.down" "Shrink font" (ToolIcon.sizeDown()))
-        this.glyphButton("format.case" "Change case" "Aa")
+        def cc:RibbonItem (this.glyphButton("format.case" "Change case" "Aa"))
+        cc.menu = 1
         this.small("format.clear" "Clear formatting" (ToolIcon.clearFmt()))
         this.row()
         def b:RibbonItem (this.small("format.bold" "Bold (Ctrl+B)" (ToolIcon.bold())))
@@ -346,14 +442,16 @@ class DocxRibbon {
         sup.toggleOp = "super"
         def hl:RibbonItem (this.small("format.highlight" "Text highlight colour" (ToolIcon.fill())))
         hl.toggleOp = "highlight"
-        this.small("format.color" "Font colour" (ToolIcon.textColor()))
+        hl.menu = 2
+        def fc:RibbonItem (this.small("format.color" "Font colour" (ToolIcon.textColor())))
+        fc.menu = 2
 
         this.group("Paragraph" 2)
         this.stack()
         def bl:RibbonItem (this.small("para.bullets" "Bullets" (ToolIcon.bulletList())))
-        bl.enabled = false
+        bl.menu = 2
         def nl:RibbonItem (this.small("para.numbering" "Numbering" (ToolIcon.numberList())))
-        nl.enabled = false
+        nl.menu = 2
         def ml:RibbonItem (this.small("para.multilevel" "Multilevel list" (ToolIcon.outlineList())))
         ml.enabled = false
         this.small("text.outdent" "Decrease indent" (ToolIcon.indentLess()))
@@ -371,8 +469,8 @@ class DocxRibbon {
         ar.arg = "2"
         def aj:RibbonItem (this.small("para.align" "Justify" (ToolIcon.textJustify())))
         aj.arg = "3"
-        def ls:RibbonItem (this.glyphButton("para.spacing" "Line spacing" "↕"))
-        ls.enabled = false
+        def ls:RibbonItem (this.glyphButton("para.spacing" "Line and paragraph spacing" "↕"))
+        ls.menu = 1
         def sh:RibbonItem (this.small("para.shading" "Shading" (ToolIcon.fill())))
         sh.enabled = false
         def bo:RibbonItem (this.small("para.borders" "Borders" (ToolIcon.borderAll())))
@@ -573,6 +671,9 @@ class DocxRibbon {
                     it.x = rx
                     it.y = ry
                     it.w = 28
+                    if (it.menu > 0) {
+                        it.w = 40
+                    }
                     it.h = rh
                 }
                 if (it.kind == 2) {
@@ -1177,6 +1278,12 @@ class DocxChromePainter {
             return
         }
         def cy:int (it.y + (idiv it.h 2))
+        if ((it.menu > 0) && (it.kind == 0)) {
+            if ((it.menu == 2) && hot) {
+                this.rect(dl ((it.x + it.w) - 13) (it.y + 4) 1 (it.h - 8) theme.line)
+            }
+            this.chevron(dl ((it.x + it.w) - 7) cy theme.dim)
+        }
         if ((strlen it.glyph) > 0) {
             this.textMid(dl it.glyph (it.x + 14) cy 14.0 ink false)
         } {
@@ -1189,7 +1296,7 @@ class DocxChromePainter {
 
     ; The name of the hot button, under it.
     fn paintTip:void (dl:EVGDisplayList rb:DocxRibbon W:int) {
-        if (rb.hot < 0) {
+        if ((rb.hot < 0) || rb.menu.open) {
             return
         }
         def it:RibbonItem (rb.at(rb.hot))
@@ -1208,6 +1315,41 @@ class DocxChromePainter {
         def ty:int ((it.y + it.h) + 6)
         this.round(dl tx ty tw 24 5 (EVGColor.rgb(38 43 54)))
         this.text(dl tip (tx + 8) (ty + 4) 12.0 (EVGColor.rgb(246 248 251)) false)
+    }
+
+    ; An open dropdown: a card with a soft shadow, a tick on the line that
+    ; is in effect, and the sample a list line would put in front.
+    fn paintMenu:void (dl:EVGDisplayList m:RibbonMenu) {
+        if (m.open == false) {
+            return
+        }
+        def h:int (m.height())
+        this.round(dl (m.x + 1) (m.y + 3) m.w h 8 (EVGColor.rgba(20 30 50 0.10)))
+        this.round(dl m.x m.y m.w h 8 theme.ribbon)
+        this.roundFrame(dl m.x m.y m.w h 8 theme.line)
+        def rh:int (m.rowH())
+        def i:int 0
+        while (i < (array_length m.entries)) {
+            def e:RibbonMenuEntry (itemAt m.entries i)
+            def ry:int ((m.y + 5) + (i * rh))
+            if e.rule {
+                this.rect(dl (m.x + 8) ry (m.w - 16) 1 theme.line)
+            }
+            if (i == m.hot) {
+                this.round(dl (m.x + 4) (ry + 1) (m.w - 8) (rh - 2) 5 theme.hover)
+            }
+            if e.checked {
+                this.round(dl (m.x + 4) (ry + 1) 4 (rh - 2) 2 theme.accent)
+                this.textMid(dl "✓" (m.x + 18) (ry + (idiv rh 2)) 13.0 theme.accent true)
+            }
+            def lx:int (m.x + 32)
+            if ((strlen e.sample) > 0) {
+                this.textMid(dl e.sample (m.x + 44) (ry + (idiv rh 2)) 14.0 theme.ink false)
+                lx = (m.x + 62)
+            }
+            this.text(dl e.label lx ((ry + (idiv rh 2)) - 8) 12.5 theme.ink false)
+            i = (i + 1)
+        }
     }
 
     ; --- the navigation pane ------------------------------------------------------

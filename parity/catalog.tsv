@@ -69,11 +69,11 @@ Home	Font	Character Position	format.position	live	no	no	-
 Home	Font	Character Border	format.border	live	no	no	-
 Home	Font	Phonetic Guide	format.phonetic	live	no	no	-
 Home	Font	Enclose Characters	format.enclose	live	no	no	-
-Home	Paragraph	Bullets	para.bullets	live	no	no	-
-Home	Paragraph	Numbering	para.numbering	live	no	no	-
+Home	Paragraph	Bullets	para.bullets	live	no	done	tests/DocxChromeTest.rgr
+Home	Paragraph	Numbering	para.numbering	live	no	done	tests/DocxChromeTest.rgr
 Home	Paragraph	Multilevel List	para.multilevel	live	no	no	-
 Home	Paragraph	Define New Multilevel List	list.define	live	no	no	-
-Home	Paragraph	Change List Level	para.listLevel	live	no	no	-
+Home	Paragraph	Change List Level	para.listLevel	live	no	done	tests/DocxChromeTest.rgr
 Home	Paragraph	Restart Numbering	para.restartNumbering	live	no	no	-
 Home	Paragraph	Define New Bullet	para.defineBullet	live	no	no	-
 Home	Paragraph	Define New Number Format	para.defineNumber	live	no	no	-
@@ -87,9 +87,9 @@ Home	Paragraph	Center	para.alignCenter	live	no	yes	tests/DocxChromeTest.rgr
 Home	Paragraph	Align Right	para.alignRight	live	no	yes	tests/DocxChromeTest.rgr
 Home	Paragraph	Justify	para.justify	live	no	partial	tests/DocxChromeTest.rgr
 Home	Paragraph	Distributed	para.distribute	live	no	no	-
-Home	Paragraph	Line Spacing	para.lineSpacing	live	no	no	-
-Home	Paragraph	Add Space Before	para.addSpaceBefore	live	no	no	-
-Home	Paragraph	Remove Space After	para.removeSpaceAfter	live	no	no	-
+Home	Paragraph	Line Spacing	para.lineSpacing	live	no	done	tests/DocxChromeTest.rgr
+Home	Paragraph	Add Space Before	para.addSpaceBefore	live	no	done	tests/DocxChromeTest.rgr
+Home	Paragraph	Remove Space After	para.removeSpaceAfter	live	no	done	tests/DocxChromeTest.rgr
 Home	Paragraph	Shading	para.shading	live	no	no	-
 Home	Paragraph	Borders	para.borders	live	no	no	-
 Home	Paragraph	Horizontal Line	insert.horizontalLine	live	no	no	-

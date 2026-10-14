@@ -116,6 +116,11 @@ class DocxPackage {
         return (opc.readXml(fallback))
     }
 
+    ; Where numbering.xml is, or "" when the document has none.
+    fn numberingPart:string () {
+        return (opc.findRelationshipByType(mainPart "/numbering"))
+    }
+
     fn documentRelsXml:string () {
         return (opc.readXml((OpcPackage.relsPathFor(mainPart))))
     }

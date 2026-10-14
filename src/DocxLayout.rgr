@@ -713,6 +713,11 @@ class DocxLayout {
                 if (li == 0) {
                     x0 = (x0 + firstExtra)
                 }
+                ; A list item's later lines line up with its text, not its
+                ; number, the way a hanging indent does in Word.
+                if ((li > 0) && (prefixW > 0)) {
+                    x0 = (x0 + prefixW)
+                }
                 if (p.align == 1) {
                     x0 = (ml + (to_int (((contentW - indent) - tw) / 2)))
                 }
@@ -754,6 +759,12 @@ class DocxLayout {
             emptyLine.fontSizePx = fontPx
             emptyLine.x = (ml + indent)
             emptyLine.width = 4
+            ; An empty list item still shows its bullet or number.
+            if ((strlen prefix) > 0) {
+                emptyLine.text = prefix
+                emptyLine.listPrefix = prefix
+                emptyLine.width = (to_int (tr.measureWidth(prefix fontPx)))
+            }
             emptyLine.boxX = (ml + indent)
             emptyLine.boxW = (contentW - indent)
             if (emptyLine.boxW < 4) {

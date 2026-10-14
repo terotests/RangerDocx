@@ -19,4 +19,4 @@ R1	robustness	Hostile inputs that crash or hang	count	lower	0	unmeasured	unmeasu
 R2	robustness	Fuzz iterations without a crash	count	higher	0	0	0	100000	tests/fuzz	Mutation fuzzing of fixture packages
 X1	formats	Other formats read or written (PDF, RTF, ODT, HTML, MD, TXT, LaTeX, .doc)	count of 8	higher	8	1	1	4	docs/PARITY.md	docx_viewer has PNG page export only; Ranger has a PDF writer (gallery/pdf_writer) to reuse
 A1	accessibility	Accessibility tree for the document canvas	yes/no	higher	1	1	1	1	src/a11y	AccessKit in WordCraft; DocxA11y in docx_viewer
-T1	quality	Automated tests	count	higher	1930	unmeasured	775 checks	500	tests/	WordCraft: #[test] functions. RangerDocx: Checker assertions across the suites (not the same unit)
+T1	quality	Automated tests	count	higher	1930	unmeasured	800 checks	500	tests/	WordCraft: #[test] functions. RangerDocx: Checker assertions across the suites (not the same unit)

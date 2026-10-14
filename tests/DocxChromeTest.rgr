@@ -319,6 +319,96 @@ class DocxChromeTest {
         def dl6:EVGDisplayList (a6.viewer.pageDisplayList(0))
         c.ok("and it all draws" ((array_length dl6.cmds) > 20))
 
+        print "-- lists, indents and spacing --"
+        def l1:DocxApp (DocxChromeTest.build("20-business-report.docx"))
+        l1.viewer.setEditMode(true)
+        def lp:int (DocxChromeTest.firstWithStyle(l1 "Normal"))
+        def lo:int (l1.viewer.edit.adapter.bodyOrderOf(lp))
+        def lp2:int (l1.viewer.edit.adapter.bodyParagraphIdAt((lo + 1)))
+        l1.viewer.edit.setRange(lp 0 0)
+        l1.viewer.edit.sel.focus = (DocumentPosition.create(lp2 2))
+        c.ok("Bullets runs" (l1.runCommand("para.bullets" "")))
+        def b1:Paragraph (DocxChromeTest.paragraph(l1 lp))
+        def b2:Paragraph (DocxChromeTest.paragraph(l1 lp2))
+        c.ok("both paragraphs are in a list" ((b1.listNumId > 0) && (b1.listNumId == b2.listNumId)))
+        c.eqStr("a bulleted one" (l1.viewer.numbering.kindOf(b1.listNumId)) "bullet")
+        c.ok("indented by the list" (b1.indentLeftPt > 0.0))
+        l1.buildDisplayList()
+        def blBtn:RibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.bullets" ""))))
+        c.ok("the Bullets button shows it" blBtn.pressed)
+        l1.runCommand("para.bullets" "")
+        c.ok("a second press takes them out" ((DocxChromeTest.numOf(l1 lp)) == 0))
+        l1.runCommand("edit.undo" "")
+        c.ok("undo puts them back" ((DocxChromeTest.numOf(l1 lp)) > 0))
+        l1.runCommand("para.numbering" "")
+        def n1:Paragraph (DocxChromeTest.paragraph(l1 lp))
+        c.eqStr("Numbering turns the bullets into numbers" (l1.viewer.numbering.kindOf(n1.listNumId)) "number")
+        ; The dropdown: opened from the button's arrow, a line picks a look.
+        def nb:RibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.numbering" ""))))
+        DocxChromeTest.click(l1 ((nb.x + nb.w) - 4) (nb.y + 6))
+        c.ok("the arrow opens the numbering library" (l1.ribbon.menu.open && (l1.ribbon.menu.owner == "para.numbering")))
+        def pick:int -1
+        def mi:int 0
+        while (mi < (array_length l1.ribbon.menu.entries)) {
+            def me:RibbonMenuEntry (l1.ribbon.menu.at(mi))
+            if (me.arg == "lowerLetter:%1)") {
+                pick = mi
+            }
+            mi = (mi + 1)
+        }
+        c.ok("which has a) b) c)" (pick >= 0))
+        DocxChromeTest.click(l1 (l1.ribbon.menu.x + 40) ((l1.ribbon.menu.y + 5) + ((pick * (l1.ribbon.menu.rowH())) + 10)))
+        c.ok("a press on a line shuts the list" (l1.ribbon.menu.open == false))
+        def n2:Paragraph (DocxChromeTest.paragraph(l1 lp))
+        c.eqStr("and gives the list that look" (l1.viewer.numbering.styleOf(n2.listNumId)) "lowerLetter:%1)")
+        l1.viewer.edit.setCaret(lp2 0)
+        l1.runCommand("text.indent" "")
+        c.eqInt("Increase indent moves a list item a level down" (DocxChromeTest.levelOf(l1 lp2)) 1)
+        l1.runCommand("text.outdent" "")
+        c.eqInt("and Decrease indent back" (DocxChromeTest.levelOf(l1 lp2)) 0)
+        def plain:int (l1.viewer.edit.adapter.bodyParagraphIdAt((lo + 3)))
+        l1.viewer.edit.setCaret(plain 0)
+        def left0:double (DocxChromeTest.leftOf(l1 plain))
+        l1.runCommand("text.indent" "")
+        def left1:double (DocxChromeTest.leftOf(l1 plain))
+        c.ok("outside a list it indents to the next half inch" ((left1 > left0) && (left1 <= (left0 + 36.01))))
+        def sp0:RibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.spacing" ""))))
+        DocxChromeTest.click(l1 (sp0.x + 6) (sp0.y + 6))
+        c.ok("Line spacing opens its list" (l1.ribbon.menu.open && ((array_length l1.ribbon.menu.entries) >= 6)))
+        l1.ribbon.menu.close()
+        l1.runCommand("para.spacing" "2.0")
+        c.ok("double spacing" ((DocxChromeTest.lineOf(l1 plain)) == 2.0))
+        def before0:double (DocxChromeTest.beforeOf(l1 plain))
+        l1.runCommand("para.spaceBefore" "")
+        c.ok("space before goes on, or off when there was some" ((DocxChromeTest.beforeOf(l1 plain)) == (? (before0 > 0.0) 0.0 12.0)))
+        l1.runCommand("edit.undo" "")
+        l1.runCommand("edit.undo" "")
+        c.ok("undo takes the spacing back" ((DocxChromeTest.lineOf(l1 plain)) != 2.0))
+        ; Saved: the new list is in numbering.xml, and opens as the same list.
+        def lb:buffer (l1.viewer.saveBytes())
+        def l2:DocxApp (new DocxApp)
+        l2.init()
+        c.ok("the document with a new list saves and opens" (l2.viewer.openBytes(lb "lists.docx")))
+        def r1:Paragraph (DocxChromeTest.paragraph(l2 lp))
+        c.eqStr("with the list's look" (l2.viewer.numbering.styleOf(r1.listNumId)) "lowerLetter:%1)")
+        c.eqInt("and its levels" (DocxChromeTest.levelOf(l2 lp2)) 0)
+        ; A document without numbering.xml gets one.
+        def l3:DocxApp (DocxChromeTest.build("21-accented-text.docx"))
+        l3.viewer.setEditMode(true)
+        def ap:int (l3.viewer.edit.adapter.bodyParagraphIdAt(0))
+        l3.viewer.edit.setCaret(ap 0)
+        l3.runCommand("para.numbering" "")
+        def l4:DocxApp (new DocxApp)
+        l4.init()
+        c.ok("a file with no lists saves one" (l4.viewer.openBytes((l3.viewer.saveBytes()) "numbered.docx")))
+        def r2:Paragraph (DocxChromeTest.paragraph(l4 ap))
+        c.eqStr("and it reads back numbered" (l4.viewer.numbering.kindOf(r2.listNumId)) "number")
+        ; Change case from its list.
+        l1.viewer.edit.setRange(plain 0 5)
+        def wordBefore:string (substring (l1.viewer.edit.adapter.getText(plain)) 0 5)
+        l1.runCommand("format.case" "lower")
+        c.eqStr("lowercase from the list" (substring (l1.viewer.edit.adapter.getText(plain)) 0 5) (to_lowercase wordBefore))
+
         print "-- the status bar --"
         c.ok("words are counted" ((app.wordCount()) > 500))
         def z0:double app.zoom
@@ -343,6 +433,31 @@ class DocxChromeTest {
         } {
             print "FAILURES"
         }
+    }
+
+    sfn levelOf:int (app:DocxApp pid:int) {
+        def p:Paragraph (DocxChromeTest.paragraph(app pid))
+        return p.listLevel
+    }
+
+    sfn numOf:int (app:DocxApp pid:int) {
+        def p:Paragraph (DocxChromeTest.paragraph(app pid))
+        return p.listNumId
+    }
+
+    sfn leftOf:double (app:DocxApp pid:int) {
+        def p:Paragraph (DocxChromeTest.paragraph(app pid))
+        return p.indentLeftPt
+    }
+
+    sfn lineOf:double (app:DocxApp pid:int) {
+        def p:Paragraph (DocxChromeTest.paragraph(app pid))
+        return p.lineSpacing
+    }
+
+    sfn beforeOf:double (app:DocxApp pid:int) {
+        def p:Paragraph (DocxChromeTest.paragraph(app pid))
+        return p.spaceBeforePt
     }
 
     sfn alignOf:int (app:DocxApp pid:int) {

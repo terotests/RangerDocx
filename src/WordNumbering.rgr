@@ -50,6 +50,13 @@ class AbstractNum {
 class WordNumbering {
     def abstracts:[int:AbstractNum]
     def numToAbstract:[int:int]
+    ; The highest ids the file uses, so a list the editor makes gets new ones.
+    def maxAbstractId:int -1
+    def maxNumId:int 0
+    ; Lists the editor made, as numbering.xml fragments for a save to add:
+    ; definitions go before the first w:num, instances at the end.
+    def addedAbstracts:[string]
+    def addedNums:[string]
 
     Constructor () {
     }
@@ -91,6 +98,9 @@ class WordNumbering {
                         }
                     }
                     set abstracts abs.id abs
+                    if (abs.id > maxAbstractId) {
+                        maxAbstractId = abs.id
+                    }
                 }
                 def ae:int (WordXml.elementEnd(xml "w:abstractNum" a))
                 if (ae < 0) {
@@ -119,6 +129,9 @@ class WordNumbering {
                     def ai@(optional):int (to_int av)
                     if ((!null? ni) && (!null? ai)) {
                         set numToAbstract (unwrap ni) (unwrap ai)
+                        if ((unwrap ni) > maxNumId) {
+                            maxNumId = (unwrap ni)
+                        }
                     }
                 }
             }
@@ -372,5 +385,129 @@ class WordNumbering {
             set counters dk 0
             d = (d + 1)
         }
+    }
+
+    ; --- lists the editor makes ------------------------------------------------
+
+    fn hasAdditions:boolean () {
+        return ((array_length addedNums) > 0)
+    }
+
+    ; "bullet" or "number": what a list's first level is.
+    fn kindOf:string (numId:int) {
+        if (numId <= 0) {
+            return ""
+        }
+        def lv:NumLevel (this.levelFor(numId 0))
+        if (lv.numFmt == "bullet") {
+            return "bullet"
+        }
+        if (lv.numFmt == "none") {
+            return ""
+        }
+        return "number"
+    }
+
+    ; The first level's look, "bullet:•" or "decimal:%1.", for a menu to tick.
+    fn styleOf:string (numId:int) {
+        if (numId <= 0) {
+            return ""
+        }
+        def lv:NumLevel (this.levelFor(numId 0))
+        return (lv.numFmt + ":" + lv.lvlText)
+    }
+
+    sfn bulletAt:string (first:string ilvl:int) {
+        def k:int (ilvl - ((idiv ilvl 3) * 3))
+        if (k == 0) {
+            return first
+        }
+        if (k == 1) {
+            return "◦"
+        }
+        return "▪"
+    }
+
+    ; A new list: its own definition, nine levels deep, and an instance of
+    ; it. `style` is "bullet:•" or a number format and its text, such as
+    ; "decimal:%1." or "lowerLetter:%1)". Deeper levels follow Word's
+    ; defaults: bullets ◦ ▪, numbers a. i. 1. ...
+    fn newList:int (style:string) {
+        def colon:int (indexOf style ":")
+        def fmt:string "decimal"
+        def text:string "%1."
+        if (colon > 0) {
+            fmt = (substring style 0 colon)
+            text = (substring style (colon + 1) (strlen style))
+        }
+        maxAbstractId = (maxAbstractId + 1)
+        maxNumId = (maxNumId + 1)
+        def abs:AbstractNum (new AbstractNum)
+        abs.id = maxAbstractId
+        def x:string ("<w:abstractNum w:abstractNumId=\"" + (to_string abs.id) + "\"><w:multiLevelType w:val=\"hybridMultilevel\"/>")
+        def l:int 0
+        while (l < 9) {
+            def lv:NumLevel (new NumLevel)
+            lv.ilvl = l
+            lv.leftTwips = (720 * (l + 1))
+            lv.hangingTwips = 360
+            if (fmt == "bullet") {
+                lv.numFmt = "bullet"
+                lv.lvlText = (WordNumbering.bulletAt(text l))
+            } {
+                def k:int (l - ((idiv l 3) * 3))
+                lv.numFmt = "decimal"
+                if (k == 1) {
+                    lv.numFmt = "lowerLetter"
+                }
+                if (k == 2) {
+                    lv.numFmt = "lowerRoman"
+                }
+                lv.lvlText = ("%" + (to_string (l + 1)) + ".")
+                if (l == 0) {
+                    lv.numFmt = fmt
+                    lv.lvlText = text
+                }
+            }
+            push abs.levels lv
+            x = (x + "<w:lvl w:ilvl=\"" + (to_string l) + "\"><w:start w:val=\"1\"/><w:numFmt w:val=\"" + lv.numFmt + "\"/><w:lvlText w:val=\"" + lv.lvlText + "\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"" + (to_string lv.leftTwips) + "\" w:hanging=\"360\"/></w:pPr></w:lvl>")
+            l = (l + 1)
+        }
+        x = (x + "</w:abstractNum>")
+        set abstracts abs.id abs
+        set numToAbstract maxNumId abs.id
+        push addedAbstracts x
+        push addedNums ("<w:num w:numId=\"" + (to_string maxNumId) + "\"><w:abstractNumId w:val=\"" + (to_string abs.id) + "\"/></w:num>")
+        return maxNumId
+    }
+
+    ; numbering.xml with the editor's lists in it: `xml` is the file's own,
+    ; or "" when it had none.
+    fn withAdditions:string (xml:string) {
+        def defs:string ""
+        for addedAbstracts d:string di {
+            defs = (defs + d)
+        }
+        def nums:string ""
+        for addedNums u:string ui {
+            nums = (nums + u)
+        }
+        if ((strlen xml) == 0) {
+            return ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + defs + nums + "</w:numbering>")
+        }
+        ; Definitions before the first instance, which the schema requires.
+        def at:int (WordXml.findNext(xml "w:num" 0))
+        if (at < 0) {
+            at = (indexOf xml "</w:numbering>")
+        }
+        if (at < 0) {
+            return xml
+        }
+        def out:string ((substring xml 0 at) + defs + (substring xml at (strlen xml)))
+        def end:int (indexOf out "</w:numbering>")
+        if (end < 0) {
+            return out
+        }
+        return ((substring out 0 end) + nums + (substring out end (strlen out)))
     }
 }

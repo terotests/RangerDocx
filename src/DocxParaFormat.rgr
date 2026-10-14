@@ -62,6 +62,62 @@ class DocxParaFormat {
         return out
     }
 
+    ; The first letter of each sentence upper case, the rest lower.
+    sfn sentenceCase:string (s:string) {
+        def lower:string (to_lowercase s)
+        def upper:string (to_uppercase s)
+        if (((strlen lower) != (strlen s)) || ((strlen upper) != (strlen s))) {
+            return s
+        }
+        def out:string ""
+        def start:boolean true
+        def i:int 0
+        def n:int (strlen s)
+        while (i < n) {
+            def c:int (charAt s i)
+            def lc:string (substring lower i (i + 1))
+            def uc:string (substring upper i (i + 1))
+            if (lc != uc) {
+                if start {
+                    out = (out + uc)
+                } {
+                    out = (out + lc)
+                }
+                start = false
+            } {
+                out = (out + (substring s i (i + 1)))
+                if (((c == 46) || (c == 33)) || (c == 63)) {
+                    start = true
+                }
+            }
+            i = (i + 1)
+        }
+        return out
+    }
+
+    ; Every letter the other way round.
+    sfn toggleCase:string (s:string) {
+        def lower:string (to_lowercase s)
+        def upper:string (to_uppercase s)
+        if (((strlen lower) != (strlen s)) || ((strlen upper) != (strlen s))) {
+            return s
+        }
+        def out:string ""
+        def i:int 0
+        def n:int (strlen s)
+        while (i < n) {
+            def ch:string (substring s i (i + 1))
+            def uc:string (substring upper i (i + 1))
+            if (ch == uc) {
+                out = (out + (substring lower i (i + 1)))
+            } {
+                out = (out + uc)
+            }
+            i = (i + 1)
+        }
+        return out
+    }
+
     sfn b:string (v:boolean) {
         if v {
             return "1"
@@ -183,6 +239,35 @@ class DocxParaFormat {
             if (sp.colorHex == o.colorHex) { sp.colorHex = n.colorHex }
             i = (i + 1)
         }
+    }
+
+    ; Out of its list: back to the indent its style gives it.
+    sfn leaveList:void (p:Paragraph resolver:WordStyleResolver) {
+        def ps:ResolvedParagraphStyle (resolver.resolveParagraphStyle(p.styleId))
+        p.listNumId = 0
+        p.listKind = 0
+        p.listLevel = 0
+        p.listFmt = ""
+        p.listText = ""
+        p.indentLeftPt = ps.indentLeftPt
+        p.indentFirstLinePt = ps.indentFirstLinePt
+    }
+
+    ; The next half-inch stop from `left`, in the direction of `step`: what
+    ; Increase and Decrease Indent move a paragraph to.
+    sfn nextStop:double (left:double step:int) {
+        def k:int (floor ((left / 36.0) + 0.001))
+        if (step > 0) {
+            return ((to_double (k + 1)) * 36.0)
+        }
+        def onStop:boolean ((left - ((to_double k) * 36.0)) < 0.01)
+        if onStop {
+            k = (k - 1)
+        }
+        if (k < 0) {
+            k = 0
+        }
+        return ((to_double k) * 36.0)
     }
 
     ; Does the document define this style? Only the styles a file has can be

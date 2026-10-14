@@ -40,6 +40,7 @@ class WordMlParser {
         ; Keep the package whole: a save copies every part it does not rewrite.
         doc.source.known = true
         doc.source.mainPart = pkg.mainPart
+        doc.source.numberingPart = (pkg.numberingPart())
         def partNames:[string] (pkg.listParts())
         for partNames pn:string pni {
             push doc.source.parts pn

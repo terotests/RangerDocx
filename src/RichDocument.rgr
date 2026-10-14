@@ -35,6 +35,8 @@ class DocxSource {
     def known:boolean false
     def mainPart:string "word/document.xml"
     def mainXml:string ""
+    ; The numbering part, "" when the package has none.
+    def numberingPart:string ""
     def parts:[string]
     def bytes:[string:buffer]
     ; Start and end of every body-level element the parser turned into a

@@ -52,6 +52,8 @@ class DocxEditController {
     ; rather than where the reader started.
     def column:OfficeCaretColumn (new OfficeCaretColumn())
     def suppressUndo:boolean false
+    ; The document's lists, for the list buttons to put paragraphs in.
+    def numbering:WordNumbering (new WordNumbering)
 
     Constructor () {
     }
@@ -498,6 +500,7 @@ class DocxEditController {
                 cur.listLevel = 0
                 cur.listFmt = ""
                 cur.listText = ""
+                adapter.doc.touch()
                 return
             }
         }
@@ -1763,6 +1766,10 @@ class DocxEditController {
         if ((array_length ids) == 0) {
             return false
         }
+        def listNum:int 0
+        if (what == "list") {
+            listNum = (this.listTarget(ids arg))
+        }
         this.beginAction()
         def i:int 0
         while (i < (array_length ids)) {
@@ -1775,6 +1782,45 @@ class DocxEditController {
                 }
                 if (what == "style") {
                     DocxParaFormat.applyStyle(p arg resolver)
+                }
+                if (what == "list") {
+                    if (listNum < 0) {
+                        DocxParaFormat.leaveList(p resolver)
+                    } {
+                        if (p.listNumId <= 0) {
+                            p.listLevel = 0
+                        }
+                        p.listNumId = listNum
+                        numbering.applyToParagraph(p)
+                    }
+                }
+                if ((what == "indent") || (what == "outdent")) {
+                    def step:int 1
+                    if (what == "outdent") {
+                        step = -1
+                    }
+                    if (p.listNumId > 0) {
+                        def lvl:int (p.listLevel + step)
+                        if (lvl < 0) {
+                            lvl = 0
+                        }
+                        if (lvl > 8) {
+                            lvl = 8
+                        }
+                        p.listLevel = lvl
+                        numbering.applyToParagraph(p)
+                    } {
+                        p.indentLeftPt = (DocxParaFormat.nextStop(p.indentLeftPt step))
+                    }
+                }
+                if (what == "spacing") {
+                    p.lineSpacing = (DocxParaFormat.num(arg))
+                }
+                if (what == "before") {
+                    p.spaceBeforePt = (DocxParaFormat.num(arg))
+                }
+                if (what == "after") {
+                    p.spaceAfterPt = (DocxParaFormat.num(arg))
                 }
                 def after:string (DocxParaFormat.snapshot(p))
                 if (after != before) {
@@ -1791,6 +1837,98 @@ class DocxEditController {
         this.endAction()
         adapter.doc.touch()
         return true
+    }
+
+    ; The list the list buttons put the selection in: -1 takes it out of
+    ; lists, because every selected paragraph already is in one like it.
+    ; `arg` is a kind ("bullet", "number") or a look ("decimal:%1)").
+    ; A list of the same look right above, or one a selected paragraph is
+    ; in, is continued; otherwise a new one starts.
+    fn listTarget:int (ids:[int] arg:string) {
+        if (arg == "none") {
+            return -1
+        }
+        def byKind:boolean ((indexOf arg ":") < 0)
+        def allOn:boolean true
+        def i:int 0
+        while (i < (array_length ids)) {
+            def p:Paragraph (adapter.findParagraph((itemAt ids i)))
+            if ((this.listMatches(p.listNumId arg byKind)) == false) {
+                allOn = false
+            }
+            i = (i + 1)
+        }
+        if allOn {
+            return -1
+        }
+        def o:int (adapter.bodyOrderOf((itemAt ids 0)))
+        if (o > 0) {
+            def above:Paragraph (adapter.findParagraph((adapter.bodyParagraphIdAt((o - 1)))))
+            if (this.listMatches(above.listNumId arg byKind)) {
+                return above.listNumId
+            }
+        }
+        i = 0
+        while (i < (array_length ids)) {
+            def q:Paragraph (adapter.findParagraph((itemAt ids i)))
+            if (this.listMatches(q.listNumId arg byKind)) {
+                return q.listNumId
+            }
+            i = (i + 1)
+        }
+        def look:string arg
+        if (arg == "bullet") {
+            look = "bullet:•"
+        }
+        if (arg == "number") {
+            look = "decimal:%1."
+        }
+        return (numbering.newList(look))
+    }
+
+    fn listMatches:boolean (numId:int arg:string byKind:boolean) {
+        if (numId <= 0) {
+            return false
+        }
+        if byKind {
+            return ((numbering.kindOf(numId)) == arg)
+        }
+        return ((numbering.styleOf(numId)) == arg)
+    }
+
+    ; What the list buttons show: "bullet", "number" or "".
+    fn caretListKind:string () {
+        def pid:int sel.focus.paragraphId
+        if (pid <= 0) {
+            return ""
+        }
+        if ((adapter.paragraphExists(pid)) == false) {
+            return ""
+        }
+        def p:Paragraph (adapter.findParagraph(pid))
+        return (numbering.kindOf(p.listNumId))
+    }
+
+    fn caretListStyle:string () {
+        def pid:int sel.focus.paragraphId
+        if (pid <= 0) {
+            return ""
+        }
+        if ((adapter.paragraphExists(pid)) == false) {
+            return ""
+        }
+        def p:Paragraph (adapter.findParagraph(pid))
+        return (numbering.styleOf(p.listNumId))
+    }
+
+    fn caretParagraph:Paragraph () {
+        def pid:int sel.focus.paragraphId
+        if (pid > 0) {
+            if (adapter.paragraphExists(pid)) {
+                return (adapter.findParagraph(pid))
+            }
+        }
+        return (new Paragraph)
     }
 
     ; --- run formatting, undoable ---------------------------------------------
@@ -1903,7 +2041,7 @@ class DocxEditController {
         }
         suppressUndo = false
         if (what == "case") {
-            this.cycleCase(pids froms tos)
+            this.cycleCase(pids froms tos arg)
         }
         def j:int 0
         while (j < (array_length ids)) {
@@ -1940,7 +2078,9 @@ class DocxEditController {
 
     ; Change case across the selection. What it becomes is decided from the
     ; whole selection, so one press turns a mixed selection uniformly.
-    fn cycleCase:void (pids:[int] froms:[int] tos:[int]) {
+    ; `pick` names the case ("upper", "lower", "title", "sentence",
+    ; "toggle"); empty cycles UPPER, Title, lower as Shift+F3 does.
+    fn cycleCase:void (pids:[int] froms:[int] tos:[int] pick:string) {
         def all:string ""
         def k:int 0
         while (k < (array_length pids)) {
@@ -1955,6 +2095,9 @@ class DocxEditController {
         if ((all == (DocxParaFormat.titleCase(all))) && (all != (to_uppercase all))) {
             mode = "lower"
         }
+        if ((strlen pick) > 0) {
+            mode = pick
+        }
         def m:int 0
         while (m < (array_length pids)) {
             def pid:int (itemAt pids m)
@@ -1968,6 +2111,12 @@ class DocxEditController {
             }
             if (mode == "title") {
                 nw = (DocxParaFormat.titleCase(old))
+            }
+            if (mode == "sentence") {
+                nw = (DocxParaFormat.sentenceCase(old))
+            }
+            if (mode == "toggle") {
+                nw = (DocxParaFormat.toggleCase(old))
             }
             ; Only when the length is unchanged: the spans are offsets into
             ; the text, and a case change must not move them.

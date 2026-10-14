@@ -31,13 +31,17 @@ Import "RichDocument.rgr"
 Import "DocxFingerprint.rgr"
 Import "WordXml.rgr"
 Import "WordStyleResolver.rgr"
+Import "WordNumbering.rgr"
 Import "../../zip/ZipWriter.rgr"
+Import "../../pdf_writer/src/core/Utf8.rgr"
 
 class DocxWriter {
     ; The styles the document was read with; the parser's resolver. Run and
     ; paragraph properties are written as differences from what the style
     ; already says.
     def resolver:WordStyleResolver (new WordStyleResolver)
+    ; The lists; one the editor made is added to numbering.xml.
+    def numbering:WordNumbering (new WordNumbering)
     def warnings:[string]
 
     ; Splice state.
@@ -624,12 +628,70 @@ class DocxWriter {
 
     ; --- the package ---------------------------------------------------------
 
+    sfn text:string (b:buffer) {
+        return (Utf8.decode((buffer_to_string b)))
+    }
+
+    sfn dirOf:string (part:string) {
+        def i:int ((strlen part) - 1)
+        while (i >= 0) {
+            if ((charAt part i) == 47) {
+                return (substring part 0 (i + 1))
+            }
+            i = (i - 1)
+        }
+        return ""
+    }
+
+    sfn withNumberingType:string (ct:string partName:string) {
+        if ((indexOf ct partName) >= 0) {
+            return ct
+        }
+        def end:int (indexOf ct "</Types>")
+        if (end < 0) {
+            return ct
+        }
+        return ((substring ct 0 end) + "<Override PartName=\"" + partName + "\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>" + (substring ct end (strlen ct)))
+    }
+
+    ; The document's relationships with one to numbering.xml, under an id
+    ; nothing else uses.
+    sfn withNumberingRel:string (rels:string) {
+        if ((strlen rels) == 0) {
+            rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"></Relationships>"
+        }
+        def n:int 1
+        while ((indexOf rels ("Id=\"rIdNum" + (to_string n) + "\"")) >= 0) {
+            n = (n + 1)
+        }
+        def end:int (indexOf rels "</Relationships>")
+        if (end < 0) {
+            return rels
+        }
+        return ((substring rels 0 end) + "<Relationship Id=\"rIdNum" + (to_string n) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/>" + (substring rels end (strlen rels)))
+    }
+
     fn buildZip:ZipWriter (doc:RichDocument) {
         def zip:ZipWriter (new ZipWriter())
         zip.create()
         def xml:string (this.documentXml(doc))
         if doc.source.known {
             def wroteMain:boolean false
+            ; A list the editor made goes into the numbering part, which is
+            ; made, with its relationship and content type, when there was none.
+            def lists:boolean (numbering.hasAdditions())
+            def numPart:string doc.source.numberingPart
+            if lists {
+                if ((strlen numPart) > 0) {
+                    if ((has doc.source.bytes numPart) == false) {
+                        numPart = ""
+                    }
+                }
+            }
+            def mainDir:string (DocxWriter.dirOf(doc.source.mainPart))
+            def relsPart:string (mainDir + "_rels/" + (substring doc.source.mainPart (strlen mainDir) (strlen doc.source.mainPart)) + ".rels")
+            def newNumPart:boolean (lists && ((strlen numPart) == 0))
+            def wroteRels:boolean false
             for doc.source.parts part:string pi {
                 if (part == doc.source.mainPart) {
                     zip.addFile(part (DocxWriter.utf8(xml)))
@@ -637,23 +699,52 @@ class DocxWriter {
                 } {
                     def bytes@(optional):buffer (get doc.source.bytes part)
                     if (!null? bytes) {
-                        zip.addFile(part (unwrap bytes))
+                        def handled:boolean false
+                        if (lists && (part == numPart)) {
+                            zip.addFile(part (DocxWriter.utf8((numbering.withAdditions((DocxWriter.text((unwrap bytes))))))))
+                            handled = true
+                        }
+                        if (newNumPart && (part == "[Content_Types].xml")) {
+                            zip.addFile(part (DocxWriter.utf8((DocxWriter.withNumberingType((DocxWriter.text((unwrap bytes))) ("/" + mainDir + "numbering.xml"))))))
+                            handled = true
+                        }
+                        if (newNumPart && (part == relsPart)) {
+                            zip.addFile(part (DocxWriter.utf8((DocxWriter.withNumberingRel((DocxWriter.text((unwrap bytes))))))))
+                            handled = true
+                            wroteRels = true
+                        }
+                        if (handled == false) {
+                            zip.addFile(part (unwrap bytes))
+                        }
                     }
                 }
             }
             if (wroteMain == false) {
                 zip.addFile(doc.source.mainPart (DocxWriter.utf8(xml)))
             }
+            if newNumPart {
+                zip.addFile((mainDir + "numbering.xml") (DocxWriter.utf8((numbering.withAdditions("")))))
+                if (wroteRels == false) {
+                    zip.addFile(relsPart (DocxWriter.utf8((DocxWriter.withNumberingRel("")))))
+                }
+            }
             return zip
         }
         def ct:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/></Types>"
         def rels:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"
         def docRels:string "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>"
+        if (numbering.hasAdditions()) {
+            ct = (DocxWriter.withNumberingType(ct "/word/numbering.xml"))
+            docRels = (DocxWriter.withNumberingRel(docRels))
+        }
         zip.addFile("[Content_Types].xml" (DocxWriter.utf8(ct)))
         zip.addFile("_rels/.rels" (DocxWriter.utf8(rels)))
         zip.addFile("word/document.xml" (DocxWriter.utf8(xml)))
         zip.addFile("word/_rels/document.xml.rels" (DocxWriter.utf8(docRels)))
         zip.addFile("word/styles.xml" (DocxWriter.utf8((DocxWriter.freshStylesXml()))))
+        if (numbering.hasAdditions()) {
+            zip.addFile("word/numbering.xml" (DocxWriter.utf8((numbering.withAdditions("")))))
+        }
         return zip
     }
 

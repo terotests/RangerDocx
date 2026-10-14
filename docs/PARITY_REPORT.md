@@ -10,7 +10,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | File | 22 | 22 | 1.5 | 3 |
 | Quick Access | 5 | 5 | 2 | 2 |
 | Title Bar | 1 | 1 | 0 | 0 |
-| Home | 103 | 102 | 13 | 29 |
+| Home | 103 | 102 | 13 | 35 |
 | Insert | 53 | 47 | 1 | 0.5 |
 | Draw | 11 | 10 | 0 | 0 |
 | Design | 10 | 10 | 0 | 0 |
@@ -31,7 +31,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Header & Footer | 5 | 5 | 0 | 0 |
 | Editing | 38 | 38 | 0 | 0 |
 | Tools | 6 | 6 | 0 | 0 |
-| **Total** | **502** | **487 (97.0%)** | **20 (4.0%)** | **41 (8.2%)** |
+| **Total** | **502** | **487 (97.0%)** | **20 (4.0%)** | **47 (9.4%)** |
 
 ## OOXML read and write (C2, C3)
 
@@ -73,7 +73,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 
 | id | metric | unit | better | WordCraft | Ranger docx_viewer | RangerDocx | target |
 |---|---|---|---|---:|---:|---:|---:|
-| C1 | Ribbon/menu catalog features with a working command | count of 502 | higher | 487 | 20 | 41 | 300 |
+| C1 | Ribbon/menu catalog features with a working command | count of 502 | higher | 487 | 20 | 47 | 300 |
 | C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 13.5 | 40 |
 | C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 14 | 35 |
 | C4 | Typing-behaviour scenarios that pass | count of 42 | higher | 42 | 0 | 0 | 30 |
@@ -93,5 +93,5 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | R2 | Fuzz iterations without a crash | count | higher | 0 | 0 | 0 | 100000 |
 | X1 | Other formats read or written (PDF, RTF, ODT, HTML, MD, TXT, LaTeX, .doc) | count of 8 | higher | 8 | 1 | 1 | 4 |
 | A1 | Accessibility tree for the document canvas | yes/no | higher | 1 | 1 | 1 | 1 |
-| T1 | Automated tests | count | higher | 1930 | unmeasured | 775 checks | 500 |
+| T1 | Automated tests | count | higher | 1930 | unmeasured | 800 checks | 500 |
 
