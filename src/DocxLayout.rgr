@@ -256,7 +256,19 @@ class DocxLayout {
             if (b.kind == (DocBlockKind.para())) {
                 def p:Paragraph b.paragraph
                 def need:int (this.estimateParaHeight(p contentW))
-                if ((y + need) > curMaxY) {
+                ; A paragraph that starts a page and was not read with a break
+                ; block in front of it (one the editor broke) starts it here.
+                def forced:boolean false
+                if (p.pageBreakBefore && ((array_length curPage.lines) > 0)) {
+                    forced = true
+                    if (bi > 0) {
+                        def prevB:DocBlock (doc.blockAt((bi - 1)))
+                        if (prevB.kind == (DocBlockKind.pageBreak())) {
+                            forced = false
+                        }
+                    }
+                }
+                if (((y + need) > curMaxY) || forced) {
                     this.paintChrome(curPage curSec)
                     curPage = (this.newPage(curSec curSecIdx))
                     ml = (curSec.marginLeftPx())

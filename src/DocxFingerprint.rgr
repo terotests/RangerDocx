@@ -37,7 +37,7 @@ class DocxFingerprint {
     sfn span:string (sp:TextSpan) {
         def s:string ((to_string sp.start) + ":" + (to_string sp.end))
         s = (s + ":" + (DocxFingerprint.b(sp.bold)) + (DocxFingerprint.b(sp.italic)) + (DocxFingerprint.b(sp.underline)))
-        s = (s + ":" + (to_string sp.fontSizePt) + ":" + sp.fontFamily + ":" + sp.colorHex + ":" + sp.hyperlink)
+        s = (s + ":" + (to_string sp.fontSizePt) + ":" + sp.fontFamily + ":" + sp.colorHex + ":" + sp.hyperlink + ":" + sp.math)
         s = (s + ":" + (DocxFingerprint.b(sp.strike)) + (to_string sp.vertAlign) + ":" + sp.highlight)
         return s
     }

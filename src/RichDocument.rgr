@@ -68,6 +68,11 @@ class TextSpan {
     def vertAlign:int 0
     ; A highlight colour by Word's name ("yellow", "green"...), "" for none.
     def highlight:string ""
+    ; An equation in the line: its TeX source, which a writer turns into an
+    ; Office Math run (`m:oMath`). The span's own text is the formula as one
+    ; line of Unicode, which is what a painter without equations draws and
+    ; what the plain text holds. Sliqtly's writer fills and writes it.
+    def math:string ""
 
     Constructor () {
     }
@@ -91,6 +96,7 @@ class TextSpan {
         s.strike = strike
         s.vertAlign = vertAlign
         s.highlight = highlight
+        s.math = math
         return s
     }
 
@@ -123,6 +129,10 @@ class TextSpan {
             return false
         }
         if (highlight != other.highlight) {
+            return false
+        }
+        ; two formulas side by side stay two formulas
+        if (((strlen math) > 0) || ((strlen other.math) > 0)) {
             return false
         }
         return true

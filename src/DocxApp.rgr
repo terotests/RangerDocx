@@ -542,6 +542,10 @@ class DocxApp {
         commands.addArg("format.highlight" "Text highlight colour" "Format" "")
         commands.add("format.clear" "Clear formatting" "Format" "")
         commands.add("format.case" "Change case" "Format" "Shift+F3")
+        commands.addArg("format.painter" "Format painter" "Format" "")
+        commands.add("insert.pageBreak" "Page break" "Insert" "Ctrl+Enter")
+        commands.addArg("insert.table" "Table" "Insert" "")
+        commands.addArg("edit.replace" "Replace" "Edit" "Ctrl+H")
         commands.addArg("para.bullets" "Bullets" "Format" "")
         commands.addArg("para.numbering" "Numbering" "Format" "")
         commands.addArg("para.spacing" "Line spacing" "Format" "")
@@ -860,6 +864,41 @@ class DocxApp {
             viewer.renderPage(viewer.currentPage)
             return aligned
         }
+        if (id == "format.painter") {
+            if viewer.edit.painterArmed {
+                viewer.edit.painterOff()
+                return true
+            }
+            return (viewer.edit.painterPick((arg == "sticky")))
+        }
+        if (id == "insert.pageBreak") {
+            def broke:boolean (viewer.edit.insertPageBreak())
+            viewer.renderPage(viewer.currentPage)
+            return broke
+        }
+        if (id == "insert.table") {
+            def dims:[string] (strsplit arg "x")
+            if ((array_length dims) != 2) {
+                return false
+            }
+            def made:boolean (viewer.edit.insertTable((DocxParaFormat.int((itemAt dims 0))) (DocxParaFormat.int((itemAt dims 1)))))
+            viewer.renderPage(viewer.currentPage)
+            return made
+        }
+        if (id == "edit.replace") {
+            ; "find|replace" replaces every match; the dialog comes with the
+            ; EVGUI shell.
+            def bar:int (indexOf arg "|")
+            if (bar < 0) {
+                return false
+            }
+            viewer.edit.findQuery = (substring arg 0 bar)
+            viewer.edit.replaceWith = (substring arg (bar + 1) (strlen arg))
+            def n:int (viewer.edit.replaceAll())
+            status = viewer.edit.findStatus
+            viewer.renderPage(viewer.currentPage)
+            return (n > 0)
+        }
         if (id == "para.bullets") {
             return (this.paraFormat("list" (? ((strlen arg) == 0) "bullet" arg)))
         }
@@ -958,6 +997,20 @@ class DocxApp {
             def sb:RibbonMenuEntry (m.add((? (p.spaceBeforePt > 0.0) "Remove space before paragraph" "Add space before paragraph") "para.spaceBefore" "" false))
             sb.rule = true
             m.add((? (p.spaceAfterPt > 0.0) "Remove space after paragraph" "Add space after paragraph") "para.spaceAfter" "" false)
+        }
+        if (c == "insert.table") {
+            def sizes:[string]
+            push sizes "2x2"
+            push sizes "2x3"
+            push sizes "3x3"
+            push sizes "3x4"
+            push sizes "4x4"
+            push sizes "5x3"
+            push sizes "6x4"
+            for sizes sz:string zi {
+                def d:[string] (strsplit sz "x")
+                m.add(((itemAt d 0) + " rows × " + (itemAt d 1) + " columns") "insert.table" sz false)
+            }
         }
         if (c == "format.case") {
             m.add("Sentence case." "format.case" "sentence" false)
@@ -1377,6 +1430,10 @@ class DocxApp {
             if pageDrag {
                 viewer.dragTo((this.paperX(px)) (this.paperY(py)))
                 pageDrag = false
+                ; The format painter paints the selection the drag made.
+                if (viewer.edit.painterArmed && ((viewer.edit.sel.isCollapsed()) == false)) {
+                    this.runFormat("paint" "")
+                }
                 return true
             }
             return false
@@ -1633,6 +1690,12 @@ class DocxApp {
             if (name == "y") { return (this.runCommand("edit.redo" "")) }
             if (name == "s") { return (this.runCommand("file.save" "")) }
             if (name == "p") { return (this.runCommand("file.print" "")) }
+            if (name == "h") { return (this.runCommand("edit.replace" "")) }
+            if (name == "enter") { return (this.runCommand("insert.pageBreak" "")) }
+        }
+        if ((name == "escape") && viewer.edit.painterArmed) {
+            viewer.edit.painterOff()
+            return true
         }
         if (name == "left")     {
             if ctrl { viewer.keyWordLeft(shift) return true }
@@ -1854,6 +1917,9 @@ class DocxApp {
             }
             if (it.command == "para.align") {
                 it.pressed = (editing && ((to_string align) == it.arg))
+            }
+            if (it.command == "format.painter") {
+                it.pressed = viewer.edit.painterArmed
             }
             if (it.command == "para.bullets") {
                 it.pressed = (editing && (listKind == "bullet"))

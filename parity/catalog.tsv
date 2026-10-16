@@ -33,7 +33,7 @@ Home	Clipboard	Paste Merge Formatting	edit.pasteMerge	live	no	no	-
 Home	Clipboard	Paste Special	edit.pasteSpecial	live	no	no	-
 Home	Clipboard	Cut	edit.cut	live	partial	partial	tests/DocxAppTest.rgr
 Home	Clipboard	Copy	edit.copy	live	partial	partial	tests/DocxAppTest.rgr
-Home	Clipboard	Format Painter	edit.formatPainter	live	no	no	-
+Home	Clipboard	Format Painter	edit.formatPainter	live	no	done	tests/DocxChromeTest.rgr
 Home	Clipboard	Copy Formatting	edit.copyFormat	live	no	no	-
 Home	Clipboard	Paste Formatting	edit.pasteFormat	live	no	no	-
 Home	Clipboard	Clipboard Pane	edit.clipboardPane	live	no	no	-
@@ -122,7 +122,7 @@ Home	Editing	Find	edit.find	live	no	yes	tests/DocxChromeTest.rgr
 Home	Editing	Find Next	edit.findNext	live	no	yes	tests/DocxChromeTest.rgr
 Home	Editing	Find Previous	edit.findPrevious	live	no	no	-
 Home	Editing	Advanced Find	edit.advancedFind	live	no	no	-
-Home	Editing	Replace	edit.replace	live	no	no	-
+Home	Editing	Replace	edit.replace	live	no	partial	tests/DocxChromeTest.rgr
 Home	Editing	Replace All	edit.replaceAll	live	no	no	-
 Home	Editing	Go To	edit.goto	live	no	no	-
 Home	Editing	Select All	select.all	live	yes	yes	tests/DocxTest.rgr
@@ -132,8 +132,8 @@ Home	Voice	Dictate	tools.dictate	missing	no	no	-
 Home	Editor	Editor	review.editor	live	no	no	-
 Insert	Pages	Cover Page	insert.coverPage	live	no	no	-
 Insert	Pages	Blank Page	insert.blankPage	live	no	no	-
-Insert	Pages	Page Break	insert.pageBreak	live	no	no	-
-Insert	Tables	Insert Table	insert.table	live	partial	impl	-
+Insert	Pages	Page Break	insert.pageBreak	live	no	done	tests/DocxChromeTest.rgr
+Insert	Tables	Insert Table	insert.table	live	partial	done	tests/DocxChromeTest.rgr
 Insert	Tables	Draw Table	table.draw	live	no	no	-
 Insert	Tables	Convert Text to Table	table.fromText	live	no	no	-
 Insert	Tables	Excel Spreadsheet	insert.spreadsheet	live	no	no	-

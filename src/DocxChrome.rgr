@@ -415,8 +415,7 @@ class DocxRibbon {
         this.row()
         this.labeled("edit.copy" "Copy" (ToolIcon.copy()))
         this.row()
-        def fp:RibbonItem (this.labeled("format.painter" "Format" (ToolIcon.paint())))
-        fp.enabled = false
+        this.labeled("format.painter" "Format" (ToolIcon.paint()))
 
         this.group("Font" 2)
         this.stack()
@@ -499,11 +498,10 @@ class DocxRibbon {
 
     fn buildInsert:void () {
         this.group("Pages" 3)
-        def pb:RibbonItem (this.large("insert.pageBreak" "Page Break" (ToolIcon.newFile())))
-        pb.enabled = false
+        this.large("insert.pageBreak" "Page Break" (ToolIcon.newFile()))
         this.group("Tables" 3)
         def tb:RibbonItem (this.large("insert.table" "Table" (ToolIcon.borderAll())))
-        tb.enabled = false
+        tb.menu = 1
         this.group("Illustrations" 3)
         def pic:RibbonItem (this.large("insert.picture" "Pictures" (ToolIcon.picture())))
         pic.enabled = false
@@ -1275,6 +1273,9 @@ class DocxChromePainter {
             def cx:int (it.x + (idiv it.w 2))
             this.icon(dl it.icon cx (it.y + 22) 30 it.enabled)
             this.textMid(dl it.label cx (it.y + 56) 11.5 ink false)
+            if (it.menu > 0) {
+                this.chevron(dl cx (it.y + 66) theme.dim)
+            }
             return
         }
         def cy:int (it.y + (idiv it.h 2))

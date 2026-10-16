@@ -52,6 +52,20 @@ class DocxEditController {
     ; rather than where the reader started.
     def column:OfficeCaretColumn (new OfficeCaretColumn())
     def suppressUndo:boolean false
+    ; Find and replace. The strings live here rather than in a dialog, so a
+    ; search survives closing it and the whole thing can be driven without
+    ; one, the way EVGSheets' GridApp keeps its own.
+    def findQuery:string ""
+    def replaceWith:string ""
+    def findMatchCase:boolean false
+    def findWholeWord:boolean false
+    def findStatus:string ""
+    ; The format painter: the look picked up, and whether the next selection
+    ; gets it. `painterSticky` keeps it on after a paint (a double click).
+    def painterArmed:boolean false
+    def painterSticky:boolean false
+    def painterSpan:TextSpan (new TextSpan)
+    def painterPara:Paragraph (new Paragraph)
     ; The document's lists, for the list buttons to put paragraphs in.
     def numbering:WordNumbering (new WordNumbering)
 
@@ -1931,6 +1945,293 @@ class DocxEditController {
         return (new Paragraph)
     }
 
+    ; --- format painter, page break, a new table --------------------------------
+
+    ; Picks up the look at the caret (the run after it, and its paragraph).
+    fn painterPick:boolean (sticky:boolean) {
+        if ((this.isActive()) == false) {
+            return false
+        }
+        def pid:int sel.focus.paragraphId
+        if ((adapter.paragraphExists(pid)) == false) {
+            return false
+        }
+        def p:Paragraph (adapter.findParagraph(pid))
+        def off:int (sel.startOffset())
+        if ((sel.sameParagraph()) == false) {
+            off = 0
+        }
+        def sp:TextSpan (adapter.spanAt(p off))
+        painterSpan = (sp.copy())
+        painterPara = (new Paragraph)
+        p.copyFormatTo(painterPara)
+        painterArmed = true
+        painterSticky = sticky
+        return true
+    }
+
+    fn painterOff:void () {
+        painterArmed = false
+        painterSticky = false
+    }
+
+    fn paintRange:void (pid:int a:int b:int) {
+        def sp:TextSpan painterSpan
+        adapter.applyRun(pid a b "bold" sp.bold 0.0 "")
+        adapter.applyRun(pid a b "italic" sp.italic 0.0 "")
+        adapter.applyRun(pid a b "underline" sp.underline 0.0 "")
+        adapter.applyRun(pid a b "strike" sp.strike 0.0 "")
+        adapter.applyRun(pid a b "super" (sp.vertAlign == 1) 0.0 "")
+        if (sp.vertAlign == 2) {
+            adapter.applyRun(pid a b "sub" true 0.0 "")
+        }
+        adapter.applyRun(pid a b "highlight" false 0.0 sp.highlight)
+        adapter.applyRun(pid a b "size" false sp.fontSizePt "")
+        adapter.applyRun(pid a b "font" false 0.0 sp.fontFamily)
+        adapter.applyRun(pid a b "color" false 0.0 sp.colorHex)
+    }
+
+    ; A whole paragraph painted takes the source paragraph's look as well.
+    fn paintParagraph:void (p:Paragraph) {
+        def q:Paragraph painterPara
+        p.styleId = q.styleId
+        p.align = q.align
+        p.spaceBeforePt = q.spaceBeforePt
+        p.spaceAfterPt = q.spaceAfterPt
+        p.lineSpacing = q.lineSpacing
+        p.indentLeftPt = q.indentLeftPt
+        p.indentRightPt = q.indentRightPt
+        p.indentFirstLinePt = q.indentFirstLinePt
+        p.listNumId = q.listNumId
+        p.listLevel = q.listLevel
+        p.listKind = q.listKind
+        p.listFmt = q.listFmt
+        p.listText = q.listText
+    }
+
+    ; Ctrl+Enter: what follows the caret starts a new page.
+    fn insertPageBreak:boolean () {
+        if ((this.isActive()) == false) {
+            return false
+        }
+        this.beginAction()
+        this.splitAtCaret()
+        def pid:int sel.focus.paragraphId
+        def p:Paragraph (adapter.findParagraph(pid))
+        def before:string (DocxParaFormat.snapshot(p))
+        p.pageBreakBefore = true
+        def op:DocEditOp (new DocEditOp)
+        op.kind = (DocxParaFormat.opKind())
+        op.paragraphId = pid
+        op.oldText = before
+        op.newText = (DocxParaFormat.snapshot(p))
+        this.pushUndo(op)
+        this.endAction()
+        adapter.doc.touch()
+        return true
+    }
+
+    ; An empty table at the caret, spread across the text column.
+    fn insertTable:boolean (rows:int cols:int) {
+        if ((rows < 1) || (cols < 1)) {
+            return false
+        }
+        def t:ClipboardTable (new ClipboardTable)
+        def r:int 0
+        while (r < rows) {
+            def row:ClipRow (new ClipRow)
+            def c:int 0
+            while (c < cols) {
+                push row.cells (new ClipCell)
+                c = (c + 1)
+            }
+            push t.rows row
+            r = (r + 1)
+        }
+        t.ok = true
+        this.beginAction()
+        def done:boolean (this.pasteTable(t))
+        this.endAction()
+        return done
+    }
+
+    ; --- find and replace --------------------------------------------------------
+    ; Body paragraphs only: a table cell's text is not searched yet.
+
+    sfn isWordChar:boolean (c:int) {
+        if ((c >= 48) && (c <= 57)) {
+            return true
+        }
+        if ((c >= 65) && (c <= 90)) {
+            return true
+        }
+        if ((c >= 97) && (c <= 122)) {
+            return true
+        }
+        return ((c == 95) || (c >= 128))
+    }
+
+    ; Where the query next occurs in `text` at or after `from`, or -1.
+    fn matchIn:int (text:string from:int) {
+        def q:string findQuery
+        def t:string text
+        if (findMatchCase == false) {
+            q = (to_lowercase q)
+            t = (to_lowercase t)
+        }
+        def qn:int (strlen q)
+        def at:int (indexOfFrom t q from)
+        while (at >= 0) {
+            if (findWholeWord == false) {
+                return at
+            }
+            def okL:boolean true
+            if (at > 0) {
+                okL = ((DocxEditController.isWordChar((charAt t (at - 1)))) == false)
+            }
+            def okR:boolean true
+            if ((at + qn) < (strlen t)) {
+                okR = ((DocxEditController.isWordChar((charAt t (at + qn)))) == false)
+            }
+            if (okL && okR) {
+                return at
+            }
+            at = (indexOfFrom t q (at + 1))
+        }
+        return -1
+    }
+
+    ; From just after the selection to the end, then from the top. Returns
+    ; true when the selection landed on a match.
+    fn findNext:boolean () {
+        if ((strlen findQuery) == 0) {
+            findStatus = "nothing to find"
+            return false
+        }
+        def n:int (adapter.bodyParagraphCount())
+        if (n == 0) {
+            findStatus = ("no match for '" + findQuery + "'")
+            return false
+        }
+        def startOrder:int 0
+        def startOff:int 0
+        if (this.isActive()) {
+            def o:int (adapter.bodyOrderOf(sel.focus.paragraphId))
+            if (o >= 0) {
+                startOrder = o
+                startOff = sel.focus.textOffset
+                if ((sel.isCollapsed()) == false) {
+                    def b:[int]
+                    def a:[int]
+                    this.orderedEnds(a b)
+                    startOrder = (adapter.bodyOrderOf((itemAt b 0)))
+                    startOff = (itemAt b 1)
+                }
+            }
+        }
+        def step:int 0
+        while (step <= n) {
+            def order:int ((startOrder + step) % n)
+            def pid:int (adapter.bodyParagraphIdAt(order))
+            def from:int 0
+            if (step == 0) {
+                from = startOff
+            }
+            def at:int (this.matchIn((adapter.getText(pid)) from))
+            if ((step == n) && (at >= startOff)) {
+                at = -1
+            }
+            if (at >= 0) {
+                this.setRange(pid at (at + (strlen findQuery)))
+                findStatus = "found"
+                return true
+            }
+            step = (step + 1)
+        }
+        findStatus = ("no match for '" + findQuery + "'")
+        return false
+    }
+
+    ; Is the selection exactly a match?
+    fn selectionMatches:boolean () {
+        if ((this.isActive()) == false) {
+            return false
+        }
+        if ((sel.isCollapsed()) || ((sel.sameParagraph()) == false)) {
+            return false
+        }
+        def pid:int sel.focus.paragraphId
+        def a:int (sel.startOffset())
+        def b:int (sel.endOffset())
+        if ((b - a) != (strlen findQuery)) {
+            return false
+        }
+        return ((this.matchIn((adapter.getText(pid)) a)) == a)
+    }
+
+    ; One match, replaced in the look of the text it replaces.
+    fn replaceAt:void (pid:int a:int b:int) {
+        this.setCaret(pid a)
+        this.adoptRunAtCaret()
+        this.setRange(pid a b)
+        if ((strlen replaceWith) == 0) {
+            this.deleteSelection()
+        } {
+            this.insertText(replaceWith)
+        }
+    }
+
+    ; Replace the selection if it is a match, then go to the next: Word's
+    ; Replace button.
+    fn replaceCurrent:boolean () {
+        if ((this.selectionMatches()) == false) {
+            return (this.findNext())
+        }
+        def pid:int sel.focus.paragraphId
+        def a:int (sel.startOffset())
+        def b:int (sel.endOffset())
+        this.beginAction()
+        this.replaceAt(pid a b)
+        this.endAction()
+        adapter.doc.touch()
+        def found:boolean (this.findNext())
+        findStatus = "replaced 1"
+        return true
+    }
+
+    ; Every match in the body, as one undoable action.
+    fn replaceAll:int () {
+        if ((strlen findQuery) == 0) {
+            findStatus = "nothing to find"
+            return 0
+        }
+        def count:int 0
+        def lastPid:int 0
+        def lastOff:int 0
+        this.beginAction()
+        def n:int (adapter.bodyParagraphCount())
+        def i:int 0
+        while (i < n) {
+            def pid:int (adapter.bodyParagraphIdAt(i))
+            def at:int (this.matchIn((adapter.getText(pid)) 0))
+            while (at >= 0) {
+                this.replaceAt(pid at (at + (strlen findQuery)))
+                count = (count + 1)
+                lastPid = pid
+                lastOff = (at + (strlen replaceWith))
+                at = (this.matchIn((adapter.getText(pid)) lastOff))
+            }
+            i = (i + 1)
+        }
+        this.endAction()
+        if (count > 0) {
+            this.setCaret(lastPid lastOff)
+            adapter.doc.touch()
+        }
+        findStatus = ("replaced " + (to_string count) + " of '" + findQuery + "'")
+        return count
+    }
+
     ; --- run formatting, undoable ---------------------------------------------
     ; The selection as (paragraph, from, to) triples in document order.
     fn selectionRanges:void (pids:[int] froms:[int] tos:[int]) {
@@ -2037,6 +2338,20 @@ class DocxEditController {
                 def ps:ResolvedParagraphStyle (resolver.resolveParagraphStyle(cp.styleId))
                 this.clearRange((itemAt pids k) (itemAt froms k) (itemAt tos k) ps.run)
                 k = (k + 1)
+            }
+        }
+        if (what == "paint") {
+            def m:int 0
+            while (m < (array_length pids)) {
+                def mp:int (itemAt pids m)
+                this.paintRange(mp (itemAt froms m) (itemAt tos m))
+                if (((itemAt froms m) == 0) && ((itemAt tos m) == (adapter.textLength(mp)))) {
+                    this.paintParagraph((adapter.findParagraph(mp)))
+                }
+                m = (m + 1)
+            }
+            if (painterSticky == false) {
+                painterArmed = false
             }
         }
         suppressUndo = false

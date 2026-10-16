@@ -118,7 +118,7 @@ class DocxChromeTest {
             gj = (gj + 1)
         }
         c.ok("every column stays inside its group" groupLabelsInside)
-        def painter:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.painter" ""))))
+        def painter:RibbonItem (app.ribbon.at((app.ribbon.indexOf("edit.replace" ""))))
         c.ok("a command that does not exist yet is drawn greyed" (painter.enabled == false))
 
         ; Switching pages.
@@ -408,6 +408,83 @@ class DocxChromeTest {
         def wordBefore:string (substring (l1.viewer.edit.adapter.getText(plain)) 0 5)
         l1.runCommand("format.case" "lower")
         c.eqStr("lowercase from the list" (substring (l1.viewer.edit.adapter.getText(plain)) 0 5) (to_lowercase wordBefore))
+
+        print "-- painter, page break, table, replace --"
+        def e1:DocxApp (DocxChromeTest.build("20-business-report.docx"))
+        e1.viewer.setEditMode(true)
+        def ep:int (DocxChromeTest.firstWithStyle(e1 "Normal"))
+        def eo:int (e1.viewer.edit.adapter.bodyOrderOf(ep))
+        def eq:int (e1.viewer.edit.adapter.bodyParagraphIdAt((eo + 2)))
+        e1.viewer.edit.setRange(ep 0 4)
+        e1.runCommand("format.bold" "")
+        e1.runCommand("format.highlight" "green")
+        e1.viewer.edit.setCaret(ep 1)
+        c.ok("the format painter picks up the look" (e1.runCommand("format.painter" "")))
+        e1.buildDisplayList()
+        def fpb:RibbonItem (e1.ribbon.at((e1.ribbon.indexOf("format.painter" ""))))
+        c.ok("and shows armed" fpb.pressed)
+        e1.viewer.edit.setRange(eq 0 5)
+        e1.runFormat("paint" "")
+        c.ok("a selection takes the bold" (e1.viewer.edit.adapter.rangeIsOn(eq 0 5 "bold")))
+        c.ok("and the highlight" (e1.viewer.edit.adapter.rangeIsOn(eq 0 5 "highlight")))
+        c.ok("one paint disarms it" (e1.viewer.edit.painterArmed == false))
+        e1.runCommand("edit.undo" "")
+        c.ok("undo takes the paint off" ((e1.viewer.edit.adapter.rangeIsOn(eq 0 5 "bold")) == false))
+
+        def pages0:int (e1.viewer.pageCount())
+        def eqText:string (e1.viewer.edit.adapter.getText(eq))
+        e1.viewer.edit.setCaret(eq 5)
+        c.ok("Ctrl+Enter breaks the page" (e1.key("enter" false true)))
+        def brokeId:int (e1.viewer.edit.sel.focus.paragraphId)
+        def broke:Paragraph (DocxChromeTest.paragraph(e1 brokeId))
+        c.ok("the rest of the paragraph starts a page" (broke.pageBreakBefore && (broke.text == (substring eqText 5 (strlen eqText)))))
+        e1.viewer.view.layout.layoutIfNeeded(e1.viewer.doc e1.viewer.view.ctx.tr e1.viewer.numbering)
+        def eqPage:int -1
+        def brokePage:int -1
+        def brokeFirst:int -1
+        def dbgP:int 0
+        while (dbgP < (e1.viewer.view.layout.pageCount())) {
+            def dpg:LaidPage (e1.viewer.view.layout.pageAt(dbgP))
+            for dpg.lines dln:LaidLine dli {
+                if ((dln.paraIndex == eq) && (eqPage < 0)) {
+                    eqPage = dbgP
+                }
+                if ((dln.paraIndex == brokeId) && (brokePage < 0)) {
+                    brokePage = dbgP
+                    brokeFirst = dli
+                }
+            }
+            dbgP = (dbgP + 1)
+        }
+        c.ok("and is laid out at the top of the next page" (((brokePage == (eqPage + 1)) && (brokeFirst == 0)) && ((e1.viewer.pageCount()) >= pages0)))
+        e1.runCommand("edit.undo" "")
+        c.eqStr("undo joins it again" (e1.viewer.edit.adapter.getText(eq)) eqText)
+
+        def blocks0:int (e1.viewer.doc.blockCount())
+        e1.viewer.edit.setCaret(eq 0)
+        c.ok("Insert table" (e1.runCommand("insert.table" "3x4")))
+        c.ok("adds a block" ((e1.viewer.doc.blockCount()) > blocks0))
+        def tbIdx:int (e1.viewer.edit.adapter.tableBlockBeforeParagraph((e1.viewer.edit.sel.focus.paragraphId)))
+        c.ok("three rows of four" ((tbIdx >= 0) && (((e1.viewer.edit.adapter.rowCountOfTable(tbIdx)) == 3) && ((e1.viewer.edit.adapter.cellCountInRow(tbIdx 0)) == 4))))
+        def tblItem:RibbonItem (e1.ribbon.at((e1.ribbon.indexOf("insert.table" ""))))
+        e1.runCommand("edit.undo" "")
+        c.eqInt("undo takes the table out" (e1.viewer.doc.blockCount()) blocks0)
+
+        def word:string (substring (e1.viewer.edit.adapter.getText(ep)) 0 4)
+        e1.viewer.edit.findQuery = word
+        e1.viewer.edit.setCaret(ep 0)
+        c.ok("find next lands on a match" (e1.viewer.edit.findNext()))
+        c.ok("Replace all" (e1.runCommand("edit.replace" (word + "|ZZZZ"))))
+        c.ok("changes the text" ((indexOf (e1.viewer.edit.adapter.getText(ep)) "ZZZZ") == 0))
+        c.ok("in the look it replaced" (e1.viewer.edit.adapter.rangeIsOn(ep 0 4 "bold")))
+        c.ok("and says how many" ((indexOf e1.viewer.edit.findStatus "replaced") == 0))
+        e1.runCommand("edit.undo" "")
+        c.ok("undo puts every one back" ((indexOf (e1.viewer.edit.adapter.getText(ep)) "ZZZZ") < 0))
+        e1.viewer.edit.findQuery = "e"
+        e1.viewer.edit.findWholeWord = true
+        e1.viewer.edit.setCaret(ep 0)
+        def hit:boolean (e1.viewer.edit.findNext())
+        c.ok("whole word skips an e inside a word" ((hit == false) || ((e1.viewer.edit.selectedText()) == "e")))
 
         print "-- the status bar --"
         c.ok("words are counted" ((app.wordCount()) > 500))
