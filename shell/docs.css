@@ -1,0 +1,701 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * RangerDocx — the interface around the Word core, as one EVG stylesheet.
+ * The same rules as EVGSheets' sheets.css, so the two editors read as one
+ * family: class-first and one class per selector (EVG has no descendant
+ * selectors), `ui-*` for the classes the EVGUI controllers write, `sx-*` for
+ * EVGSheets' RibbonCtl, `dx-*` for this app's own.
+ *
+ * TWO PALETTES, light and dark, as `@vars` blocks; no rule below states a
+ * colour. Every property a state rule sets is also set on the base rule: EVG
+ * leaves on an element whatever the last plan wrote.
+ */
+
+@vars {
+  --rule: #e3e6ea;
+  --page: #f3f4f6;
+  --desk: #eceef1;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --text: #1f2328;
+  --muted: #5f6b7a;
+  --faint: #98a2b3;
+  --hover: #eef1f5;
+  --pressed: #e1e6ee;
+  --accent: #185abd;
+  --accent-soft: #dce8fb;
+  --accent-ink: #12459a;
+  --menu-border: #e3e6ea;
+  --menu-shadow: rgba(15, 23, 42, 0.14);
+  --logo: #185abd;
+  --on-logo: #ffffff;
+  --field: #ffffff;
+  --field-border: #cdd3dc;
+  --on-accent: #ffffff;
+  --scrim: rgba(15, 23, 42, 0.28);
+  --dialog-shadow: rgba(15, 23, 42, 0.22);
+}
+
+@vars dark {
+  --rule: #2a2f37;
+  --page: #1b1f25;
+  --desk: #15181d;
+  --surface: #1f232a;
+  --raised: #262b33;
+  --text: #e6e8eb;
+  --muted: #a1a9b5;
+  --faint: #6f7884;
+  --hover: #2b313a;
+  --pressed: #363d48;
+  --accent: #6ea8fe;
+  --accent-soft: #1e3a5f;
+  --accent-ink: #cfe2ff;
+  --menu-border: #363d48;
+  --menu-shadow: rgba(0, 0, 0, 0.5);
+  --logo: #6ea8fe;
+  --on-logo: #0f172a;
+  --field: #1b1f25;
+  --field-border: #4b5563;
+  --on-accent: #0f172a;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --dialog-shadow: rgba(0, 0, 0, 0.6);
+}
+
+/* --- the page ------------------------------------------------------------ */
+
+.dx-root {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: 100%;
+  height: 100%;
+  background-color: var(--rule);
+  font-family: "Open Sans";
+}
+
+.dx-spacer { flex-grow: 1; height: 1px; width: 1px; }
+
+/* --- header: brand, quick access, document name, Download ---------------- */
+
+.dx-header {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+
+.dx-brand {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 0 6px 0 0;
+}
+.dx-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background-color: var(--logo);
+}
+.dx-logo-glyph {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--on-logo);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dx-title { color: var(--text); font-size: 14px; font-weight: bold; line-height: 20px; }
+.dx-docname { color: var(--text); font-size: 13px; font-weight: 600; line-height: 18px; }
+.dx-edited { color: var(--muted); font-size: 12px; line-height: 18px; }
+
+/* --- the tab row: File, the ribbon tabs, the mode switch ------------------ */
+
+.dx-tabrow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+
+.ui-menubar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  height: 30px;
+}
+.ui-menubar-trigger {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  height: 28px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 110ms ease-out;
+}
+.ui-menubar-trigger:hover { background-color: var(--hover); }
+.ui-menubar-trigger:focus { background-color: var(--hover); }
+.ui-menubar-trigger-state-open { background-color: var(--pressed); }
+
+.ui-tabs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  width: fit-content;
+}
+.ui-tablist {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+}
+.ui-tab {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0);
+  background-color: rgba(0, 0, 0, 0);
+  font-weight: normal;
+  cursor: pointer;
+  transition: background-color 110ms ease-out;
+}
+.ui-tab:hover { background-color: var(--hover); }
+.ui-tab:focus { border: 1px solid var(--accent); }
+.ui-tab-state-active {
+  color: var(--accent-ink);
+  background-color: var(--accent-soft);
+  font-weight: bold;
+}
+.ui-tabpanel { display: none; }
+
+/* --- menus: the File menu and the ribbon dropdowns ---------------------- */
+
+.ui-menubar-content {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: 248px;
+  padding: 4px;
+  border: 1px solid var(--menu-border);
+  border-radius: 8px;
+  background-color: var(--raised);
+  shadow-color: var(--menu-shadow);
+  shadow-radius: 14px;
+  shadow-offset-y: 6px;
+  overlay-gap: 4;
+  position-try-fallbacks: bottom end, top start, top end;
+}
+
+.ui-dropdownmenu-content {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: 200px;
+  padding: 4px;
+  border: 1px solid var(--menu-border);
+  border-radius: 8px;
+  background-color: var(--raised);
+  shadow-color: var(--menu-shadow);
+  shadow-radius: 14px;
+  shadow-offset-y: 6px;
+  overlay-gap: 4;
+  position-try-fallbacks: bottom end, top start, top end, right start, left start;
+}
+
+.ui-contextmenu-content {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: 220px;
+  padding: 4px;
+  border: 1px solid var(--menu-border);
+  border-radius: 8px;
+  background-color: var(--raised);
+  shadow-color: var(--menu-shadow);
+  shadow-radius: 14px;
+  shadow-offset-y: 6px;
+  overlay-gap: 2;
+  position-try-fallbacks: bottom start, top start, bottom end, top end;
+}
+
+.ui-menubar-item,
+.ui-dropdownmenu-item,
+.ui-contextmenu-item {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px 5px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.ui-menubar-item:hover { background-color: var(--hover); }
+.ui-menubar-item:focus { background-color: var(--hover); }
+.ui-dropdownmenu-item:hover { background-color: var(--hover); }
+.ui-dropdownmenu-item:focus { background-color: var(--hover); }
+.ui-contextmenu-item:hover { background-color: var(--hover); }
+.ui-contextmenu-item:focus { background-color: var(--hover); }
+.ui-dropdownmenu-subtrigger-state-open { background-color: var(--hover); }
+.ui-dropdownmenu-item-disabled { opacity: 0.45; }
+.ui-contextmenu-item-disabled { opacity: 0.45; }
+
+.ui-dropdownmenu-separator,
+.ui-contextmenu-separator {
+  background-color: var(--menu-border);
+  height: 1px;
+  align-self: stretch;
+  margin: 4px -4px;
+  flex-shrink: 0;
+}
+
+.dx-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.dx-mark-check {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dx-mark-dot { width: 12px; height: 12px; fill: var(--accent); stroke: none; }
+
+.dx-menu-label {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  flex-grow: 1;
+  flex-shrink: 1;
+}
+.dx-menu-shortcut {
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+.dx-menu-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- the ribbon: groups of controls with their names under them -------- */
+
+.dx-ribbon {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  row-gap: 4px;
+  width: 100%;
+  padding: 6px 8px 4px 8px;
+  margin-bottom: 1px;
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+
+.dx-group {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: fit-content;
+  height: 86px;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+.dx-group-body {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 4px;
+  height: 68px;
+}
+.dx-group-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+}
+.dx-group-stack { display: flex; flex-direction: column; flex-wrap: nowrap; justify-content: center; }
+.dx-group-label { color: var(--muted); font-size: 11px; line-height: 14px; margin-top: 3px; }
+.dx-group-sep { width: 1px; height: 72px; margin: 6px 0 0 0; background-color: var(--rule); flex-shrink: 0; }
+
+/* RibbonCtl (EVGSheets): one group of icon buttons. Flat here, as in Word. */
+.sx-ribbon {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 1px;
+  width: fit-content;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0);
+}
+
+.sx-tool {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0);
+  background-color: rgba(0, 0, 0, 0);
+  cursor: pointer;
+  transition: background-color 110ms ease-out;
+}
+.sx-tool:hover { background-color: var(--hover); }
+.sx-tool:focus { background-color: var(--hover); border: 1px solid var(--accent); }
+.sx-tool:active { background-color: var(--pressed); }
+.sx-tool-state-on { background-color: var(--accent-soft); }
+.sx-tool-disabled { opacity: 0.32; }
+.sx-tool-text { width: 76px; padding: 0 4px; }
+
+.sx-glyph {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sx-tool-word { color: var(--text); font-size: 12px; line-height: 16px; }
+.sx-swatch { width: 16px; height: 3px; border-radius: 1px; margin-top: 1px; }
+.sx-sep { width: 1px; height: 18px; margin: 0 4px; background-color: var(--rule); }
+
+/* Dropdown triggers: the font and size boxes, glyph menus, split arrows. */
+.ui-dropdownmenu {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: fit-content;
+}
+.ui-dropdownmenu-trigger {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border-radius: 5px;
+  border: 1px solid var(--field-border);
+  background-color: var(--field);
+  cursor: pointer;
+  transition: background-color 110ms ease-out;
+}
+.ui-dropdownmenu-trigger:hover { background-color: var(--hover); }
+.ui-dropdownmenu-trigger:focus { background-color: var(--hover); border: 1px solid var(--accent); }
+.ui-dropdownmenu-trigger-state-open { background-color: var(--pressed); }
+.dx-trigger-font { width: 150px; }
+.dx-trigger-size { width: 56px; }
+.dx-trigger-icon { padding: 0 3px 0 5px; gap: 1px; border: 1px solid rgba(0, 0, 0, 0); background-color: rgba(0, 0, 0, 0); }
+.dx-trigger-split { width: 16px; padding: 0; gap: 0; justify-content: center; border: 1px solid rgba(0, 0, 0, 0); background-color: rgba(0, 0, 0, 0); }
+.dx-trigger-glyph {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dx-trigger-chevron {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- the document ----------------------------------------------------------- */
+
+/* A placeholder: the core paints the navigation pane, rulers and pages here. */
+.dx-doc {
+  width: 100%;
+  height: 400px;
+  flex-shrink: 0;
+  background-color: var(--desk);
+}
+
+/* --- footer: the status line and the zoom ------------------------------------- */
+
+.dx-footer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px 0 14px;
+  margin-top: 1px;
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+.dx-status { color: var(--muted); font-size: 12px; line-height: 16px; }
+
+/* --- dialogs (WindowCtl, modal) --------------------------------------------------- */
+
+/* The dialogs' holder takes no room: a dialog is an overlay on the page. */
+.dx-dlg-holder {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 1px;
+  height: 1px;
+}
+
+.ui-dialog, .ui-window { width: 1px; height: 1px; }
+/* A dialog here is opened by a command, never by a button of its own. The
+ * editor windows (not modal: no scrim) share the dialog's look. */
+.ui-dialog-trigger, .ui-window-trigger { width: 1px; height: 1px; font-size: 1px; color: rgba(0, 0, 0, 0); }
+.ui-dialog-scrim, .ui-window-scrim { background-color: var(--scrim); }
+.ui-dialog-content, .ui-window-content {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: 440px;
+  border: 1px solid var(--menu-border);
+  border-radius: 10px;
+  background-color: var(--raised);
+  shadow-color: var(--dialog-shadow);
+  shadow-radius: 28px;
+  shadow-offset-y: 10px;
+}
+.ui-dialog-titlebar, .ui-window-titlebar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  padding: 12px 12px 4px 18px;
+}
+.ui-dialog-handle, .ui-window-handle { flex-grow: 1; }
+.ui-dialog-title, .ui-window-title { color: var(--text); font-size: 15px; font-weight: bold; line-height: 22px; }
+.ui-dialog-close, .ui-window-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 26px;
+  text-align: center;
+}
+.ui-dialog-close:hover, .ui-window-close:hover { background-color: var(--hover); color: var(--text); }
+.ui-dialog-close:focus, .ui-window-close:focus { background-color: var(--hover); color: var(--text); }
+
+.dx-dlg-body {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 8px 18px 16px 18px;
+}
+.dx-dlg-field { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; }
+.dx-dlg-label { color: var(--text); font-size: 13px; line-height: 18px; width: 92px; flex-shrink: 0; }
+.dx-dlg-options { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 24px; padding: 4px 0px; }
+.dx-dlg-col { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 10px; width: 180px; }
+.dx-dlg-label-short { color: var(--text); font-size: 13px; line-height: 18px; width: 28px; flex-shrink: 0; }
+.dx-dlg-note { color: var(--muted); font-size: 12px; line-height: 16px; }
+.dx-dlg-text { color: var(--text); font-size: 13px; line-height: 18px; width: 300px; }
+.dx-dlg-col-wide { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 4px; }
+.dx-dlg-heading { color: var(--text); font-size: 13px; font-weight: 600; line-height: 18px; }
+.dx-dlg-status { color: var(--muted); font-size: 12px; line-height: 16px; height: 16px; }
+.dx-dlg-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* --- the controls a dialog is made of (InputCtl, CheckboxCtl, ButtonCtl) ---------- */
+
+.ui-input {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  border: 1px solid var(--field-border);
+  border-radius: 6px;
+  background-color: var(--field);
+  padding: 0px 10px;
+  flex-grow: 1;
+  height: 32px;
+}
+.ui-input:focus { border: 1px solid var(--accent); }
+.ui-input-text { color: var(--text); font-size: 13px; height: 18px; }
+.ui-input-placeholder { color: var(--muted); }
+.ui-input-caret { width: 2px; height: 18px; background-color: var(--accent); }
+.ui-input-selection { background-color: var(--accent-soft); }
+.dx-caret-off { background-color: rgba(0, 0, 0, 0); }
+
+.ui-checkbox {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.ui-checkbox-box {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  border: 1px solid var(--field-border);
+  border-radius: 4px;
+  background-color: var(--field);
+}
+.ui-checkbox-box-state-checked { background-color: var(--accent); border-color: var(--accent); }
+.ui-checkbox-mark {
+  width: 12px;
+  min-width: 12px;
+  height: 12px;
+  min-height: 12px;
+  fill: none;
+  stroke: var(--on-accent);
+  stroke-width: 2.2;
+}
+.ui-checkbox-label { color: var(--text); font-size: 13px; line-height: 18px; }
+.ui-checkbox:focus { background-color: var(--hover); border-radius: 4px; }
+
+.ui-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--field-border);
+  background-color: var(--field);
+  color: var(--text);
+}
+.ui-button-label { font-size: 13px; line-height: 18px; color: var(--text); }
+.ui-button:hover { background-color: var(--hover); }
+.ui-button:focus { border: 1px solid var(--accent); }
+.ui-button-primary { background-color: var(--accent); border-color: var(--accent); }
+.ui-button-primary:hover { background-color: var(--accent-ink); }
+.ui-button-primary .ui-button-label { color: var(--on-accent); font-weight: 600; }
+.ui-button-danger { background-color: #c5221f; border-color: #c5221f; }
+.ui-button-danger:hover { background-color: #a50e0e; }
+.ui-button-danger .ui-button-label { color: #ffffff; font-weight: 600; }
+.ui-button-state-pressed { transform: scale(0.97); }
+
+/* A radio group in a dialog: one row per choice, the chosen one marked. */
+.ui-radiogroup { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 4px; width: 404px; }
+/* A text leaf shrink-wraps, so the row's width is stated: the group's, less
+ * the padding and the border. */
+.ui-radio {
+  width: 378px;
+  padding: 7px 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 6px;
+  background-color: var(--field);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+}
+.ui-radio:hover { background-color: var(--hover); }
+.ui-radio:focus { border: 1px solid var(--accent); }
+.ui-radio-state-checked { background-color: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.ui-radio-disabled { opacity: 0.45; }
+
+
+/* --- after the controls, so these win over .ui-button ------------------------ */
+
+/* A big button with its name under it: Paste, Page Break. */
+.ui-button-ghost { background-color: rgba(0, 0, 0, 0); border: 1px solid rgba(0, 0, 0, 0); }
+.dx-big {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: fit-content;
+  height: 62px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0);
+  background-color: rgba(0, 0, 0, 0);
+}
+.dx-big:hover { background-color: var(--hover); }
+.dx-big:focus { background-color: var(--hover); border: 1px solid var(--accent); }
+.dx-big-icon {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The Download button's label, on the accent. */
+.dx-on-accent { color: var(--on-accent); font-weight: 600; }
+
+/* --- a phone ---------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .dx-title { display: none; }
+  .dx-edited { display: none; }
+  .dx-group { padding: 0 4px; }
+  .dx-group-label { display: none; }
+}

@@ -82,7 +82,7 @@ class DocxChromeTest {
         def names:string ""
         def gi:int 0
         while (gi < (array_length app.ribbon.groups)) {
-            def g:RibbonGroup (itemAt app.ribbon.groups gi)
+            def g:DocxRibbonGroup (itemAt app.ribbon.groups gi)
             names = (names + g.name + ",")
             gi = (gi + 1)
         }
@@ -90,7 +90,7 @@ class DocxChromeTest {
         def unplaced:int 0
         def ii:int 0
         while (ii < (array_length app.ribbon.items)) {
-            def it:RibbonItem (app.ribbon.at(ii))
+            def it:DocxRibbonItem (app.ribbon.at(ii))
             if ((it.w <= 0) || (it.h <= 0)) {
                 unplaced = (unplaced + 1)
             }
@@ -98,18 +98,18 @@ class DocxChromeTest {
         }
         c.eqInt("every button on the page has a place" unplaced 0)
         def bi:int (app.ribbon.indexOf("format.bold" ""))
-        def bold:RibbonItem (app.ribbon.at(bi))
-        def italic:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.italic" ""))))
-        def font:RibbonItem (app.ribbon.at((app.ribbon.indexOf("format.font" ""))))
+        def bold:DocxRibbonItem (app.ribbon.at(bi))
+        def italic:DocxRibbonItem (app.ribbon.at((app.ribbon.indexOf("format.italic" ""))))
+        def font:DocxRibbonItem (app.ribbon.at((app.ribbon.indexOf("format.font" ""))))
         c.ok("Font's two rows: the boxes above, bold below" (bold.y > font.y))
         c.ok("and bold sits left of italic" (bold.x < italic.x))
         def groupLabelsInside:boolean true
         def gj:int 0
         while (gj < (array_length app.ribbon.groups)) {
-            def g2:RibbonGroup (itemAt app.ribbon.groups gj)
+            def g2:DocxRibbonGroup (itemAt app.ribbon.groups gj)
             def ci:int 0
             while (ci < (array_length g2.cells)) {
-                def cell:RibbonCell (itemAt g2.cells ci)
+                def cell:DocxRibbonCell (itemAt g2.cells ci)
                 if ((cell.x + cell.w) > (g2.x + g2.w)) {
                     groupLabelsInside = false
                 }
@@ -118,7 +118,7 @@ class DocxChromeTest {
             gj = (gj + 1)
         }
         c.ok("every column stays inside its group" groupLabelsInside)
-        def painter:RibbonItem (app.ribbon.at((app.ribbon.indexOf("edit.replace" ""))))
+        def painter:DocxRibbonItem (app.ribbon.at((app.ribbon.indexOf("edit.replace" ""))))
         c.ok("a command that does not exist yet is drawn greyed" (painter.enabled == false))
 
         ; Switching pages.
@@ -126,7 +126,7 @@ class DocxChromeTest {
         DocxChromeTest.click(app ((itemAt app.ribbon.tabX view) + 5) (app.titleH + 10))
         c.eqStr("a press on View shows the View page" (app.ribbon.tabName()) "View")
         app.buildDisplayList()
-        def navBtn:RibbonItem (app.ribbon.at((app.ribbon.indexOf("view.nav" ""))))
+        def navBtn:DocxRibbonItem (app.ribbon.at((app.ribbon.indexOf("view.nav" ""))))
         c.ok("the pane's switch shows it on" navBtn.pressed)
         DocxChromeTest.click(app (navBtn.x + 4) (navBtn.y + 4))
         c.ok("and pressing it hides the pane" (app.nav.visible == false))
@@ -194,7 +194,7 @@ class DocxChromeTest {
         c.eqInt("and centres the paragraph" (DocxChromeTest.alignOf(a2 pid)) 1)
         c.ok("the document says it changed" (a2.viewer.doc.revision > rev))
         a2.buildDisplayList()
-        def centre:RibbonItem (a2.ribbon.at((a2.ribbon.indexOf("para.align" "1"))))
+        def centre:DocxRibbonItem (a2.ribbon.at((a2.ribbon.indexOf("para.align" "1"))))
         c.ok("the ribbon shows Centre pressed" centre.pressed)
         a2.runCommand("edit.undo" "")
         c.eqInt("undo puts the alignment back" (DocxChromeTest.alignOf(a2 pid)) before)
@@ -228,9 +228,9 @@ class DocxChromeTest {
         c.ok("which is not the body size" (firstSpan.fontSizePt != sizeBefore))
         a3.buildDisplayList()
         def tileI:int (a3.ribbon.indexOf("format.style" "Heading1"))
-        def tile:RibbonItem (a3.ribbon.at(tileI))
+        def tile:DocxRibbonItem (a3.ribbon.at(tileI))
         c.ok("the gallery shows Heading 1 pressed" tile.pressed)
-        def noSp:RibbonItem (a3.ribbon.at((a3.ribbon.indexOf("format.style" "NoSpacing"))))
+        def noSp:DocxRibbonItem (a3.ribbon.at((a3.ribbon.indexOf("format.style" "NoSpacing"))))
         c.ok("a style the file does not have is greyed" (noSp.enabled == false))
         c.ok("the new heading is in the pane" (DocxChromeTest.navHas(a3 sp)))
         a3.runCommand("edit.undo" "")
@@ -256,7 +256,7 @@ class DocxChromeTest {
         c.ok("Strikethrough runs" (a5.runCommand("format.strike" "")))
         c.ok("and strikes the selection" (a5.viewer.edit.adapter.rangeIsOn(rp 0 7 "strike")))
         a5.buildDisplayList()
-        def stBtn:RibbonItem (a5.ribbon.at((a5.ribbon.indexOf("format.strike" ""))))
+        def stBtn:DocxRibbonItem (a5.ribbon.at((a5.ribbon.indexOf("format.strike" ""))))
         c.ok("the button shows it pressed" stBtn.pressed)
         a5.runCommand("edit.undo" "")
         c.ok("undo takes it off" ((a5.viewer.edit.adapter.rangeIsOn(rp 0 7 "strike")) == false))
@@ -334,7 +334,7 @@ class DocxChromeTest {
         c.eqStr("a bulleted one" (l1.viewer.numbering.kindOf(b1.listNumId)) "bullet")
         c.ok("indented by the list" (b1.indentLeftPt > 0.0))
         l1.buildDisplayList()
-        def blBtn:RibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.bullets" ""))))
+        def blBtn:DocxRibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.bullets" ""))))
         c.ok("the Bullets button shows it" blBtn.pressed)
         l1.runCommand("para.bullets" "")
         c.ok("a second press takes them out" ((DocxChromeTest.numOf(l1 lp)) == 0))
@@ -344,13 +344,13 @@ class DocxChromeTest {
         def n1:Paragraph (DocxChromeTest.paragraph(l1 lp))
         c.eqStr("Numbering turns the bullets into numbers" (l1.viewer.numbering.kindOf(n1.listNumId)) "number")
         ; The dropdown: opened from the button's arrow, a line picks a look.
-        def nb:RibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.numbering" ""))))
+        def nb:DocxRibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.numbering" ""))))
         DocxChromeTest.click(l1 ((nb.x + nb.w) - 4) (nb.y + 6))
         c.ok("the arrow opens the numbering library" (l1.ribbon.menu.open && (l1.ribbon.menu.owner == "para.numbering")))
         def pick:int -1
         def mi:int 0
         while (mi < (array_length l1.ribbon.menu.entries)) {
-            def me:RibbonMenuEntry (l1.ribbon.menu.at(mi))
+            def me:DocxMenuEntry (l1.ribbon.menu.at(mi))
             if (me.arg == "lowerLetter:%1)") {
                 pick = mi
             }
@@ -372,7 +372,7 @@ class DocxChromeTest {
         l1.runCommand("text.indent" "")
         def left1:double (DocxChromeTest.leftOf(l1 plain))
         c.ok("outside a list it indents to the next half inch" ((left1 > left0) && (left1 <= (left0 + 36.01))))
-        def sp0:RibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.spacing" ""))))
+        def sp0:DocxRibbonItem (l1.ribbon.at((l1.ribbon.indexOf("para.spacing" ""))))
         DocxChromeTest.click(l1 (sp0.x + 6) (sp0.y + 6))
         c.ok("Line spacing opens its list" (l1.ribbon.menu.open && ((array_length l1.ribbon.menu.entries) >= 6)))
         l1.ribbon.menu.close()
@@ -421,7 +421,7 @@ class DocxChromeTest {
         e1.viewer.edit.setCaret(ep 1)
         c.ok("the format painter picks up the look" (e1.runCommand("format.painter" "")))
         e1.buildDisplayList()
-        def fpb:RibbonItem (e1.ribbon.at((e1.ribbon.indexOf("format.painter" ""))))
+        def fpb:DocxRibbonItem (e1.ribbon.at((e1.ribbon.indexOf("format.painter" ""))))
         c.ok("and shows armed" fpb.pressed)
         e1.viewer.edit.setRange(eq 0 5)
         e1.runFormat("paint" "")
@@ -466,7 +466,7 @@ class DocxChromeTest {
         c.ok("adds a block" ((e1.viewer.doc.blockCount()) > blocks0))
         def tbIdx:int (e1.viewer.edit.adapter.tableBlockBeforeParagraph((e1.viewer.edit.sel.focus.paragraphId)))
         c.ok("three rows of four" ((tbIdx >= 0) && (((e1.viewer.edit.adapter.rowCountOfTable(tbIdx)) == 3) && ((e1.viewer.edit.adapter.cellCountInRow(tbIdx 0)) == 4))))
-        def tblItem:RibbonItem (e1.ribbon.at((e1.ribbon.indexOf("insert.table" ""))))
+        def tblItem:DocxRibbonItem (e1.ribbon.at((e1.ribbon.indexOf("insert.table" ""))))
         e1.runCommand("edit.undo" "")
         c.eqInt("undo takes the table out" (e1.viewer.doc.blockCount()) blocks0)
 

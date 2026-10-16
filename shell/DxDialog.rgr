@@ -1,0 +1,253 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; =============================================================================
+; DxDialog — what every EVGUI dialog in the shell has in common
+; =============================================================================
+; The same contract as EVGSheets' SxDialog, over the Word core (DocxApp): a
+; modal WindowCtl and the controls in it, styled by docs.css. The work each
+; dialog does stays the core's — a dialog writes the core's fields and calls
+; its functions.
+;
+; A dialog says which controllers it has (`ctls`), the order Tab visits them
+; (`ring`), which targets are its buttons, where Enter goes (`entersDefault`
+; and `defaultTid`), and what a button does (`act`). DocsApp routes input to
+; whichever dialog is open and knows nothing else about it.
+; =============================================================================
+
+Import "../../evgui/src/UiHost.rgr"
+Import "../src/DocxApp.rgr"
+Import "pkg:evg/EVGElement.rgr"
+
+class DxDialog {
+    def win:WindowCtl (new WindowCtl)
+    def statusEl:EVGElement (EVGElement.createSpan())
+
+    Constructor () {
+    }
+
+    fn setup:void (tid:string title:string) {
+        win.tid = tid
+        win.name = title
+        win.title = title
+        win.isModal = true
+    }
+
+    ; --- what a dialog says about itself ---------------------------------------
+
+    ; Every controller in the dialog, the window first: the host routes input
+    ; to whichever one owns the target.
+    fn ctls:[UiCtl] () {
+        def a:[UiCtl]
+        push a win
+        return a
+    }
+
+    ; The Tab ring, in reading order. A modal keeps focus inside it.
+    fn ring:[string] () {
+        def a:[string]
+        push a (win.closeTid())
+        return a
+    }
+
+    fn isButton:boolean (target:string) {
+        return false
+    }
+
+    ; Does Enter on `target` press the default button?
+    fn entersDefault:boolean (target:string) {
+        return false
+    }
+
+    fn defaultTid:string () {
+        return ""
+    }
+
+    ; Does the focused control want every key itself (an open drop-down)?
+    fn holdsKeys:boolean (target:string) {
+        return false
+    }
+
+    ; Opens on what the core holds, and returns where focus goes.
+    fn open:string (app:DocxApp pageW:double pageH:double) {
+        this.openOn(pageW pageH)
+        return (win.closeTid())
+    }
+
+    ; Does it change the document? Those do not open on a read-only document.
+    fn writes:boolean () {
+        return false
+    }
+
+    ; The core's own window for this dialog, if the core opened it anyway (a
+    ; command run straight on the grid, a shortcut the core reads itself):
+    ; closes it and says so, so the app can open this one instead.
+    fn adopt:boolean (app:DocxApp) {
+        return false
+    }
+
+    ; The body's tree. The controllers rebuild their own roots in place, so
+    ; this is made once per opening.
+    fn buildBody:void () {
+    }
+
+    ; A button pressed (by pointer, Enter or Space). Returns true when the
+    ; dialog closed, so the host can give the keyboard back to the document.
+    fn act:boolean (target:string app:DocxApp) {
+        return false
+    }
+
+    ; After every input, open or not: whatever the dialog keeps in step with
+    ; the core (a live preview, say).
+    fn follow:void (app:DocxApp) {
+    }
+
+    ; After every input, with the id that has focus.
+    fn showFocus:void (focusId:string) {
+    }
+
+    ; --- shared ----------------------------------------------------------------
+
+    fn owns:boolean (target:string) {
+        def all:[UiCtl] (this.ctls())
+        def i:int 0
+        while (i < (array_length all)) {
+            def c:UiCtl (itemAt all i)
+            if (c.owns(target)) {
+                return true
+            }
+            i = (i + 1)
+        }
+        return false
+    }
+
+    fn buildAll:void () {
+        this.buildBody()
+        def all:[UiCtl] (this.ctls())
+        def i:int 0
+        while (i < (array_length all)) {
+            def c:UiCtl (itemAt all i)
+            c.build()
+            i = (i + 1)
+        }
+    }
+
+    fn openOn:void (pageW:double pageH:double) {
+        win.pageW = pageW
+        win.pageH = pageH
+        def ignored:string (win.openWindow())
+        this.buildAll()
+    }
+
+    fn close:void () {
+        def ignored:string (win.closeWindow())
+    }
+
+    ; Tab and Shift+Tab inside the ring.
+    fn nextFocus:string (from:string back:boolean) {
+        def r:[string] (this.ring())
+        def n:int (array_length r)
+        def at:int -1
+        def i:int 0
+        while (i < n) {
+            if ((itemAt r i) == from) {
+                at = i
+            }
+            i = (i + 1)
+        }
+        if (at < 0) {
+            return (itemAt r 0)
+        }
+        if back {
+            return (itemAt r (((at + n) - 1) % n))
+        }
+        return (itemAt r ((at + 1) % n))
+    }
+
+    ; --- building blocks -------------------------------------------------------
+
+    fn field:void (c:InputCtl tid:string name:string) {
+        c.tid = tid
+        c.name = name
+        c.fontFamily = "Open Sans"
+        c.fontSize = 13.0
+        c.boxWidth = 220.0
+    }
+
+    fn check:void (c:CheckboxCtl tid:string name:string) {
+        c.tid = tid
+        c.name = name
+    }
+
+    fn button:void (c:ButtonCtl tid:string name:string variant:string) {
+        c.tid = tid
+        c.name = name
+        c.variant = variant
+    }
+
+    fn row:EVGElement (cls:string) {
+        def r:EVGElement (EVGElement.createDiv())
+        r.className = cls
+        return r
+    }
+
+    fn label:EVGElement (text:string) {
+        def l:EVGElement (EVGElement.createSpan())
+        l.className = "dx-dlg-label"
+        l.elementType = 1
+        l.textContent = text
+        l.a11yHidden = true
+        return l
+    }
+
+    fn heading:EVGElement (text:string) {
+        def l:EVGElement (EVGElement.createSpan())
+        l.className = "dx-dlg-heading"
+        l.elementType = 1
+        l.textContent = text
+        l.a11yHidden = true
+        return l
+    }
+
+    fn statusRow:EVGElement () {
+        statusEl.className = "dx-dlg-status"
+        statusEl.elementType = 1
+        statusEl.role = "status"
+        return statusEl
+    }
+
+    ; A field draws its caret whether or not it has focus; only the focused
+    ; field's caret is shown.
+    fn caretFor:void (c:InputCtl focusId:string) {
+        def car:EVGElement (unwrap c.caretEl)
+        car.className = "ui-input-caret"
+        if (focusId != c.tid) {
+            UiTree.addClass(car "dx-caret-off")
+        }
+    }
+
+    ; A radio group drawn as something other than a column of rows (chips,
+    ; swatches): classes added after the group's own, so the document's rules
+    ; for them win, and `onCls` on the chosen item. Run after every build.
+    sfn restyle:void (g:RadioGroupCtl groupCls:string itemCls:string onCls:string) {
+        UiTree.addClass((unwrap g.rootEl) groupCls)
+        def i:int 0
+        while (i < (array_length g.items)) {
+            def it:UiItem (itemAt g.items i)
+            def el:EVGElement (unwrap it.el)
+            UiTree.addClass(el itemCls)
+            if (it.value == g.value) {
+                UiTree.addClass(el onCls)
+            } {
+                UiTree.removeClass(el onCls)
+            }
+            i = (i + 1)
+        }
+    }
+
+    sfn tri:int (on:boolean) {
+        if on {
+            return 1
+        }
+        return 0
+    }
+}

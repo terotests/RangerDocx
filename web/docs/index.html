@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RangerDocx</title>
+    <meta name="description" content="A Word document editor written in Ranger: the RangerDocx core with an EVGUI interface, drawn by EVG through WebGL 2." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23185abd' stroke-width='2'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2z M14 2v6h6 M16 13H8 M16 17H8'/%3E%3C/svg%3E" />
+    <style>
+      :root { --bg: #e3e6ea; --ink: #1f2328; --muted: #5f6b7a; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #2a2f37; --ink: #e6e8eb; --muted: #a1a9b5; }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; }
+      body { display: flex; flex-direction: column; }
+      #app { flex: 1; min-height: 0; position: relative; }
+      #loading {
+        position: absolute; inset: 0; display: grid; place-items: center;
+        color: var(--muted); font-size: 14px; pointer-events: none;
+      }
+      #error {
+        display: none; margin: 16px; padding: 14px; border-radius: 8px;
+        background: #2b1d1d; color: #ffd9d9; white-space: pre-wrap;
+        font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace;
+      }
+    </style>
+    <script>globalThis.RANGERDOCX_BUILD = "__BUILD__";</script>
+  </head>
+  <body>
+    <div id="error" role="alert"></div>
+    <main id="app" aria-label="RangerDocx editor">
+      <div id="loading">Loading the editor…</div>
+    </main>
+    <script type="module">
+      import { mountDocs, optionsFromQuery } from "./docs.mjs?v=__BUILD__";
+      const errorEl = document.getElementById("error");
+      try {
+        // The sample report unless the address asks for another document
+        // (?docx=<url>), and ?ui=compact|viewer, ?theme=dark, ?readOnly.
+        const opts = optionsFromQuery();
+        const doc = await mountDocs(document.getElementById("app"), {
+          docx: "document.docx",
+          name: "document.docx",
+          ...opts,
+        });
+        document.getElementById("loading").remove();
+        window.docs = doc;
+        window.__docsReady = true;
+      } catch (e) {
+        errorEl.style.display = "block";
+        errorEl.textContent = "RangerDocx could not start: " + (e && e.message ? e.message : e);
+        window.__docsError = String(e && e.stack ? e.stack : e);
+        throw e;
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,177 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; =============================================================================
+; DxFindDialog — Find and replace, built from EVGUI controllers
+; =============================================================================
+;
+;   ┌─ Find and replace ─────────────────────────────── × ┐
+;   │ Find what      [________________________________]   │
+;   │ Replace with   [________________________________]   │
+;   │ ☐ Match case             ☐ Whole words only         │
+;   │ replaced 3 of 'x'                                   │
+;   │            [Close] [Replace all] [Replace] [Find next]│
+;   └─────────────────────────────────────────────────────┘
+;
+; Word's Ctrl+H. The search is the core's: DocxEditController keeps the query
+; and the options in fields (findQuery, findMatchCase…) and searches with
+; findNext, replaceCurrent and replaceAll, which select what they find; this
+; writes the fields and calls those, then has the frame scroll to the caret.
+; =============================================================================
+
+Import "DxDialog.rgr"
+
+class DxFindDialog extends DxDialog {
+    def findIn:InputCtl (new InputCtl)
+    def replIn:InputCtl (new InputCtl)
+    def matchCase:CheckboxCtl (new CheckboxCtl)
+    def wholeWord:CheckboxCtl (new CheckboxCtl)
+    def closeBtn:ButtonCtl (new ButtonCtl)
+    def allBtn:ButtonCtl (new ButtonCtl)
+    def oneBtn:ButtonCtl (new ButtonCtl)
+    def nextBtn:ButtonCtl (new ButtonCtl)
+
+    Constructor () {
+        this.setup("dx-find" "Find and replace")
+        this.field(findIn "dx-find-query" "Find what")
+        this.field(replIn "dx-find-replace" "Replace with")
+        this.check(matchCase "dx-find-case" "Match case")
+        this.check(wholeWord "dx-find-word" "Whole words only")
+        this.button(closeBtn "dx-find-close" "Close" "secondary")
+        this.button(allBtn "dx-find-all" "Replace all" "secondary")
+        this.button(oneBtn "dx-find-one" "Replace" "secondary")
+        this.button(nextBtn "dx-find-next" "Find next" "primary")
+    }
+
+    fn ctls:[UiCtl] () {
+        def a:[UiCtl]
+        push a win
+        push a findIn
+        push a replIn
+        push a matchCase
+        push a wholeWord
+        push a closeBtn
+        push a allBtn
+        push a oneBtn
+        push a nextBtn
+        return a
+    }
+
+    fn ring:[string] () {
+        def a:[string]
+        push a findIn.tid
+        push a replIn.tid
+        push a matchCase.tid
+        push a wholeWord.tid
+        push a closeBtn.tid
+        push a allBtn.tid
+        push a oneBtn.tid
+        push a nextBtn.tid
+        push a (win.closeTid())
+        return a
+    }
+
+    fn isButton:boolean (target:string) {
+        return ((target == closeBtn.tid) || (target == allBtn.tid) || (target == oneBtn.tid) || (target == nextBtn.tid))
+    }
+
+    ; Enter in either field is Find next.
+    fn entersDefault:boolean (target:string) {
+        return ((findIn.owns(target)) || (replIn.owns(target)))
+    }
+
+    fn defaultTid:string () {
+        return nextBtn.tid
+    }
+
+    fn writes:boolean () {
+        return false
+    }
+
+    fn buildBody:void () {
+        def body:EVGElement (unwrap win.bodyEl)
+        body.className = "dx-dlg-body"
+        UiTree.clearChildren(body)
+        def f1:EVGElement (this.row("dx-dlg-field"))
+        f1.addChild((this.label(findIn.name)))
+        f1.addChild((unwrap findIn.rootEl))
+        body.addChild(f1)
+        def f2:EVGElement (this.row("dx-dlg-field"))
+        f2.addChild((this.label(replIn.name)))
+        f2.addChild((unwrap replIn.rootEl))
+        body.addChild(f2)
+        def opts:EVGElement (this.row("dx-dlg-options"))
+        opts.addChild((unwrap matchCase.rootEl))
+        opts.addChild((unwrap wholeWord.rootEl))
+        body.addChild(opts)
+        body.addChild((this.statusRow()))
+        def acts:EVGElement (this.row("dx-dlg-actions"))
+        acts.addChild((unwrap closeBtn.rootEl))
+        acts.addChild((unwrap allBtn.rootEl))
+        acts.addChild((unwrap oneBtn.rootEl))
+        acts.addChild((unwrap nextBtn.rootEl))
+        body.addChild(acts)
+    }
+
+    ; Open on what the core remembers — or on the selected words, the way
+    ; Word fills the field — and return where focus goes: the query.
+    fn open:string (app:DocxApp pageW:double pageH:double) {
+        def ed:DocxEditController app.viewer.edit
+        def picked:string (app.viewer.copySelection())
+        if (((strlen picked) > 0) && ((strlen picked) < 80) && ((indexOf picked "\n") < 0)) {
+            ed.findQuery = picked
+        }
+        findIn.setValue(ed.findQuery)
+        findIn.selectAll()
+        replIn.setValue(ed.replaceWith)
+        matchCase.checkState = (DxDialog.tri(ed.findMatchCase))
+        wholeWord.checkState = (DxDialog.tri(ed.findWholeWord))
+        ed.findStatus = ""
+        statusEl.textContent = ""
+        this.openOn(pageW pageH)
+        return findIn.tid
+    }
+
+    ; The fields into the core, before every search.
+    fn store:void (app:DocxApp) {
+        def ed:DocxEditController app.viewer.edit
+        ed.findQuery = findIn.value
+        ed.replaceWith = replIn.value
+        ed.findMatchCase = (matchCase.checkState == 1)
+        ed.findWholeWord = (wholeWord.checkState == 1)
+    }
+
+    fn act:boolean (target:string app:DocxApp) {
+        this.store(app)
+        if (target == closeBtn.tid) {
+            this.close()
+            return true
+        }
+        def ed:DocxEditController app.viewer.edit
+        if (target == nextBtn.tid) {
+            def found:boolean (ed.findNext())
+        }
+        if ((target == oneBtn.tid) || (target == allBtn.tid)) {
+            if ((app.viewer.editMode()) == false) {
+                app.viewer.setEditMode(true)
+            }
+        }
+        if (target == oneBtn.tid) {
+            def replaced:boolean (ed.replaceCurrent())
+        }
+        if (target == allBtn.tid) {
+            def n:int (ed.replaceAll())
+        }
+        app.viewer.renderPage(app.viewer.currentPage)
+        app.followCaretInStack()
+        statusEl.textContent = ed.findStatus
+        return false
+    }
+
+    fn showFocus:void (focusId:string) {
+        if (win.open == false) {
+            return
+        }
+        this.caretFor(findIn focusId)
+        this.caretFor(replIn focusId)
+    }
+}

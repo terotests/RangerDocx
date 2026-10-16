@@ -1,0 +1,89 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; =============================================================================
+; DocsIcons — the shell's glyphs
+; =============================================================================
+; Lucide icons (ISC licence, lucide.dev), 24×24 and stroked, the same set the
+; EVGUI demos and EVGSheets draw with. Each is one SVG path: shapes other than
+; paths (rect, circle, line) were turned into path commands when this table
+; was generated from lucide-static 1.57.0.
+; =============================================================================
+
+class DocsIcons {
+    sfn of:string (name:string) {
+        if (name == "logo") { return "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z M14 2v5a1 1 0 0 0 1 1h5 M10 9H8 M16 13H8 M16 17H8" }
+        if (name == "save") { return "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7 M7 3v4a1 1 0 0 0 1 1h7" }
+        if (name == "undo") { return "M9 14 4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" }
+        if (name == "redo") { return "M15 14l5-5-5-5 M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" }
+        if (name == "download") { return "M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5" }
+        if (name == "open") { return "M6 14l1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" }
+        if (name == "new") { return "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z M14 2v5a1 1 0 0 0 1 1h5 M9 15h6 M12 18v-6" }
+        if (name == "print") { return "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6 M7 14h10a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z" }
+        if (name == "paste") { return "M11 14h10 M16 4h2a2 2 0 0 1 2 2v1.344 M17 18l4-4-4-4 M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113 M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1z" }
+        if (name == "cut") { return "M3 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0z M8.12 8.12 12 12 M20 4 8.12 15.88 M3 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0z M14.8 14.8 20 20" }
+        if (name == "copy") { return "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2z M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" }
+        if (name == "painter") { return "M14.622 17.897l-10.68-2.913 M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15" }
+        if (name == "bold") { return "M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" }
+        if (name == "italic") { return "M19 4L10 4 M14 20L5 20 M15 4L9 20" }
+        if (name == "underline") { return "M6 4v6a6 6 0 0 0 12 0V4 M4 20L20 20" }
+        if (name == "strike") { return "M16 4H9a3 3 0 0 0-2.83 4 M14 12a4 4 0 0 1 0 8H6 M4 12L20 12" }
+        if (name == "sub") { return "M4 5l8 8 M12 5l-8 8 M20 19h-4c0-1.5.44-2 1.5-2.5S20 15.33 20 14c0-.47-.17-.93-.48-1.29a2.11 2.11 0 0 0-2.62-.44c-.42.24-.74.62-.9 1.07" }
+        if (name == "sup") { return "M4 19l8-8 M12 19l-8-8 M20 12h-4c0-1.5.442-2 1.5-2.5S20 8.334 20 7.002c0-.472-.17-.93-.484-1.29a2.105 2.105 0 0 0-2.617-.436c-.42.239-.738.614-.899 1.06" }
+        if (name == "grow") { return "M14 11l4-4 4 4 M18 16V7 M2 16l4.039-9.69a.5.5 0 0 1 .923 0L11 16 M3.304 13h6.392" }
+        if (name == "shrink") { return "M14 12l4 4 4-4 M18 16V7 M2 16l4.039-9.69a.5.5 0 0 1 .923 0L11 16 M3.304 13h6.392" }
+        if (name == "case") { return "M2 16l4.039-9.69a.5.5 0 0 1 .923 0L11 16 M22 9v7 M3.304 13h6.392 M15 12.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0z" }
+        if (name == "clear") { return "M4 7V4h16v3 M5 20h6 M13 4 8 20 M15 15l5 5 M20 15l-5 5" }
+        if (name == "color") { return "M4 20h16 M6 16l6-12 6 12 M8 12h8" }
+        if (name == "highlight") { return "M9 11l-6 6v3h9l3-3 M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" }
+        if (name == "bullets") { return "M3 5h.01 M3 12h.01 M3 19h.01 M8 5h13 M8 12h13 M8 19h13" }
+        if (name == "numbering") { return "M11 5h10 M11 12h10 M11 19h10 M4 4h1v5 M4 9h2 M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" }
+        if (name == "multilevel") { return "M8 5h13 M13 12h8 M13 19h8 M3 10a2 2 0 0 0 2 2h3 M3 5v12a2 2 0 0 0 2 2h3" }
+        if (name == "indent") { return "M21 5H11 M21 12H11 M21 19H11 M3 8l4 4-4 4" }
+        if (name == "outdent") { return "M21 5H11 M21 12H11 M21 19H11 M7 8l-4 4 4 4" }
+        if (name == "sort") { return "M3 16l4 4 4-4 M7 20V4 M20 8h-5 M15 10V6.5a2.5 2.5 0 0 1 5 0V10 M15 14h5l-5 6h5" }
+        if (name == "pilcrow") { return "M13 4v16 M17 4v16 M19 4H9.5a4.5 4.5 0 0 0 0 9H13" }
+        if (name == "left") { return "M21 5H3 M15 12H3 M17 19H3" }
+        if (name == "center") { return "M21 5H3 M17 12H7 M19 19H5" }
+        if (name == "right") { return "M21 5H3 M21 12H9 M21 19H7" }
+        if (name == "justify") { return "M3 5h18 M3 12h18 M3 19h18" }
+        if (name == "spacing") { return "M3 5h8 M3 12h8 M3 19h8 M15 8l3-3 3 3 M15 16l3 3 3-3" }
+        if (name == "shading") { return "M11 7 6 2 M18.992 12H2.041 M21.145 18.38A3.34 3.34 0 0 1 20 16.5a3.3 3.3 0 0 1-1.145 1.88c-.575.46-.855 1.02-.855 1.595A2 2 0 0 0 20 22a2 2 0 0 0 2-2.025c0-.58-.285-1.13-.855-1.595 M8.5 4.5l2.148-2.148a1.205 1.205 0 0 1 1.704 0l7.296 7.296a1.205 1.205 0 0 1 0 1.704l-7.592 7.592a3.615 3.615 0 0 1-5.112 0l-3.888-3.888a3.615 3.615 0 0 1 0-5.112L5.67 7.33" }
+        if (name == "borders") { return "M5 3a2 2 0 0 0-2 2 M19 3a2 2 0 0 1 2 2 M21 19a2 2 0 0 1-2 2 M5 21a2 2 0 0 1-2-2 M9 3h1 M9 21h1 M14 3h1 M14 21h1 M3 9v1 M21 9v1 M3 14v1 M21 14v1" }
+        if (name == "find") { return "M21 21l-4.34-4.34 M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0z" }
+        if (name == "replace") { return "M14 4a1 1 0 0 1 1-1 M15 10a1 1 0 0 1-1-1 M21 4a1 1 0 0 0-1-1 M21 9a1 1 0 0 1-1 1 M3 7l3 3 3-3 M6 10V5a2 2 0 0 1 2-2h2 M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1z" }
+        if (name == "select") { return "M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" }
+        if (name == "table") { return "M12 3v18 M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2z M3 9h18 M3 15h18" }
+        if (name == "pagebreak") { return "M16 16l-4 4-4-4 M3 12h18 M8 8l4-4 4 4" }
+        if (name == "picture") { return "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2z M7 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0z M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21" }
+        if (name == "shapes") { return "M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1z M14 17.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0z" }
+        if (name == "chart") { return "M3 3v16a2 2 0 0 0 2 2h16 M18 17V9 M13 17V5 M8 17v-3" }
+        if (name == "link") { return "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }
+        if (name == "comment") { return "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }
+        if (name == "textbox") { return "M12 20h-1a2 2 0 0 1-2-2 2 2 0 0 1-2 2H6 M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7 M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1 M6 4h1a2 2 0 0 1 2 2 2 2 0 0 1 2-2h1 M9 6v12" }
+        if (name == "margins") { return "M5 21a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2 M9 21h1 M14 21h1" }
+        if (name == "orientation") { return "M20 9V7a2 2 0 0 0-2-2h-6 M15 2l-3 3 3 3 M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" }
+        if (name == "pagesize") { return "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z M14 2v5a1 1 0 0 0 1 1h5" }
+        if (name == "toc") { return "M10 5h11 M10 12h11 M10 19h11 M3 10l3-3-3-3 M3 20l3-3-3-3" }
+        if (name == "footnote") { return "M4 19l8-8 M12 19l-8-8 M20 12h-4c0-1.5.442-2 1.5-2.5S20 8.334 20 7.002c0-.472-.17-.93-.484-1.29a2.105 2.105 0 0 0-2.617-.436c-.42.239-.738.614-.899 1.06" }
+        if (name == "spelling") { return "M20 15l-5.5 5.5L12 18 M4 16l6-12 5.115 10.23 M6 12h8" }
+        if (name == "track") { return "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z M9 10h6 M12 13V7 M9 17h6" }
+        if (name == "nav") { return "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2z M9 3v18" }
+        if (name == "ruler") { return "M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z M14.5 12.5l2-2 M11.5 9.5l2-2 M8.5 6.5l2-2 M17.5 15.5l2-2" }
+        if (name == "continuous") { return "M15 12h-5 M15 8h-5 M19 17V5a2 2 0 0 0-2-2H4 M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" }
+        if (name == "zoomin") { return "M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0z M21 21L16.65 16.65 M11 8L11 14 M8 11L14 11" }
+        if (name == "zoomout") { return "M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0z M21 21L16.65 16.65 M8 11L14 11" }
+        if (name == "zoomreset") { return "M21 21l-4.34-4.34 M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0z" }
+        if (name == "rtl") { return "M14 3v11 M14 9h-3a3 3 0 0 1 0-6h9 M18 3v11 M22 18H2l4-4 M6 22l-4-4" }
+        if (name == "prev") { return "M18 15l-6-6-6 6" }
+        if (name == "next") { return "M6 9l6 6 6-6" }
+        if (name == "edit") { return "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z M15 5l4 4" }
+        if (name == "read") { return "M12 5v16 M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" }
+        if (name == "chevron") { return "M6 9l6 6 6-6" }
+        if (name == "chevronRight") { return "M9 18l6-6-6-6" }
+        if (name == "check") { return "M20 6 9 17l-5-5" }
+        if (name == "dot") { return "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8z" }
+        if (name == "before") { return "M5 3h14 M18 13l-6-6-6 6 M12 7v14" }
+        if (name == "after") { return "M12 17V3 M6 11l6 6 6-6 M19 21H5" }
+        return ""
+    }
+}

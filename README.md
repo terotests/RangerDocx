@@ -36,6 +36,24 @@ python3 tools/parity/import_wordcraft.py <wordcraft checkout>   # refresh WordCr
 
 Outside a Ranger checkout, set `RANGER=<ranger checkout>`.
 
+## The EVGUI editor (shell/)
+
+`shell/DocsApp.rgr` is the Word-style editor: the ribbon, menus and dialogs are
+EVGUI controllers (the same pattern as EVGSheets' `SheetsApp`, and its
+`RibbonCtl`), and the document area is the RangerDocx core painted into the
+`dx-doc` element. Icons are Lucide (ISC), converted into `shell/DocsIcons.rgr`.
+
+```bash
+node scripts/build.mjs --test          # compile + run tests/DocsAppTest.rgr
+node scripts/build.mjs --out dist      # build the site (web/docs + fonts)
+```
+
+The build finds Ranger via `--ranger`, `$RANGER_DIR` or `../Ranger`; EVGUI and
+EVGSheets via `--evgui`/`--evgsheets`, `$EVGUI_DIR`/`$EVGSHEETS_DIR`, a sibling
+`../EVGUI`/`../EVGSheets`, else a clone into `.deps/`.
+GitHub Pages serves this editor at `/` and the older standalone editor at `/classic/`.
+Query options: `?theme=dark`, `?ui=compact|viewer`, `?readOnly`, `?docx=<url>`.
+
 ## License
 
 AGPL-3.0-or-later ([LICENSE](LICENSE)). The parity data derived from WordCraft

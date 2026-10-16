@@ -1,0 +1,237 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; =============================================================================
+; DocsAppTest — the EVGUI shell around the Word core
+; =============================================================================
+; Runs in the build's stage tree (node scripts/build.mjs --test), because the
+; shell imports EVGUI and EVGSheets' RibbonCtl from beside this repository.
+; Everything goes through what a page does: presses on controls by id, keys
+; by their DOM names, text — and the answers are read from the core.
+; =============================================================================
+
+Import "../shell/DocsApp.rgr"
+
+class ShellCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+}
+
+class DocsAppTest {
+    sfn make:DocsApp (file:string) {
+        def css:string (?? (read_file_sync "gallery/docx_viewer/shell" "docs.css") "")
+        def app:DocsApp (new DocsApp)
+        app.start(1500 900 css)
+        if ((app.openFile("gallery/docx_viewer/fixtures" file)) == false) {
+            print ("  could not open " + file)
+        }
+        def s:string (app.scene())
+        return app
+    }
+
+    ; The core's own coordinates of the first line of a body paragraph that
+    ; holds `text`, as a page point.
+    sfn clickText:boolean (app:DocsApp text:string) {
+        def d:RichDocument app.web.viewer.doc
+        def i:int 0
+        while (i < (array_length d.paragraphs)) {
+            def p:Paragraph (itemAt d.paragraphs i)
+            if ((indexOf p.text text) >= 0) {
+                app.web.viewer.edit.setCaret(p.id ((indexOf p.text text) + 1))
+                ; What a click in the document does to the keyboard.
+                app.docFocused = true
+                app.ui.blur()
+                app.sync()
+                return true
+            }
+            i = (i + 1)
+        }
+        return false
+    }
+
+    ; The text of the first paragraph holding `text`, or "".
+    sfn textWith:string (app:DocsApp text:string) {
+        def d:RichDocument app.web.viewer.doc
+        def i:int 0
+        while (i < (array_length d.paragraphs)) {
+            def p:Paragraph (itemAt d.paragraphs i)
+            if ((indexOf p.text text) >= 0) {
+                return p.text
+            }
+            i = (i + 1)
+        }
+        return ""
+    }
+
+    sfn spacingWith:double (app:DocsApp text:string) {
+        def d:RichDocument app.web.viewer.doc
+        def i:int 0
+        while (i < (array_length d.paragraphs)) {
+            def p:Paragraph (itemAt d.paragraphs i)
+            if ((indexOf p.text text) >= 0) {
+                return p.lineSpacing
+            }
+            i = (i + 1)
+        }
+        return 0.0
+    }
+
+    sfn isOn:boolean (r:RibbonCtl value:string) {
+        def it@(optional):RibbonItem (r.find(value))
+        if (null? it) {
+            return false
+        }
+        def got:RibbonItem (unwrap it)
+        return got.on
+    }
+
+    sfn isDisabled:boolean (r:RibbonCtl value:string) {
+        def it@(optional):RibbonItem (r.find(value))
+        if (null? it) {
+            return true
+        }
+        def got:RibbonItem (unwrap it)
+        return got.disabled
+    }
+
+    sfn press:boolean (app:DocsApp tid:string) {
+        def laid:string (app.scene())
+        def ok:boolean (app.pressId(tid))
+        def s:string (app.scene())
+        return ok
+    }
+
+    sfn main:void () {
+        def c (new ShellCheck)
+        def app:DocsApp (DocsAppTest.make("20-business-report.docx"))
+
+        print "the frame"
+        c.ok("the scene is drawn" ((strlen (app.scene())) > 1000))
+        c.ok("the document has pages" ((app.web.pageCount()) > 1))
+        c.ok("it opens for editing" (app.web.editMode()))
+        c.ok("the document sits under the ribbon" (app.gy > 100))
+        c.ok("and fills the width" (app.gw == 1500))
+        c.ok("the core is hosted: no title bar of its own" ((app.web.app.chromeTop()) == 0))
+        c.ok("the ribbon has its Bold" ((strlen (app.rectOf("dx-rb-char-bold"))) > 0))
+        c.ok("the status line counts pages" ((indexOf (app.statusText()) "of") > 0))
+        def tree:string (app.a11y())
+        c.ok("one accessibility tree holds both" (((indexOf tree "dx-rb-char-bold") > 0) && ((indexOf tree "\"Document\"") > 0)))
+
+        print "formatting from the ribbon"
+        c.ok("a caret in the first body paragraph" (DocsAppTest.clickText(app "grew")))
+        app.web.viewer.edit.selectWord()
+        app.sync()
+        def wasBold:boolean (app.web.viewer.edit.caretIsOn("bold"))
+        c.ok("Bold is a press" (DocsAppTest.press(app "dx-rb-char-bold")))
+        c.ok("the run changed" ((app.web.viewer.edit.caretIsOn("bold")) != wasBold))
+        c.ok("and the button says so" ((DocsAppTest.isOn(app.charRb "bold")) == (app.web.viewer.edit.caretIsOn("bold"))))
+        c.ok("Undo is enabled" ((DocsAppTest.isDisabled(app.quick "q-undo")) == false))
+        c.ok("the header says edited" (app.editedEl.textContent == "Edited"))
+        DocsAppTest.press(app "dx-quick-q-undo")
+        c.ok("Undo from the quick bar" ((app.web.viewer.edit.caretIsOn("bold")) == wasBold))
+
+        print "dropdowns"
+        c.ok("the numbering menu opens" (DocsAppTest.press(app (app.numMenu.triggerTid()))))
+        c.ok("it is open" app.numMenu.open)
+        c.ok("a format is a row" (DocsAppTest.press(app (app.numMenu.itemTid("nl-1")))))
+        c.ok("the menu closed" (app.numMenu.open == false))
+        c.ok("the paragraph is numbered" ((app.web.viewer.edit.caretListKind()) == "number"))
+        c.ok("Numbering shows pressed" (DocsAppTest.isOn(app.numRb "numbering")))
+        c.ok("and the menu ticks it" (DocsAppTest.checkedValue(app.numMenu) == "nl-1"))
+        DocsAppTest.press(app (app.spacingMenu.triggerTid()))
+        DocsAppTest.press(app (app.spacingMenu.itemTid("sp-2.0")))
+        def ls:double (DocsAppTest.spacingWith(app "grew"))
+        c.ok("line spacing from its menu" (((ls - 2.0) < 0.01) && ((ls - 2.0) > -0.01)))
+        DocsAppTest.press(app (app.fontMenu.triggerTid()))
+        c.ok("a press on another trigger closes the open one" (app.numMenu.open == false))
+        app.key("Escape" false false)
+        c.ok("Escape closes a menu" (app.fontMenu.open == false))
+
+        print "tabs"
+        c.ok("Insert is a tab" (DocsAppTest.press(app (app.tabs.tabTid("insert")))))
+        c.ok("its groups replace Home's" (((strlen (app.rectOf("dx-big-break"))) > 0) && ((strlen (app.rectOf("dx-rb-char-bold"))) == 0)))
+        def pages0:int (app.web.pageCount())
+        DocsAppTest.clickText(app "grew")
+        DocsAppTest.press(app "dx-big-break")
+        def s0:string (app.scene())
+        c.ok("Page Break breaks the page" ((app.web.pageCount()) >= pages0))
+        DocsAppTest.press(app (app.tabs.tabTid("view")))
+        def navWas:boolean app.web.app.nav.visible
+        DocsAppTest.press(app "dx-rb-show-v-nav")
+        c.ok("the navigation pane is a toggle" (app.web.app.nav.visible != navWas))
+        DocsAppTest.press(app "dx-rb-show-v-nav")
+        DocsAppTest.press(app "dx-rb-views-v-read")
+        c.ok("Reading mode from the View tab" ((app.web.editMode()) == false))
+        DocsAppTest.press(app "dx-rb-views-v-edit")
+        c.ok("and back to Editing" (app.web.editMode()))
+        DocsAppTest.press(app (app.tabs.tabTid("home")))
+
+        print "keys and text"
+        DocsAppTest.clickText(app "enterprise")
+        app.key("End" false false)
+        app.text("!" false false)
+        c.ok("typing reaches the document" ((indexOf (DocsAppTest.textWith(app "enterprise")) "!") >= 0))
+        app.text("z" false true)
+        c.ok("Ctrl+Z undoes it" ((indexOf (DocsAppTest.textWith(app "enterprise")) "!") < 0))
+        app.key("F6" false false)
+        c.ok("F6 leaves the document" (app.docFocused == false))
+        app.key("Escape" false false)
+        c.ok("Escape gives it back" app.docFocused)
+
+        print "find and replace"
+        app.text("h" false true)
+        c.ok("Ctrl+H opens the dialog" (app.dialogOpen()))
+        c.ok("focus is in the query" (app.ui.focusId == "dx-find-query"))
+        app.find.findIn.setValue("Revenue")
+        app.find.replIn.setValue("Income")
+        DocsAppTest.press(app "dx-find-all")
+        c.ok("Replace all replaced" ((indexOf app.find.statusEl.textContent "replaced") == 0))
+        c.ok("the document has the new word" ((strlen (DocsAppTest.textWith(app "Income"))) > 0))
+        app.key("Escape" false false)
+        c.ok("Escape closes it" ((app.dialogOpen()) == false))
+        c.ok("and the document has the keyboard again" app.docFocused)
+
+        print "presets and theme"
+        c.ok("dark" (app.setTheme("dark")))
+        def lightTheme (new DocxChromeTheme)
+        c.ok("the frame turns too" (app.web.app.chrome.theme.desk.r != lightTheme.desk.r))
+        c.ok("light" (app.setTheme("light")))
+        c.ok("viewer" (app.setPreset("viewer")))
+        def sv:string (app.scene())
+        c.ok("a viewer has no ribbon" ((strlen (app.rectOf("dx-rb-char-bold"))) == 0))
+        c.ok("and is not editable" ((app.web.editMode()) == false))
+        def before:string (DocsAppTest.textWith(app "Income"))
+        app.text("q" false false)
+        c.ok("typing does nothing" ((DocsAppTest.textWith(app "Income")) == before))
+        c.ok("full again" (app.setPreset("full")))
+
+        print ("DocsAppTest: " + (to_string c.passed) + " passed, " + (to_string c.failed) + " failed")
+        if (c.failed > 0) {
+            print "SOME CHECKS FAILED"
+        } {
+            print "ALL PASS"
+        }
+    }
+
+    sfn checkedValue:string (mc:MenuCtl) {
+        def i:int 0
+        while (i < (array_length mc.items)) {
+            def it:UiItem (itemAt mc.items i)
+            if it.checked {
+                return it.value
+            }
+            i = (i + 1)
+        }
+        return ""
+    }
+}
+

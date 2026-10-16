@@ -8,3 +8,6 @@ harness/out/
 # gallery/datagrid/artifacts/ is.
 !docx_chart_pasted.png
 !docx_chart_edited.png
+.stage/
+.deps/
+dist/

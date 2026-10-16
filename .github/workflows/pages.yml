@@ -1,7 +1,11 @@
-# Builds the web editor (web/standalone) from main and publishes it to GitHub
-# Pages. RangerDocx builds inside a Ranger checkout at gallery/docx_viewer, so
-# the job checks out Ranger master, fetches its deps, swaps in this commit with
-# `npm run deps -- --from=...`, and runs the standalone build.
+# Builds the web editor from main and publishes it to GitHub Pages.
+#
+#   /          the editor with its EVGUI interface (shell/, scripts/build.mjs),
+#              built against Ranger master, EVGUI and EVGSheets' RibbonCtl
+#   /classic/  the editor with the core's own drawn frame (web/standalone)
+#
+# RangerDocx builds inside a Ranger checkout, so the job checks out Ranger
+# master, fetches its deps and swaps in this commit with deps --from.
 name: Deploy test version to GitHub Pages
 
 on:
@@ -32,6 +36,16 @@ jobs:
           repository: terotests/Ranger
           ref: master
           path: ranger
+      - name: Check out EVGUI
+        uses: actions/checkout@v4
+        with:
+          repository: terotests/EVGUI
+          path: evgui
+      - name: Check out EVGSheets
+        uses: actions/checkout@v4
+        with:
+          repository: terotests/EVGSheets
+          path: evgsheets
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
@@ -43,9 +57,13 @@ jobs:
       - name: Use this commit as gallery/docx_viewer
         working-directory: ranger
         run: node scripts/deps.mjs --from="$GITHUB_WORKSPACE/rangerdocx"
-      - name: Build the web editor
+      - name: Test the EVGUI shell
+        run: node rangerdocx/scripts/build.mjs --ranger ranger --evgui evgui --evgsheets evgsheets --test
+      - name: Build the editor with the EVGUI shell
+        run: node rangerdocx/scripts/build.mjs --ranger ranger --evgui evgui --evgsheets evgsheets --out "$GITHUB_WORKSPACE/site"
+      - name: Build the classic frame
         working-directory: ranger
-        run: bash gallery/docx_viewer/web/standalone/build.sh --out "$GITHUB_WORKSPACE/site"
+        run: bash gallery/docx_viewer/web/standalone/build.sh --out "$GITHUB_WORKSPACE/site/classic"
       - name: Stamp the commit
         run: echo "${GITHUB_SHA}" > site/commit.txt
       - uses: actions/upload-pages-artifact@v3

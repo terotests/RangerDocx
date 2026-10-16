@@ -1,0 +1,2046 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; =============================================================================
+; DocsApp — the RangerDocx word processor with an EVGUI interface around it
+; =============================================================================
+;
+;   ┌─ header ── ▤ RangerDocx  💾 ↶ ↷ ───── report.docx · Edited ── [Download] ┐
+;   ├─ tab row ─ File  Home  Insert  Layout  References  Review  View  Editing▾ ┤
+;   ├─ ribbon ── Clipboard │ Font │ Paragraph │ Styles │ Editing ──────────────┤
+;   │ ┌─ the core (DocxApp, hosted): navigation pane, rulers, pages ──────────┐ │
+;   │ └───────────────────────────────────────────────────────────────────────┘ │
+;   ├─ footer ── Page 1 of 9 · 1923 words · Editing ─────────── − 100% + ──────┤
+;   └───────────────────────────────────────────────────────────────────────────┘
+;
+; The same split as EVGSheets' SheetsApp, and on purpose: the two editors look
+; and behave as one family. The CORE is DocxApp in hosted mode — the document
+; model, the layout, the caret, the editing, the navigation pane and the
+; rulers. The INTERFACE is EVGUI: a menubar, tabs, dropdown menus, ribbon
+; groups of RibbonCtl buttons (EVGSheets' controller) and modal dialogs, in one
+; UiHost and one stylesheet (docs.css, light and dark).
+;
+; The seam is the display list. The element `dx-doc` is a placeholder whose
+; rectangle is the core's window; the core's list is painted INTO it with
+; `EVGDisplayList.paintAt`, so a menu that drops over the page is drawn over
+; it.
+;
+; State is asked for, never mirrored: Bold is pressed because the run under
+; the caret is bold, read again from the core after every input.
+; =============================================================================
+
+Import "../web/docx_web.rgr"
+Import "../../evgui/src/UiHost.rgr"
+Import "../../evgsheets/src/RibbonCtl.rgr"
+Import "DocsIcons.rgr"
+Import "DxFindDialog.rgr"
+Import "pkg:evg/EVGElement.rgr"
+Import "pkg:evg/EVGUnit.rgr"
+Import "pkg:evg/EVGLayout.rgr"
+Import "pkg:evg/EVGDisplayList.rgr"
+Import "pkg:evg/EVGA11yTree.rgr"
+
+; What a ribbon button or a menu row runs: a core command and its argument,
+; or one of the shell's own ("dx:…").
+class DxAction {
+    def value:string ""
+    def command:string ""
+    def arg:string ""
+    def shortcut:string ""
+}
+
+class DocsApp {
+    def web:DocxWeb (new DocxWeb)
+    def ui:UiHost (new UiHost)
+
+    ; --- the chrome's controllers ---------------------------------------------
+    def fileBar:MenubarCtl (new MenubarCtl)
+    def tabs:TabsCtl (new TabsCtl)
+    def quick:RibbonCtl (new RibbonCtl)
+    def dlBtn:ButtonCtl (new ButtonCtl)
+    def modeMenu:MenuCtl (new MenuCtl)
+    def footTools:RibbonCtl (new RibbonCtl)
+
+    ; Home
+    def clipRb:RibbonCtl (new RibbonCtl)
+    def fontMenu:MenuCtl (new MenuCtl)
+    def sizeMenu:MenuCtl (new MenuCtl)
+    def sizeRb:RibbonCtl (new RibbonCtl)
+    def caseMenu:MenuCtl (new MenuCtl)
+    def clearRb:RibbonCtl (new RibbonCtl)
+    def charRb:RibbonCtl (new RibbonCtl)
+    def hlRb:RibbonCtl (new RibbonCtl)
+    def hlMenu:MenuCtl (new MenuCtl)
+    def colorRb:RibbonCtl (new RibbonCtl)
+    def colorMenu:MenuCtl (new MenuCtl)
+    def bulletRb:RibbonCtl (new RibbonCtl)
+    def bulletMenu:MenuCtl (new MenuCtl)
+    def numRb:RibbonCtl (new RibbonCtl)
+    def numMenu:MenuCtl (new MenuCtl)
+    def indentRb:RibbonCtl (new RibbonCtl)
+    def alignRb:RibbonCtl (new RibbonCtl)
+    def spacingMenu:MenuCtl (new MenuCtl)
+    def paraMoreRb:RibbonCtl (new RibbonCtl)
+    def stylesRb:RibbonCtl (new RibbonCtl)
+    def stylesRb2:RibbonCtl (new RibbonCtl)
+    def editRb:RibbonCtl (new RibbonCtl)
+    ; Insert
+    def pagesRb:RibbonCtl (new RibbonCtl)
+    def tableMenu:MenuCtl (new MenuCtl)
+    def illusRb:RibbonCtl (new RibbonCtl)
+    def linksRb:RibbonCtl (new RibbonCtl)
+    ; Layout
+    def setupRb:RibbonCtl (new RibbonCtl)
+    def layParaRb:RibbonCtl (new RibbonCtl)
+    ; References, Review
+    def refRb:RibbonCtl (new RibbonCtl)
+    def reviewRb:RibbonCtl (new RibbonCtl)
+    ; View
+    def viewsRb:RibbonCtl (new RibbonCtl)
+    def showRb:RibbonCtl (new RibbonCtl)
+    def zoomRb:RibbonCtl (new RibbonCtl)
+    def turnRb:RibbonCtl (new RibbonCtl)
+
+    ; --- the page's elements --------------------------------------------------
+    def headerEl:EVGElement (EVGElement.createDiv())
+    def tabRowEl:EVGElement (EVGElement.createDiv())
+    def ribbonEl:EVGElement (EVGElement.createDiv())
+    def docEl:EVGElement (EVGElement.createDiv())
+    def footerEl:EVGElement (EVGElement.createDiv())
+    def titleEl:EVGElement (EVGElement.createSpan())
+    def nameEl:EVGElement (EVGElement.createSpan())
+    def editedEl:EVGElement (EVGElement.createSpan())
+    def statusEl:EVGElement (EVGElement.createSpan())
+    def dlgHolder:EVGElement (EVGElement.createDiv())
+
+    def find:DxFindDialog (new DxFindDialog)
+
+    def actions:[string:DxAction]
+    ; Dropdown triggers drawn as a glyph (and a chevron) rather than a word:
+    ; trigger id → icon name, "" for a bare chevron (the arrow half of a split
+    ; button).
+    def glyphTriggers:[string:string]
+    ; The big buttons (Paste, Page Break…): ButtonCtl id → action value.
+    def bigButtons:[ButtonCtl]
+
+    ; --- parameters -----------------------------------------------------------
+    def preset:string "full"
+    def showHeader:boolean true
+    def showRibbon:boolean true
+    def showStatus:boolean true
+    def readOnly:boolean false
+    def theme:string "light"
+    def title:string "RangerDocx"
+    def tab:string "home"
+
+    ; --- geometry and input state ---------------------------------------------
+    def pageW:double 1200.0
+    def pageH:double 800.0
+    def gx:int 0
+    def gy:int 0
+    def gw:int 0
+    def gh:int 0
+    ; Does the document have the keyboard (rather than the chrome)?
+    def docFocused:boolean true
+    ; A press that landed in the document: every move until the release is
+    ; the document's, wherever the pointer goes.
+    def docCapture:boolean false
+    def held:boolean false
+    def built:boolean false
+    def lastColor:string "C00000"
+
+    Constructor () {
+        def m:[string:DxAction]
+        actions = m
+        def g:[string:string]
+        glyphTriggers = g
+        def b:[ButtonCtl]
+        bigButtons = b
+    }
+
+    ; =========================================================================
+    ; Starting up
+    ; =========================================================================
+
+    fn start:void (w:int h:int css:string) {
+        pageW = (to_double w)
+        pageH = (to_double h)
+        ui.setPageSize(pageW pageH)
+        if ((strlen css) > 0) {
+            ui.addStyleSheet(css)
+        }
+        web.start()
+        web.app.setHosted(true)
+        web.setContinuous(true)
+        web.frameSize(w h)
+        this.buildModels()
+        this.buildChrome()
+        built = true
+    }
+
+    fn addFont:boolean (family:string data:buffer) {
+        return (web.addFont(family data))
+    }
+
+    fn addFace:boolean (data:buffer) {
+        return (web.addFace(data))
+    }
+
+    ; Opened for editing, as Word opens a document, unless the editor is a
+    ; viewer.
+    fn openDocument:boolean (data:buffer name:string) {
+        def ok:boolean (web.openDocument(data name))
+        if (ok && (readOnly == false)) {
+            web.setEditMode(true)
+        }
+        this.sync()
+        return ok
+    }
+
+    ; The same from a file, for a host with a file system (the tests).
+    fn openFile:boolean (dir:string file:string) {
+        def ok:boolean (web.viewer.openFile(dir file))
+        if ok {
+            web.app.markOpened(file)
+            if (readOnly == false) {
+                web.setEditMode(true)
+            }
+        }
+        this.sync()
+        return ok
+    }
+
+    fn resize:void (w:int h:int) {
+        pageW = (to_double w)
+        pageH = (to_double h)
+        ui.setPageSize(pageW pageH)
+    }
+
+    ; =========================================================================
+    ; Parameters
+    ; =========================================================================
+
+    ;   full     header, tabs and ribbon, status bar
+    ;   compact  the Home ribbon and the status bar, no header
+    ;   viewer   read-only: the pages and the status bar
+    fn setPreset:boolean (name:string) {
+        def n:string (to_lowercase (trim name))
+        if (n == "full") {
+            showHeader = true
+            showRibbon = true
+            showStatus = true
+            readOnly = false
+        } {
+            if (n == "compact") {
+                showHeader = false
+                showRibbon = true
+                showStatus = true
+                readOnly = false
+            } {
+                if (n == "viewer") {
+                    showHeader = false
+                    showRibbon = false
+                    showStatus = true
+                    readOnly = true
+                } {
+                    return false
+                }
+            }
+        }
+        preset = n
+        this.applyReadOnly()
+        this.rebuildChrome()
+        return true
+    }
+
+    fn setOption:boolean (name:string value:string) {
+        def on:boolean ((value == "true") || (value == "1") || (value == "on") || (value == "yes"))
+        if (name == "header") {
+            showHeader = on
+        } {
+            if (name == "ribbon") {
+                showRibbon = on
+            } {
+                if (name == "status") {
+                    showStatus = on
+                } {
+                    if (name == "readOnly") {
+                        readOnly = on
+                        this.applyReadOnly()
+                    } {
+                        if (name == "theme") {
+                            return (this.setTheme(value))
+                        } {
+                            if (name == "name") {
+                                title = value
+                            } {
+                                if (name == "nav") {
+                                    web.app.nav.visible = on
+                                } {
+                                    return false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        this.rebuildChrome()
+        return true
+    }
+
+    fn applyReadOnly:void () {
+        if readOnly {
+            web.setEditMode(false)
+        }
+    }
+
+    fn setTheme:boolean (name:string) {
+        def n:string (to_lowercase (trim name))
+        if ((n != "light") && (n != "dark")) {
+            return false
+        }
+        theme = n
+        if (n == "dark") {
+            ui.setTheme("dark")
+        } {
+            ui.setTheme("")
+        }
+        web.app.setDarkUi((n == "dark"))
+        this.sync()
+        return true
+    }
+
+    ; =========================================================================
+    ; The models
+    ; =========================================================================
+
+    fn act:DxAction (value:string command:string arg:string shortcut:string) {
+        def a (new DxAction())
+        a.value = value
+        a.command = command
+        a.arg = arg
+        a.shortcut = shortcut
+        set actions value a
+        return a
+    }
+
+    fn item:void (mc:MenuCtl value:string label:string command:string arg:string shortcut:string) {
+        this.act(value command arg shortcut)
+        mc.addItem(value label false)
+    }
+
+    fn radio:void (mc:MenuCtl value:string label:string group:string command:string arg:string) {
+        this.act(value command arg "")
+        def it:UiItem (mc.addRadio(value label group false))
+    }
+
+    fn tool:RibbonItem (r:RibbonCtl value:string name:string icon:string command:string arg:string toggle:boolean) {
+        this.act(value command arg "")
+        if toggle {
+            return (r.addToggle(value name (DocsIcons.of(icon))))
+        }
+        return (r.add(value name (DocsIcons.of(icon))))
+    }
+
+    ; A button for a feature this editor does not have yet: shown, greyed, so
+    ; the ribbon reads like Word's and the gap is visible.
+    fn missing:void (r:RibbonCtl value:string name:string icon:string) {
+        def it:RibbonItem (r.add(value name (DocsIcons.of(icon))))
+        it.disabled = true
+    }
+
+    fn ribbon:RibbonCtl (r:RibbonCtl tid:string name:string) {
+        r.tid = tid
+        r.name = name
+        def empty:[RibbonItem]
+        r.items = empty
+        r.rovingValue = ""
+        return r
+    }
+
+    fn menu:MenuCtl (tid:string name:string) {
+        def mc (new MenuCtl)
+        mc.tid = tid
+        mc.name = name
+        return mc
+    }
+
+    fn glyphMenu:MenuCtl (tid:string name:string icon:string) {
+        def mc:MenuCtl (this.menu(tid name))
+        set glyphTriggers (mc.triggerTid()) icon
+        return mc
+    }
+
+    fn big:ButtonCtl (tid:string name:string icon:string command:string arg:string) {
+        def b (new ButtonCtl)
+        b.tid = tid
+        b.name = name
+        b.variant = "ghost"
+        b.icon = (DocsIcons.of(icon))
+        b.iconClass = "dx-big-icon"
+        this.act(tid command arg "")
+        push bigButtons b
+        return b
+    }
+
+    fn buildModels:void () {
+        def noGlyph:[string:string]
+        glyphTriggers = noGlyph
+
+        ; --- header: quick access and Download -----------------------------
+        this.ribbon(quick "dx-quick" "Quick access")
+        this.tool(quick "q-save" "Save a copy (Ctrl+S)" "save" "file.save" "" false)
+        this.tool(quick "q-undo" "Undo (Ctrl+Z)" "undo" "edit.undo" "" false)
+        this.tool(quick "q-redo" "Redo (Ctrl+Y)" "redo" "edit.redo" "" false)
+        dlBtn = (new ButtonCtl)
+        dlBtn.tid = "dx-download"
+        dlBtn.name = "Download"
+        dlBtn.variant = "primary"
+        this.act("dx-download" "file.save" "" "")
+
+        ; --- the tab row ---------------------------------------------------
+        fileBar = (new MenubarCtl)
+        fileBar.tid = "dx-mb"
+        fileBar.name = "File menu"
+        fileBar.addMenu("file" "File")
+        def f:MenuCtl (fileBar.attachMenu("file"))
+        this.item(f "f-open" "Open…" "file.open" "" "Ctrl+O")
+        this.item(f "f-save" "Download .docx" "file.save" "" "Ctrl+S")
+        this.item(f "f-print" "Print…" "file.print" "" "Ctrl+P")
+
+        tabs = (new TabsCtl)
+        tabs.tid = "dx-tabs"
+        tabs.name = "Ribbon tabs"
+        tabs.addItem("home" "Home" "" false)
+        tabs.addItem("insert" "Insert" "" false)
+        tabs.addItem("layout" "Layout" "" false)
+        tabs.addItem("references" "References" "" false)
+        tabs.addItem("review" "Review" "" false)
+        tabs.addItem("view" "View" "" false)
+        tabs.value = tab
+        tabs.rovingValue = tab
+
+        modeMenu = (this.glyphMenu("dx-mode" "Editing" "edit"))
+        this.radio(modeMenu "m-edit" "Editing" "mode" "dx:mode" "edit")
+        this.radio(modeMenu "m-read" "Reading" "mode" "dx:mode" "read")
+
+        ; --- Home ------------------------------------------------------------
+        this.ribbon(clipRb "dx-rb-clip" "Clipboard")
+        this.tool(clipRb "cut" "Cut (Ctrl+X)" "cut" "edit.cut" "" false)
+        this.tool(clipRb "copy" "Copy (Ctrl+C)" "copy" "edit.copy" "" false)
+        this.tool(clipRb "painter" "Format painter" "painter" "format.painter" "" true)
+
+        fontMenu = (this.menu("dx-font" "Open Sans"))
+        def fi:int 0
+        while (fi < (DocxApp.faceCount())) {
+            def fname:string (DocxApp.faceName(fi))
+            this.radio(fontMenu ("font-" + (to_string fi)) fname "font" "format.font" fname)
+            fi = (fi + 1)
+        }
+        sizeMenu = (this.menu("dx-size" "11"))
+        def sizes:[string] ([] _:string ("8" "9" "10" "11" "12" "14" "16" "18" "20" "24" "28" "36" "48" "72"))
+        def si:int 0
+        while (si < (array_length sizes)) {
+            def sz:string (itemAt sizes si)
+            this.radio(sizeMenu ("size-" + sz) sz "size" "format.size" sz)
+            si = (si + 1)
+        }
+        this.ribbon(sizeRb "dx-rb-size" "Font size")
+        this.tool(sizeRb "grow" "Grow font" "grow" "format.size.up" "" false)
+        this.tool(sizeRb "shrink" "Shrink font" "shrink" "format.size.down" "" false)
+        caseMenu = (this.glyphMenu("dx-case" "Change case" "case"))
+        this.item(caseMenu "case-sentence" "Sentence case." "format.case" "sentence" "")
+        this.item(caseMenu "case-lower" "lowercase" "format.case" "lower" "")
+        this.item(caseMenu "case-upper" "UPPERCASE" "format.case" "upper" "")
+        this.item(caseMenu "case-title" "Capitalize Each Word" "format.case" "title" "")
+        this.item(caseMenu "case-toggle" "tOGGLE cASE" "format.case" "toggle" "")
+        this.ribbon(clearRb "dx-rb-clear" "Clear")
+        this.tool(clearRb "clear" "Clear all formatting" "clear" "format.clear" "" false)
+
+        this.ribbon(charRb "dx-rb-char" "Character")
+        def b:RibbonItem (this.tool(charRb "bold" "Bold" "bold" "format.bold" "" true))
+        b.shortcut = "Control+B"
+        def it:RibbonItem (this.tool(charRb "italic" "Italic" "italic" "format.italic" "" true))
+        it.shortcut = "Control+I"
+        def u:RibbonItem (this.tool(charRb "underline" "Underline" "underline" "format.underline" "" true))
+        u.shortcut = "Control+U"
+        this.tool(charRb "strike" "Strikethrough" "strike" "format.strike" "" true)
+        this.tool(charRb "sub" "Subscript" "sub" "format.subscript" "" true)
+        this.tool(charRb "sup" "Superscript" "sup" "format.superscript" "" true)
+
+        this.ribbon(hlRb "dx-rb-hl" "Highlight")
+        def hl:RibbonItem (this.tool(hlRb "highlight" "Text highlight colour" "highlight" "format.highlight" "" true))
+        hl.swatch = "#ffff00"
+        hlMenu = (this.glyphMenu("dx-hl" "Highlight colours" ""))
+        def hls:[string] ([] _:string ("yellow|Yellow" "green|Bright green" "cyan|Turquoise" "magenta|Pink" "blue|Blue" "red|Red" "lightGray|Grey 25%"))
+        def hi:int 0
+        while (hi < (array_length hls)) {
+            def hp:[string] (strsplit (itemAt hls hi) "|")
+            this.radio(hlMenu ("hl-" + (itemAt hp 0)) (itemAt hp 1) "hl" "format.highlight" (itemAt hp 0))
+            hi = (hi + 1)
+        }
+        hlMenu.addSeparator()
+        this.item(hlMenu "hl-none" "No colour" "format.highlight" "none" "")
+
+        this.ribbon(colorRb "dx-rb-color" "Font colour")
+        def fc:RibbonItem (this.tool(colorRb "color" "Font colour" "color" "dx:color" "" false))
+        fc.swatch = ("#" + lastColor)
+        colorMenu = (this.glyphMenu("dx-color" "Font colours" ""))
+        def cols:[string] ([] _:string ("000000|Automatic" "C00000|Dark red" "FF0000|Red" "FFC000|Orange" "00B050|Green" "0070C0|Blue" "7030A0|Purple"))
+        def ci:int 0
+        while (ci < (array_length cols)) {
+            def cp:[string] (strsplit (itemAt cols ci) "|")
+            this.radio(colorMenu ("col-" + (itemAt cp 0)) (itemAt cp 1) "col" "dx:color" (itemAt cp 0))
+            ci = (ci + 1)
+        }
+        colorMenu.addSeparator()
+        this.item(colorMenu "col-more" "More colours…" "format.color" "" "")
+
+        this.ribbon(bulletRb "dx-rb-bullets" "Bullets")
+        this.tool(bulletRb "bullets" "Bullets" "bullets" "para.bullets" "" true)
+        bulletMenu = (this.glyphMenu("dx-bullets" "Bullet library" ""))
+        this.radio(bulletMenu "bl-none" "None" "bl" "para.bullets" "none")
+        def looks:[string] ([] _:string ("•|Filled round" "○|Hollow round" "■|Filled square" "◆|Diamond" "–|Dash" "✓|Check mark"))
+        def li:int 0
+        while (li < (array_length looks)) {
+            def lp:[string] (strsplit (itemAt looks li) "|")
+            this.radio(bulletMenu ("bl-" + (to_string li)) ((itemAt lp 0) + "   " + (itemAt lp 1)) "bl" "para.bullets" ("bullet:" + (itemAt lp 0)))
+            li = (li + 1)
+        }
+
+        this.ribbon(numRb "dx-rb-numbers" "Numbering")
+        this.tool(numRb "numbering" "Numbering" "numbering" "para.numbering" "" true)
+        numMenu = (this.glyphMenu("dx-numbers" "Numbering library" ""))
+        this.radio(numMenu "nl-none" "None" "nl" "para.numbering" "none")
+        def nf:[string] ([] _:string ("decimal:%1.|1. 2. 3." "decimal:%1)|1) 2) 3)" "upperRoman:%1.|I. II. III." "upperLetter:%1.|A. B. C." "lowerLetter:%1)|a) b) c)" "lowerLetter:%1.|a. b. c." "lowerRoman:%1.|i. ii. iii."))
+        def ni:int 0
+        while (ni < (array_length nf)) {
+            def np:[string] (strsplit (itemAt nf ni) "|")
+            this.radio(numMenu ("nl-" + (to_string ni)) (itemAt np 1) "nl" "para.numbering" (itemAt np 0))
+            ni = (ni + 1)
+        }
+
+        this.ribbon(indentRb "dx-rb-indent" "Indent")
+        this.missing(indentRb "multilevel" "Multilevel list" "multilevel")
+        this.tool(indentRb "outdent" "Decrease indent" "outdent" "text.outdent" "" false)
+        this.tool(indentRb "indent" "Increase indent" "indent" "text.indent" "" false)
+        this.missing(indentRb "sort" "Sort" "sort")
+        this.missing(indentRb "marks" "Show paragraph marks" "pilcrow")
+
+        this.ribbon(alignRb "dx-rb-align" "Alignment")
+        this.tool(alignRb "left" "Align left" "left" "para.align" "0" true)
+        this.tool(alignRb "center" "Centre" "center" "para.align" "1" true)
+        this.tool(alignRb "right" "Align right" "right" "para.align" "2" true)
+        this.tool(alignRb "justify" "Justify" "justify" "para.align" "3" true)
+        spacingMenu = (this.glyphMenu("dx-spacing" "Line and paragraph spacing" "spacing"))
+        def sp:[string] ([] _:string ("1.0" "1.15" "1.5" "2.0" "2.5" "3.0"))
+        def spi:int 0
+        while (spi < (array_length sp)) {
+            this.radio(spacingMenu ("sp-" + (itemAt sp spi)) (itemAt sp spi) "sp" "para.spacing" (itemAt sp spi))
+            spi = (spi + 1)
+        }
+        spacingMenu.addSeparator()
+        this.act("sp-before" "para.spaceBefore" "" "")
+        def c1:UiItem (spacingMenu.addCheckbox("sp-before" "Space before paragraph" false))
+        this.act("sp-after" "para.spaceAfter" "" "")
+        def c2:UiItem (spacingMenu.addCheckbox("sp-after" "Space after paragraph" false))
+        this.ribbon(paraMoreRb "dx-rb-paramore" "Shading and borders")
+        this.missing(paraMoreRb "shading" "Shading" "shading")
+        this.missing(paraMoreRb "borders" "Borders" "borders")
+
+        ; Two rows of three, the way Word's gallery sits in its group.
+        this.ribbon(stylesRb "dx-rb-styles" "Styles")
+        this.ribbon(stylesRb2 "dx-rb-styles2" "More styles")
+        def st:[string] ([] _:string ("Normal|Normal" "Heading1|Heading 1" "Title|Title" "NoSpacing|No Spacing" "Heading2|Heading 2" "Subtitle|Subtitle"))
+        def sti:int 0
+        while (sti < (array_length st)) {
+            def stp:[string] (strsplit (itemAt st sti) "|")
+            def into:RibbonCtl (? (sti < 3) stylesRb stylesRb2)
+            def sItem:RibbonItem (this.tool(into ("st-" + (itemAt stp 0)) (itemAt stp 1) "" "format.style" (itemAt stp 0) true))
+            sItem.text = (itemAt stp 1)
+            sti = (sti + 1)
+        }
+
+        this.ribbon(editRb "dx-rb-edit" "Editing")
+        def fItem:RibbonItem (this.tool(editRb "find" "Find (Ctrl+F)" "find" "edit.find" "" false))
+        def rItem:RibbonItem (this.tool(editRb "replace" "Replace (Ctrl+H)" "replace" "dx:replace" "" false))
+        this.tool(editRb "selectall" "Select all (Ctrl+A)" "select" "edit.selectAll" "" false)
+
+        ; --- Insert --------------------------------------------------------
+        this.ribbon(pagesRb "dx-rb-pages" "Pages")
+        this.tool(pagesRb "pagebreak" "Page break (Ctrl+Enter)" "pagebreak" "insert.pageBreak" "" false)
+        tableMenu = (this.glyphMenu("dx-table" "Insert table" "table"))
+        def tsz:[string] ([] _:string ("2x2" "2x3" "3x3" "3x4" "4x4" "5x3" "6x4"))
+        def ti:int 0
+        while (ti < (array_length tsz)) {
+            def d:[string] (strsplit (itemAt tsz ti) "x")
+            this.item(tableMenu ("tb-" + (itemAt tsz ti)) ((itemAt d 0) + " rows × " + (itemAt d 1) + " columns") "insert.table" (itemAt tsz ti) "")
+            ti = (ti + 1)
+        }
+        this.ribbon(illusRb "dx-rb-illus" "Illustrations")
+        this.missing(illusRb "picture" "Pictures" "picture")
+        this.missing(illusRb "shapes" "Shapes" "shapes")
+        this.missing(illusRb "chart" "Chart" "chart")
+        this.ribbon(linksRb "dx-rb-links" "Links and text")
+        this.missing(linksRb "link" "Link" "link")
+        this.missing(linksRb "comment" "Comment" "comment")
+        this.missing(linksRb "textbox" "Text box" "textbox")
+
+        ; --- Layout --------------------------------------------------------
+        this.ribbon(setupRb "dx-rb-setup" "Page setup")
+        this.missing(setupRb "margins" "Margins" "margins")
+        this.missing(setupRb "orientation" "Orientation" "orientation")
+        this.missing(setupRb "pagesize" "Size" "pagesize")
+        this.ribbon(layParaRb "dx-rb-laypara" "Paragraph")
+        this.tool(layParaRb "l-outdent" "Indent less" "outdent" "text.outdent" "" false)
+        this.tool(layParaRb "l-indent" "Indent more" "indent" "text.indent" "" false)
+        this.tool(layParaRb "l-before" "Space before paragraph" "before" "para.spaceBefore" "" true)
+        this.tool(layParaRb "l-after" "Space after paragraph" "after" "para.spaceAfter" "" true)
+        this.tool(layParaRb "l-break" "Page break" "pagebreak" "insert.pageBreak" "" false)
+
+        ; --- References and Review -----------------------------------------
+        this.ribbon(refRb "dx-rb-ref" "References")
+        this.missing(refRb "toc" "Table of contents" "toc")
+        this.missing(refRb "footnote" "Insert footnote" "footnote")
+        this.ribbon(reviewRb "dx-rb-review" "Review")
+        this.missing(reviewRb "spelling" "Spelling" "spelling")
+        this.missing(reviewRb "newcomment" "New comment" "comment")
+        this.missing(reviewRb "track" "Track changes" "track")
+
+        ; --- View ------------------------------------------------------------
+        this.ribbon(viewsRb "dx-rb-views" "Views")
+        this.tool(viewsRb "v-edit" "Editing" "edit" "dx:mode" "edit" true)
+        this.tool(viewsRb "v-read" "Reading" "read" "dx:mode" "read" true)
+        this.tool(viewsRb "v-continuous" "Print layout: every page" "continuous" "view.continuous" "" true)
+        this.ribbon(showRb "dx-rb-show" "Show")
+        this.tool(showRb "v-nav" "Navigation pane" "nav" "view.nav" "" true)
+        this.tool(showRb "v-ruler" "Ruler" "ruler" "view.ruler" "" true)
+        this.tool(showRb "v-rtl" "Right to left" "rtl" "view.rtl" "" true)
+        this.ribbon(zoomRb "dx-rb-zoom" "Zoom")
+        this.tool(zoomRb "z-out" "Zoom out" "zoomout" "view.zoom.out" "" false)
+        this.tool(zoomRb "z-in" "Zoom in" "zoomin" "view.zoom.in" "" false)
+        def zr:RibbonItem (this.tool(zoomRb "z-reset" "Zoom to 100%" "" "view.zoom.reset" "" false))
+        zr.text = "100%"
+        this.ribbon(turnRb "dx-rb-turn" "Pages")
+        this.tool(turnRb "p-prev" "Previous page" "prev" "page.prev" "" false)
+        this.tool(turnRb "p-next" "Next page" "next" "page.next" "" false)
+
+        ; --- footer ----------------------------------------------------------
+        this.ribbon(footTools "dx-foot" "Zoom")
+        this.tool(footTools "f-out" "Zoom out" "zoomout" "view.zoom.out" "" false)
+        def fz:RibbonItem (this.tool(footTools "f-reset" "Zoom to 100%" "" "view.zoom.reset" "" false))
+        fz.text = "100%"
+        this.tool(footTools "f-in" "Zoom in" "zoomin" "view.zoom.in" "" false)
+    }
+
+    ; Every ribbon group, for the press loop and the builds.
+    fn ribbons:[RibbonCtl] () {
+        def a:[RibbonCtl]
+        push a quick
+        push a footTools
+        push a clipRb
+        push a sizeRb
+        push a clearRb
+        push a charRb
+        push a hlRb
+        push a colorRb
+        push a bulletRb
+        push a numRb
+        push a indentRb
+        push a alignRb
+        push a paraMoreRb
+        push a stylesRb
+        push a stylesRb2
+        push a editRb
+        push a pagesRb
+        push a illusRb
+        push a linksRb
+        push a setupRb
+        push a layParaRb
+        push a refRb
+        push a reviewRb
+        push a viewsRb
+        push a showRb
+        push a zoomRb
+        push a turnRb
+        return a
+    }
+
+    fn dropdowns:[MenuCtl] () {
+        def a:[MenuCtl]
+        push a modeMenu
+        push a fontMenu
+        push a sizeMenu
+        push a caseMenu
+        push a hlMenu
+        push a colorMenu
+        push a bulletMenu
+        push a numMenu
+        push a spacingMenu
+        push a tableMenu
+        return a
+    }
+
+    fn allMenus:[MenuCtl] () {
+        def a:[MenuCtl] (this.dropdowns())
+        def i:int 0
+        while (i < (array_length fileBar.menus)) {
+            def m:UiMenu (itemAt fileBar.menus i)
+            push a m.menu
+            i = (i + 1)
+        }
+        return a
+    }
+
+    ; =========================================================================
+    ; The page
+    ; =========================================================================
+
+    fn mount:void (parent:EVGElement c:UiCtl) {
+        push ui.ctls c
+        def el:EVGElement (unwrap c.rootEl)
+        parent.addChild(el)
+    }
+
+    fn div:EVGElement (cls:string) {
+        def d:EVGElement (EVGElement.createDiv())
+        d.className = cls
+        return d
+    }
+
+    fn words:EVGElement (cls:string text:string) {
+        def s:EVGElement (EVGElement.createSpan())
+        s.className = cls
+        s.elementType = 1
+        s.textContent = text
+        return s
+    }
+
+    ; A ribbon group: its controls in rows, its name under them.
+    fn group:EVGElement (label:string) {
+        if ((array_length ribbonEl.children) > 0) {
+            def sep:EVGElement (this.div("dx-group-sep"))
+            sep.a11yHidden = true
+            ribbonEl.addChild(sep)
+        }
+        def g:EVGElement (this.div("dx-group"))
+        def body:EVGElement (this.div("dx-group-body"))
+        g.addChild(body)
+        def name:EVGElement (this.words("dx-group-label" label))
+        name.a11yHidden = true
+        g.addChild(name)
+        ribbonEl.addChild(g)
+        return body
+    }
+
+    fn row:EVGElement (body:EVGElement) {
+        def r:EVGElement (this.div("dx-group-row"))
+        body.addChild(r)
+        return r
+    }
+
+    fn buildChrome:void () {
+        def noBig:[ButtonCtl]
+        bigButtons = noBig
+        def root:EVGElement (unwrap ui.root)
+        root.id = "root"
+        root.className = "dx-root"
+        UiTree.clearChildren(root)
+        def noCtls:[UiCtl]
+        ui.ctls = noCtls
+
+        ; --- header ------------------------------------------------------------
+        if showHeader {
+            headerEl.id = "dx-header"
+            headerEl.className = "dx-header"
+            UiTree.clearChildren(headerEl)
+            def brand:EVGElement (this.div("dx-brand"))
+            def logo:EVGElement (this.div("dx-logo"))
+            logo.addChild((RibbonCtl.glyph((DocsIcons.of("logo")) "dx-logo-glyph")))
+            brand.addChild(logo)
+            titleEl.className = "dx-title"
+            titleEl.elementType = 1
+            titleEl.textContent = title
+            brand.addChild(titleEl)
+            headerEl.addChild(brand)
+            if (readOnly == false) {
+                this.mount(headerEl quick)
+            }
+            headerEl.addChild((this.div("dx-spacer")))
+            nameEl.className = "dx-docname"
+            nameEl.elementType = 1
+            headerEl.addChild(nameEl)
+            editedEl.className = "dx-edited"
+            editedEl.elementType = 1
+            headerEl.addChild(editedEl)
+            headerEl.addChild((this.div("dx-spacer")))
+            this.mount(headerEl dlBtn)
+            root.addChild(headerEl)
+        }
+
+        ; --- tabs and ribbon ---------------------------------------------------
+        if (showRibbon && (readOnly == false)) {
+            tabRowEl.id = "dx-tabrow"
+            tabRowEl.className = "dx-tabrow"
+            UiTree.clearChildren(tabRowEl)
+            this.mount(tabRowEl fileBar)
+            this.mount(tabRowEl tabs)
+            tabRowEl.addChild((this.div("dx-spacer")))
+            this.mount(tabRowEl modeMenu)
+            root.addChild(tabRowEl)
+
+            ribbonEl.id = "dx-ribbon"
+            ribbonEl.className = "dx-ribbon"
+            UiTree.clearChildren(ribbonEl)
+            this.buildTab()
+            root.addChild(ribbonEl)
+        }
+
+        ; --- the document ----------------------------------------------------
+        docEl.id = "dx-doc"
+        docEl.className = "dx-doc"
+        root.addChild(docEl)
+
+        ; --- footer ----------------------------------------------------------
+        if showStatus {
+            footerEl.id = "dx-footer"
+            footerEl.className = "dx-footer"
+            UiTree.clearChildren(footerEl)
+            statusEl.className = "dx-status"
+            statusEl.elementType = 1
+            footerEl.addChild(statusEl)
+            footerEl.addChild((this.div("dx-spacer")))
+            this.mount(footerEl footTools)
+            root.addChild(footerEl)
+        }
+
+        ; --- dialogs -----------------------------------------------------------
+        dlgHolder.id = "dx-dlg-holder"
+        dlgHolder.className = "dx-dlg-holder"
+        UiTree.clearChildren(dlgHolder)
+        def dl:[DxDialog] (this.dialogs())
+        def di:int 0
+        while (di < (array_length dl)) {
+            def d:DxDialog (itemAt dl di)
+            this.mount(dlgHolder d.win)
+            def fc:[UiCtl] (d.ctls())
+            def fi:int 1
+            while (fi < (array_length fc)) {
+                push ui.ctls (itemAt fc fi)
+                fi = (fi + 1)
+            }
+            d.buildAll()
+            di = (di + 1)
+        }
+        root.addChild(dlgHolder)
+        this.sync()
+    }
+
+    ; The groups of the chosen tab.
+    fn buildTab:void () {
+        if (tab == "home") {
+            def clip:EVGElement (this.group("Clipboard"))
+            def r0:EVGElement (this.row(clip))
+            this.mount(r0 (this.big("dx-big-paste" "Paste" "paste" "edit.paste" "")))
+            def stack:EVGElement (this.div("dx-group-stack"))
+            r0.addChild(stack)
+            this.mount(stack clipRb)
+
+            def font:EVGElement (this.group("Font"))
+            def r1:EVGElement (this.row(font))
+            this.mount(r1 fontMenu)
+            this.mount(r1 sizeMenu)
+            this.mount(r1 sizeRb)
+            this.mount(r1 caseMenu)
+            this.mount(r1 clearRb)
+            def r2:EVGElement (this.row(font))
+            this.mount(r2 charRb)
+            this.mount(r2 hlRb)
+            this.mount(r2 hlMenu)
+            this.mount(r2 colorRb)
+            this.mount(r2 colorMenu)
+
+            def para:EVGElement (this.group("Paragraph"))
+            def r3:EVGElement (this.row(para))
+            this.mount(r3 bulletRb)
+            this.mount(r3 bulletMenu)
+            this.mount(r3 numRb)
+            this.mount(r3 numMenu)
+            this.mount(r3 indentRb)
+            def r4:EVGElement (this.row(para))
+            this.mount(r4 alignRb)
+            this.mount(r4 spacingMenu)
+            this.mount(r4 paraMoreRb)
+
+            def styles:EVGElement (this.group("Styles"))
+            this.mount((this.row(styles)) stylesRb)
+            this.mount((this.row(styles)) stylesRb2)
+
+            def editing:EVGElement (this.group("Editing"))
+            def r6:EVGElement (this.row(editing))
+            this.mount(r6 editRb)
+            return
+        }
+        if (tab == "insert") {
+            def pages:EVGElement (this.group("Pages"))
+            def r7:EVGElement (this.row(pages))
+            this.mount(r7 (this.big("dx-big-break" "Page Break" "pagebreak" "insert.pageBreak" "")))
+            def tables:EVGElement (this.group("Tables"))
+            def r8:EVGElement (this.row(tables))
+            this.mount(r8 tableMenu)
+            def illus:EVGElement (this.group("Illustrations"))
+            this.mount((this.row(illus)) illusRb)
+            def links:EVGElement (this.group("Links and text"))
+            this.mount((this.row(links)) linksRb)
+            return
+        }
+        if (tab == "layout") {
+            def setup:EVGElement (this.group("Page Setup"))
+            this.mount((this.row(setup)) setupRb)
+            def lp:EVGElement (this.group("Paragraph"))
+            this.mount((this.row(lp)) layParaRb)
+            return
+        }
+        if (tab == "references") {
+            def refs:EVGElement (this.group("Table of Contents and Footnotes"))
+            this.mount((this.row(refs)) refRb)
+            return
+        }
+        if (tab == "review") {
+            def rv:EVGElement (this.group("Proofing and Tracking"))
+            this.mount((this.row(rv)) reviewRb)
+            return
+        }
+        if (tab == "view") {
+            def views:EVGElement (this.group("Views"))
+            this.mount((this.row(views)) viewsRb)
+            def show:EVGElement (this.group("Show"))
+            this.mount((this.row(show)) showRb)
+            def zoom:EVGElement (this.group("Zoom"))
+            this.mount((this.row(zoom)) zoomRb)
+            def turn:EVGElement (this.group("Pages"))
+            this.mount((this.row(turn)) turnRb)
+        }
+    }
+
+    fn rebuildChrome:void () {
+        if (built == false) {
+            return
+        }
+        def noActions:[string:DxAction]
+        actions = noActions
+        this.buildModels()
+        this.buildChrome()
+    }
+
+    fn showTab:void (want:string) {
+        if (want == tab) {
+            return
+        }
+        tab = want
+        ; The chrome is rebuilt with the new tab's groups in the ribbon.
+        this.buildChrome()
+    }
+
+    ; =========================================================================
+    ; State: the core decides, the chrome shows
+    ; =========================================================================
+
+    fn sync:void () {
+        def app:DocxApp web.app
+        def v:DocxViewer web.viewer
+        def ed:DocxEditController v.edit
+        def editing:boolean (v.editMode())
+
+        charRb.setOn("bold" (editing && (ed.caretIsOn("bold"))))
+        charRb.setOn("italic" (editing && (ed.caretIsOn("italic"))))
+        charRb.setOn("underline" (editing && (ed.caretIsOn("underline"))))
+        charRb.setOn("strike" (editing && (ed.caretIsOn("strike"))))
+        charRb.setOn("sub" (editing && (ed.caretIsOn("sub"))))
+        charRb.setOn("sup" (editing && (ed.caretIsOn("super"))))
+        hlRb.setOn("highlight" (editing && (ed.caretIsOn("highlight"))))
+        hlRb.setSwatch("highlight" (DocsApp.highlightHex(app.highlightName)))
+        colorRb.setSwatch("color" ("#" + lastColor))
+        clipRb.setOn("painter" ed.painterArmed)
+
+        def listKind:string ""
+        def listStyle:string ""
+        def align:int -1
+        def style:string ""
+        def p@(optional):Paragraph (app.caretParagraph())
+        if (editing && (!null? p)) {
+            listKind = (ed.caretListKind())
+            listStyle = (ed.caretListStyle())
+            align = (ed.caretAlign())
+            style = (ed.caretStyle())
+        }
+        bulletRb.setOn("bullets" (listKind == "bullet"))
+        numRb.setOn("numbering" (listKind == "number"))
+        alignRb.setOn("left" (align == 0))
+        alignRb.setOn("center" (align == 1))
+        alignRb.setOn("right" (align == 2))
+        alignRb.setOn("justify" (align == 3))
+        this.checkByArg(bulletMenu "para.bullets" (? (listKind == "bullet") listStyle "none"))
+        this.checkByArg(numMenu "para.numbering" (? (listKind == "number") listStyle "none"))
+
+        this.syncStyles(stylesRb editing style)
+        this.syncStyles(stylesRb2 editing style)
+
+        def before:boolean false
+        def after:boolean false
+        def spacing:string ""
+        if (!null? p) {
+            def cp:Paragraph (unwrap p)
+            before = (cp.spaceBeforePt > 0.0)
+            after = (cp.spaceAfterPt > 0.0)
+            spacing = (DocsApp.spacingName(cp.lineSpacing))
+        }
+        this.setChecked(spacingMenu "sp-before" before)
+        this.setChecked(spacingMenu "sp-after" after)
+        this.checkByArg(spacingMenu "para.spacing" spacing)
+        layParaRb.setOn("l-before" before)
+        layParaRb.setOn("l-after" after)
+
+        quick.setDisabled("q-undo" ((ed.history.canUndo()) == false))
+        quick.setDisabled("q-redo" ((ed.history.canRedo()) == false))
+
+        viewsRb.setOn("v-edit" editing)
+        viewsRb.setOn("v-read" (editing == false))
+        viewsRb.setOn("v-continuous" app.continuous)
+        showRb.setOn("v-nav" app.nav.visible)
+        showRb.setOn("v-ruler" app.showRuler)
+        showRb.setOn("v-rtl" app.uiRtl)
+        modeMenu.name = (? editing "Editing" "Reading")
+        set glyphTriggers (modeMenu.triggerTid()) (? editing "edit" "read")
+        this.setChecked(modeMenu "m-edit" editing)
+        this.setChecked(modeMenu "m-read" (editing == false))
+
+        def fname:string (ed.caretFont())
+        if ((strlen fname) == 0) {
+            fname = "Open Sans"
+        }
+        fontMenu.name = fname
+        this.checkByArg(fontMenu "format.font" fname)
+        def pt:string (to_string (to_int ((ed.caretSize()) + 0.5)))
+        sizeMenu.name = pt
+        this.checkByArg(sizeMenu "format.size" pt)
+
+        def zt:string ((to_string (to_int (((app.zoomLevel()) * 100.0) + 0.5))) + "%")
+        def zi@(optional):RibbonItem (footTools.find("f-reset"))
+        if (!null? zi) {
+            def z1:RibbonItem (unwrap zi)
+            z1.text = zt
+        }
+        def zj@(optional):RibbonItem (zoomRb.find("z-reset"))
+        if (!null? zj) {
+            def z2:RibbonItem (unwrap zj)
+            z2.text = zt
+        }
+
+        def name:string app.docName
+        if ((strlen name) == 0) {
+            name = v.doc.title
+        }
+        if ((strlen name) == 0) {
+            name = "Untitled.docx"
+        }
+        nameEl.textContent = name
+        editedEl.textContent = (? (v.doc.revision != app.openedRevision) "Edited" "")
+        statusEl.textContent = (this.statusText())
+
+        tabs.value = tab
+        if (docFocused || ((tabs.owns(ui.focusId)) == false)) {
+            tabs.rovingValue = tab
+        }
+
+        def rbs:[RibbonCtl] (this.ribbons())
+        def i:int 0
+        while (i < (array_length rbs)) {
+            def g:RibbonCtl (itemAt rbs i)
+            g.build()
+            i = (i + 1)
+        }
+        def menus:[MenuCtl] (this.dropdowns())
+        def mi:int 0
+        while (mi < (array_length menus)) {
+            def mc:MenuCtl (itemAt menus mi)
+            mc.build()
+            mi = (mi + 1)
+        }
+        fileBar.build()
+        tabs.build()
+        ; The ribbon is what a tab shows, drawn beside the tabs: the
+        ; controller's panel leaves the tree.
+        def troot:EVGElement (unwrap tabs.rootEl)
+        def onlyList:[EVGElement]
+        push onlyList (unwrap tabs.listEl)
+        troot.children = onlyList
+        dlBtn.build()
+        def bi:int 0
+        while (bi < (array_length bigButtons)) {
+            def bb:ButtonCtl (itemAt bigButtons bi)
+            bb.disabled = readOnly
+            bb.build()
+            UiTree.addClass((unwrap bb.rootEl) "dx-big")
+            bi = (bi + 1)
+        }
+        def sd:[DxDialog] (this.dialogs())
+        def di:int 0
+        while (di < (array_length sd)) {
+            def d:DxDialog (itemAt sd di)
+            d.follow(app)
+            d.showFocus(ui.focusId)
+            di = (di + 1)
+        }
+        DocsApp.accentLabels((unwrap ui.root))
+    }
+
+    ; A style button is pressed when the caret's paragraph has that style, and
+    ; greyed when the document does not define it.
+    fn syncStyles:void (r:RibbonCtl editing:boolean style:string) {
+        def si:int 0
+        while (si < (array_length r.items)) {
+            def sit:RibbonItem (itemAt r.items si)
+            def sa:DxAction (this.action(sit.value))
+            sit.on = (editing && (style == sa.arg))
+            sit.disabled = ((sa.arg != "Normal") && ((DocsApp.hasStyle(web sa.arg)) == false))
+            si = (si + 1)
+        }
+    }
+
+    sfn hasStyle:boolean (w:DocxWeb id:string) {
+        return (DocxParaFormat.hasStyle(w.viewer.parser.resolver id))
+    }
+
+    fn statusText:string () {
+        def app:DocxApp web.app
+        def v:DocxViewer web.viewer
+        def s:string ("Page " + (to_string (v.currentPage + 1)) + " of " + (to_string (v.pageCount())))
+        s = (s + "     " + (to_string (app.wordCount())) + " words")
+        s = (s + "     " + (? (v.editMode()) "Editing" "Reading"))
+        def st:string app.status
+        if (((strlen st) > 0) && (st != "edit") && (st != "reading")) {
+            s = (s + "     " + st)
+        }
+        return s
+    }
+
+    ; The label of a primary button is drawn on the accent. EVG has no
+    ; descendant selectors, so the label gets a class of its own.
+    sfn accentLabels:void (el:EVGElement) {
+        def primary:boolean ((indexOf el.className "ui-button-primary") >= 0)
+        def i:int 0
+        while (i < (array_length el.children)) {
+            def k:EVGElement (itemAt el.children i)
+            if (primary && ((indexOf k.className "ui-button-label") == 0)) {
+                UiTree.addClass(k "dx-on-accent")
+            }
+            DocsApp.accentLabels(k)
+            i = (i + 1)
+        }
+    }
+
+    sfn spacingName:string (d:double) {
+        def opts:[string] ([] _:string ("1.0" "1.15" "1.5" "2.0" "2.5" "3.0"))
+        def i:int 0
+        while (i < (array_length opts)) {
+            def o:string (itemAt opts i)
+            def diff:double ((DocxParaFormat.num(o)) - d)
+            if ((diff < 0.01) && (diff > -0.01)) {
+                return o
+            }
+            i = (i + 1)
+        }
+        return ""
+    }
+
+    sfn highlightHex:string (name:string) {
+        if (name == "green") { return "#00ff00" }
+        if (name == "cyan") { return "#00ffff" }
+        if (name == "magenta") { return "#ff00ff" }
+        if (name == "blue") { return "#0000ff" }
+        if (name == "red") { return "#ff0000" }
+        if (name == "lightGray") { return "#c0c0c0" }
+        return "#ffff00"
+    }
+
+    fn action:DxAction (value:string) {
+        if (has actions value) {
+            return (unwrap (get actions value))
+        }
+        return (new DxAction())
+    }
+
+    ; Check the one row of `mc` whose action runs `command` with `arg`.
+    fn checkByArg:void (mc:MenuCtl command:string arg:string) {
+        def i:int 0
+        while (i < (array_length mc.items)) {
+            def it:UiItem (itemAt mc.items i)
+            if (has actions it.value) {
+                def a:DxAction (unwrap (get actions it.value))
+                if (a.command == command) {
+                    it.checked = (a.arg == arg)
+                }
+            }
+            i = (i + 1)
+        }
+    }
+
+    fn setChecked:void (mc:MenuCtl value:string on:boolean) {
+        def i:int 0
+        while (i < (array_length mc.items)) {
+            def it:UiItem (itemAt mc.items i)
+            if (it.value == value) {
+                it.checked = on
+            }
+            i = (i + 1)
+        }
+    }
+
+    ; =========================================================================
+    ; Drawing
+    ; =========================================================================
+
+    ; A dropdown's trigger and its rows are one text leaf as EVGUI builds them;
+    ; the trigger also wants a chevron (and maybe a glyph), a row its tick and
+    ; its shortcut. Added after the controllers built, only to bare rows, so
+    ; it is safe every frame.
+    fn decorate:void (el:EVGElement) {
+        def cls:string el.className
+        def isTrigger:boolean ((indexOf cls "ui-dropdownmenu-trigger") == 0)
+        def isItem:boolean (((indexOf cls "ui-dropdownmenu-item") == 0) || ((indexOf cls "ui-menubar-item") == 0))
+        if ((isTrigger || isItem) && (el.elementType == 1) && ((strlen el.textContent) > 0)) {
+            def text:string el.textContent
+            el.textContent = ""
+            el.elementType = 0
+            def kids:[EVGElement] el.children
+            def empty:[EVGElement]
+            el.children = empty
+            if isItem {
+                def mark:EVGElement (this.div("dx-mark"))
+                mark.a11yHidden = true
+                if ((indexOf cls "state-checked") >= 0) {
+                    if (this.isRadioRow(el.id)) {
+                        mark.addChild((RibbonCtl.glyph((DocsIcons.of("dot")) "dx-mark-dot")))
+                    } {
+                        mark.addChild((RibbonCtl.glyph((DocsIcons.of("check")) "dx-mark-check")))
+                    }
+                }
+                el.addChild(mark)
+            }
+            if (el.id == (fontMenu.triggerTid())) {
+                UiTree.addClass(el "dx-trigger-font")
+            }
+            if (el.id == (sizeMenu.triggerTid())) {
+                UiTree.addClass(el "dx-trigger-size")
+            }
+            def glyphOnly:boolean (isTrigger && (has glyphTriggers el.id))
+            if glyphOnly {
+                def ic:string (unwrap (get glyphTriggers el.id))
+                if ((strlen ic) > 0) {
+                    el.addChild((RibbonCtl.glyph((DocsIcons.of(ic)) "dx-trigger-glyph")))
+                    UiTree.addClass(el "dx-trigger-icon")
+                } {
+                    UiTree.addClass(el "dx-trigger-split")
+                }
+                ; The mode switch says which mode it is in, beside its glyph.
+                if (el.id == (modeMenu.triggerTid())) {
+                    el.addChild((this.label(text)))
+                }
+            } {
+                el.addChild((this.label(text)))
+            }
+            if isItem {
+                def sc:string (this.shortcutOf(el.id))
+                if ((strlen sc) > 0) {
+                    def scEl:EVGElement (this.words("dx-menu-shortcut" sc))
+                    scEl.a11yHidden = true
+                    el.addChild(scEl)
+                }
+            }
+            if isTrigger {
+                el.addChild((RibbonCtl.glyph((DocsIcons.of("chevron")) "dx-trigger-chevron")))
+            }
+            def k:int 0
+            while (k < (array_length kids)) {
+                el.addChild((itemAt kids k))
+                k = (k + 1)
+            }
+            return
+        }
+        def i:int 0
+        while (i < (array_length el.children)) {
+            this.decorate((itemAt el.children i))
+            i = (i + 1)
+        }
+    }
+
+    fn label:EVGElement (text:string) {
+        def l:EVGElement (this.words("dx-menu-label" text))
+        l.a11yHidden = true
+        return l
+    }
+
+    fn isRadioRow:boolean (tid:string) {
+        def menus:[MenuCtl] (this.allMenus())
+        def i:int 0
+        while (i < (array_length menus)) {
+            def mc:MenuCtl (itemAt menus i)
+            def idx:int (mc.rowIndexOf(tid))
+            if (idx >= 0) {
+                return ((itemAt mc.rowKind idx) == "radio")
+            }
+            i = (i + 1)
+        }
+        return false
+    }
+
+    fn shortcutOf:string (tid:string) {
+        def v:string (this.leafValueOf(tid))
+        if ((strlen v) == 0) {
+            return ""
+        }
+        def a:DxAction (this.action(v))
+        return a.shortcut
+    }
+
+    fn layout:EVGElement () {
+        def root:EVGElement (unwrap ui.root)
+        this.decorate(root)
+        def page:EVGElement (ui.layout())
+        ; The document takes what the bars leave, measured: the ribbon wraps on
+        ; a narrow page and only the layout knows how tall it became.
+        def used:double 0.0
+        def ki:int 0
+        while (ki < (array_length root.children)) {
+            def kid:EVGElement (itemAt root.children ki)
+            if ((kid.id != "dx-doc") && (kid.id != "dx-dlg-holder")) {
+                used = (used + kid.calculatedHeight)
+            }
+            ki = (ki + 1)
+        }
+        def wantH:int (to_int (pageH - used))
+        if (wantH < 60) {
+            wantH = 60
+        }
+        if (wantH != (to_int docEl.calculatedHeight)) {
+            UiTree.inline(docEl "height" ((to_string wantH) + "px"))
+            page = (ui.layout())
+        }
+        def nw:int (to_int docEl.calculatedWidth)
+        def nh:int (to_int docEl.calculatedHeight)
+        if (nw < 60) {
+            nw = 60
+        }
+        if (nh < 60) {
+            nh = 60
+        }
+        gx = (to_int docEl.calculatedX)
+        gy = (to_int docEl.calculatedY)
+        if ((nw != gw) || (nh != gh)) {
+            gw = nw
+            gh = nh
+            web.frameSize(gw gh)
+        }
+        return page
+    }
+
+    fn displayList:EVGDisplayList () {
+        ; The status line reads the layout (pages, words), which is only
+        ; settled once the core has drawn; last frame's answer is close
+        ; enough to lay out with, and the core is current by now.
+        statusEl.textContent = (this.statusText())
+        def page:EVGElement (this.layout())
+        def core:EVGDisplayList (web.app.buildDisplayList())
+        core.offsetBy((to_double gx) (to_double gy))
+        def inDoc (new EVGDisplayList)
+        inDoc.addClip((to_double gx) (to_double gy) (to_double gw) (to_double gh))
+        inDoc.appendFrom(core)
+        inDoc.addClipEnd()
+        def lay (new EVGLayout())
+        lay.setPageSize(pageW pageH)
+        def dl (new EVGDisplayList())
+        dl.setTextEngine((lay.getTextEngine()))
+        dl.paintAt("dx-doc" inDoc)
+        dl.build(page)
+        return dl
+    }
+
+    fn scene:string () {
+        def dl:EVGDisplayList (this.displayList())
+        return ("{\"width\":" + (EVGDisplayList.num(pageW)) + ",\"height\":" + (EVGDisplayList.num(pageH)) + ",\"list\":" + (dl.toJson()) + "}")
+    }
+
+    ; One tree for a reader: the chrome's, with the document's hung under a
+    ; region at its rectangle. Ask for the scene first; this reads its layout.
+    fn a11yTree:EVGA11yTree () {
+        def t:EVGA11yTree (ui.a11yTree())
+        def rootNode:EVGA11yNode (t.find("root"))
+        rootNode.name = title
+        def fontNode:EVGA11yNode (t.find((fontMenu.triggerTid())))
+        if ((strlen fontNode.id) > 0) {
+            fontNode.name = ("Font: " + fontNode.name)
+        }
+        def sizeNode:EVGA11yNode (t.find((sizeMenu.triggerTid())))
+        if ((strlen sizeNode.id) > 0) {
+            sizeNode.name = ("Font size: " + sizeNode.name)
+        }
+        def region:EVGA11yNode (t.node("dx-doc" "root" (EVGA11yRole.region())))
+        region.name = "Document"
+        t.place(region gx gy gw gh)
+        def g:EVGA11yTree (web.app.a11yTree())
+        def i:int 0
+        while (i < (array_length g.nodes)) {
+            def n:EVGA11yNode (itemAt g.nodes i)
+            if ((strlen n.parentId) == 0) {
+                n.parentId = "dx-doc"
+            }
+            n.x = (n.x + gx)
+            n.y = (n.y + gy)
+            push t.nodes n
+            i = (i + 1)
+        }
+        if showStatus {
+            def live:EVGA11yNode (t.statusRegion("dx-status" "root" (this.statusText())))
+            t.place(live (to_int statusEl.calculatedX) (to_int statusEl.calculatedY) (to_int statusEl.calculatedWidth) (to_int statusEl.calculatedHeight))
+        }
+        if (docFocused || ((strlen ui.focusId) == 0)) {
+            t.setFocus(g.focusId)
+        } {
+            t.setFocus(ui.focusId)
+        }
+        return t
+    }
+
+    fn a11y:string () {
+        def t:EVGA11yTree (this.a11yTree())
+        return (t.toJson())
+    }
+
+    fn width:int () {
+        return (to_int pageW)
+    }
+
+    fn height:int () {
+        return (to_int pageH)
+    }
+
+    ; =========================================================================
+    ; Input
+    ; =========================================================================
+
+    fn insideDoc:boolean (x:int y:int) {
+        return ((x >= gx) && (y >= gy) && (x < (gx + gw)) && (y < (gy + gh)))
+    }
+
+    fn anyMenuOpen:boolean () {
+        if ((strlen fileBar.openValue) > 0) {
+            return true
+        }
+        def menus:[MenuCtl] (this.dropdowns())
+        def i:int 0
+        while (i < (array_length menus)) {
+            def mc:MenuCtl (itemAt menus i)
+            if mc.open {
+                return true
+            }
+            i = (i + 1)
+        }
+        return false
+    }
+
+    fn closeMenus:void () {
+        if ((strlen fileBar.openValue) > 0) {
+            fileBar.closeMenu()
+        }
+        def menus:[MenuCtl] (this.dropdowns())
+        def i:int 0
+        while (i < (array_length menus)) {
+            def mc:MenuCtl (itemAt menus i)
+            if mc.open {
+                mc.closeMenu()
+            }
+            i = (i + 1)
+        }
+    }
+
+    ; The value of the menu row `tid` names, when that row is a leaf a press
+    ; would choose.
+    fn leafValueOf:string (tid:string) {
+        def menus:[MenuCtl] (this.allMenus())
+        def i:int 0
+        while (i < (array_length menus)) {
+            def mc:MenuCtl (itemAt menus i)
+            def idx:int (mc.rowIndexOf(tid))
+            if (idx >= 0) {
+                if (itemAt mc.rowIsSub idx) {
+                    return ""
+                }
+                if (itemAt mc.rowDisabled idx) {
+                    return ""
+                }
+                def it:UiItem (itemAt mc.rowItem idx)
+                return it.value
+            }
+            i = (i + 1)
+        }
+        return ""
+    }
+
+    ; The core's pointer, in its own coordinates.
+    fn corePointer:boolean (x:int y:int pressed:boolean down:boolean released:boolean extend:boolean) {
+        return (web.framePointer((x - gx) (y - gy) pressed down released extend))
+    }
+
+    fn pointer:void (x:int y:int down:boolean shift:boolean ctrl:boolean) {
+        if docCapture {
+            if down {
+                def m:boolean (this.corePointer(x y false true false false))
+            } {
+                def r:boolean (this.corePointer(x y false false true shift))
+                docCapture = false
+                held = false
+            }
+            this.sync()
+            return
+        }
+        if (down && held) {
+            return
+        }
+        held = down
+        if (down == false) {
+            ui.pointerUp()
+            def over:string (ui.hitTest((to_double x) (to_double y)))
+            if ((strlen over) > 0) {
+                ui.hover(over)
+            } {
+                ui.unhover()
+                if (this.insideDoc(x y)) {
+                    def h:boolean (this.corePointer(x y false false false false))
+                }
+            }
+            return
+        }
+        def target:string (ui.hitTest((to_double x) (to_double y)))
+        if ((strlen target) > 0) {
+            this.pressChrome(target shift ctrl)
+            return
+        }
+        if (this.dialogOpen()) {
+            return
+        }
+        if (this.anyMenuOpen()) {
+            this.closeMenus()
+            ui.blur()
+            docFocused = true
+            this.sync()
+            return
+        }
+        if (this.insideDoc(x y)) {
+            docFocused = true
+            ui.blur()
+            docCapture = true
+            def p:boolean (this.corePointer(x y true true false shift))
+            this.sync()
+        }
+    }
+
+    fn pressChrome:void (target:string shift:boolean ctrl:boolean) {
+        def choice:string (this.leafValueOf(target))
+        def menus:[MenuCtl] (this.dropdowns())
+        def i:int 0
+        while (i < (array_length menus)) {
+            def mc:MenuCtl (itemAt menus i)
+            if (mc.open && ((mc.owns(target)) == false)) {
+                mc.closeMenu()
+            }
+            i = (i + 1)
+        }
+        if (((strlen fileBar.openValue) > 0) && ((fileBar.owns(target)) == false)) {
+            fileBar.closeMenu()
+        }
+        docFocused = false
+        ui.pressTidValue = target
+        ui.clickWith(target shift ctrl)
+        if (this.dialogOpen()) {
+            def d:DxDialog (this.openDialog())
+            if (d.isButton(target)) {
+                def closed:boolean (d.act(target web.app))
+            }
+            this.afterDialog()
+            return
+        }
+        this.afterChrome(target choice)
+    }
+
+    ; =========================================================================
+    ; Dialogs
+    ; =========================================================================
+
+    fn dialogs:[DxDialog] () {
+        def a:[DxDialog]
+        push a find
+        return a
+    }
+
+    fn dialogOpen:boolean () {
+        def a:[DxDialog] (this.dialogs())
+        def i:int 0
+        while (i < (array_length a)) {
+            def d:DxDialog (itemAt a i)
+            if d.win.open {
+                return true
+            }
+            i = (i + 1)
+        }
+        return false
+    }
+
+    fn openDialog:DxDialog () {
+        def a:[DxDialog] (this.dialogs())
+        def i:int 0
+        while (i < (array_length a)) {
+            def d:DxDialog (itemAt a i)
+            if d.win.open {
+                return d
+            }
+            i = (i + 1)
+        }
+        return find
+    }
+
+    fn openDlg:boolean (d:DxDialog) {
+        this.closeMenus()
+        if (readOnly && (d.writes())) {
+            return false
+        }
+        def at:string (d.open(web.app pageW pageH))
+        docFocused = false
+        ui.focus(at)
+        this.sync()
+        return true
+    }
+
+    fn openFind:boolean () {
+        return (this.openDlg(find))
+    }
+
+    fn afterDialog:void () {
+        if ((this.dialogOpen()) == false) {
+            docFocused = true
+            ui.blur()
+        }
+        this.sync()
+    }
+
+    fn dialogKey:void (name:string shift:boolean ctrl:boolean) {
+        def d:DxDialog (this.openDialog())
+        def at:string ui.focusId
+        if (d.holdsKeys(at)) {
+            ui.keyWith(name shift ctrl)
+            this.afterDialog()
+            return
+        }
+        if (name == "Escape") {
+            d.close()
+            this.afterDialog()
+            return
+        }
+        if (name == "Tab") {
+            ui.focus((d.nextFocus(at shift)))
+            this.sync()
+            return
+        }
+        if ((name == "Enter") && (d.entersDefault(at))) {
+            def c1:boolean (d.act((d.defaultTid()) web.app))
+            this.afterDialog()
+            return
+        }
+        if (((name == "Enter") || (name == " ")) && (d.isButton(at))) {
+            def c2:boolean (d.act(at web.app))
+            this.afterDialog()
+            return
+        }
+        ui.keyWith(name shift ctrl)
+        this.afterDialog()
+    }
+
+    ; After the chrome took an input: run what it chose, and give the keyboard
+    ; back to the document when a command ran, the way Word's ribbon does.
+    fn afterChrome:void (target:string choice:string) {
+        def ran:boolean false
+        if ((strlen choice) > 0) {
+            ran = (this.runAction(choice))
+            this.closeMenus()
+        }
+        def rbs:[RibbonCtl] (this.ribbons())
+        def i:int 0
+        while (i < (array_length rbs)) {
+            def g:RibbonCtl (itemAt rbs i)
+            def v:string (g.takePressed())
+            if ((strlen v) > 0) {
+                ran = (this.runAction(v))
+            }
+            i = (i + 1)
+        }
+        if ((target == dlBtn.tid) && (dlBtn.disabled == false)) {
+            ran = (this.runAction(dlBtn.tid))
+        }
+        def bi:int 0
+        while (bi < (array_length bigButtons)) {
+            def bb:ButtonCtl (itemAt bigButtons bi)
+            if ((target == bb.tid) && (bb.disabled == false)) {
+                ran = (this.runAction(bb.tid))
+            }
+            bi = (bi + 1)
+        }
+        if (tabs.owns(target) || (tabs.owns(ui.focusId))) {
+            if ((strlen tabs.value) > 0) {
+                this.showTab(tabs.value)
+            }
+        }
+        if ran {
+            if ((this.anyMenuOpen()) == false) {
+                docFocused = true
+                ui.blur()
+            }
+        }
+        this.sync()
+    }
+
+    fn runAction:boolean (value:string) {
+        if ((has actions value) == false) {
+            return false
+        }
+        def a:DxAction (unwrap (get actions value))
+        def cmd:string a.command
+        if (cmd == "dx:mode") {
+            def want:boolean (a.arg == "edit")
+            if (readOnly && want) {
+                return false
+            }
+            web.setEditMode(want)
+            web.app.status = (? want "edit" "reading")
+            return true
+        }
+        if (cmd == "dx:replace") {
+            return (this.openFind())
+        }
+        if (cmd == "dx:color") {
+            if ((strlen a.arg) > 0) {
+                lastColor = a.arg
+            }
+            return (web.run("format.color" lastColor))
+        }
+        if readOnly {
+            def viewing:boolean (((indexOf cmd "view.") == 0) || ((indexOf cmd "page.") == 0))
+            def harmless:boolean ((cmd == "edit.copy") || (cmd == "edit.find") || (cmd == "file.save") || (cmd == "file.print"))
+            if ((viewing == false) && (harmless == false)) {
+                return false
+            }
+        }
+        return (web.run(cmd a.arg))
+    }
+
+    fn doubleClick:void (x:int y:int) {
+        def target:string (ui.hitTest((to_double x) (to_double y)))
+        if ((strlen target) > 0) {
+            return
+        }
+        if (this.insideDoc(x y)) {
+            ; The release of the second click came before this, so the press
+            ; selectWordAt makes is left to the next move to settle.
+            def ok:boolean (web.selectWordAt((x - gx) (y - gy)))
+            this.sync()
+        }
+    }
+
+    fn wheel:boolean (x:int y:int dy:int) {
+        if (this.insideDoc(x y)) {
+            web.app.lastPx = (x - gx)
+            web.app.lastPy = (y - gy)
+            def moved:boolean (web.frameWheel(dy))
+            this.sync()
+            return moved
+        }
+        return false
+    }
+
+    fn zoomBy:boolean (factor:double) {
+        def z:boolean (web.zoomBy(factor))
+        this.sync()
+        return z
+    }
+
+    fn cursorAt:string (x:int y:int) {
+        if docCapture {
+            return "text"
+        }
+        def over:string (ui.hitTest((to_double x) (to_double y)))
+        if ((strlen over) > 0) {
+            return "pointer"
+        }
+        if (this.insideDoc(x y)) {
+            if (web.editMode()) {
+                return "text"
+            }
+        }
+        return "default"
+    }
+
+    ; Keys by their DOM names ("ArrowLeft", "Enter", "F6").
+    fn key:void (name:string shift:boolean ctrl:boolean) {
+        if (name == "F6") {
+            this.cycleRegion(shift)
+            this.sync()
+            return
+        }
+        if (name == "F10") {
+            if (showRibbon && (readOnly == false)) {
+                docFocused = false
+                ui.focus((fileBar.triggerTid("file")))
+            }
+            this.sync()
+            return
+        }
+        if (this.dialogOpen()) {
+            this.dialogKey(name shift ctrl)
+            return
+        }
+        if ((this.anyMenuOpen()) || (docFocused == false)) {
+            if ((name == "Escape") && ((this.anyMenuOpen()) == false)) {
+                docFocused = true
+                ui.blur()
+                this.sync()
+                return
+            }
+            def target:string ui.focusId
+            def choice:string ""
+            if ((name == "Enter") || (name == " ")) {
+                choice = (this.leafValueOf(target))
+            }
+            ui.keyWith(name shift ctrl)
+            this.afterChrome(target choice)
+            if (((strlen ui.focusId) == 0) && ((this.anyMenuOpen()) == false)) {
+                docFocused = true
+            }
+            return
+        }
+        def k:string (DocsApp.coreKeyName(name))
+        if ((strlen k) > 0) {
+            if ((k == "tab") && readOnly) {
+                return
+            }
+            def took:boolean (web.frameKey(k shift ctrl))
+        }
+        this.sync()
+    }
+
+    sfn coreKeyName:string (name:string) {
+        if (name == "Backspace") { return "backspace" }
+        if (name == "Delete") { return "delete" }
+        if (name == "Enter") { return "enter" }
+        if (name == "Tab") { return "tab" }
+        if (name == "Escape") { return "escape" }
+        if (name == "ArrowLeft") { return "left" }
+        if (name == "ArrowRight") { return "right" }
+        if (name == "ArrowUp") { return "up" }
+        if (name == "ArrowDown") { return "down" }
+        if (name == "Home") { return "home" }
+        if (name == "End") { return "end" }
+        if (name == "PageUp") { return "pageUp" }
+        if (name == "PageDown") { return "pageDown" }
+        return ""
+    }
+
+    ; Printable text, and Ctrl chords (`ctrl` true, `s` the key).
+    fn text:void (s:string shift:boolean ctrl:boolean) {
+        if (this.dialogOpen()) {
+            def od:DxDialog (this.openDialog())
+            if ((s == " ") && (od.isButton(ui.focusId))) {
+                this.dialogKey(" " shift ctrl)
+                return
+            }
+            if ctrl {
+                ui.keyWith(s shift true)
+            } {
+                ui.type(s)
+            }
+            this.sync()
+            return
+        }
+        if ctrl {
+            def low:string (to_lowercase s)
+            if (low == "h") {
+                def opened:boolean (this.openFind())
+                return
+            }
+            if (low == "a") {
+                web.key("selectAll" false true)
+                this.sync()
+                return
+            }
+            if readOnly {
+                if ((low != "f") && (low != "s") && (low != "p")) {
+                    return
+                }
+            }
+            def took:boolean (web.frameKey(low shift true))
+            this.sync()
+            return
+        }
+        if ((this.anyMenuOpen()) || (docFocused == false)) {
+            ui.type(s)
+            this.sync()
+            return
+        }
+        if ((web.editMode()) || (web.wantsText())) {
+            if (readOnly && ((web.wantsText()) == false)) {
+                return
+            }
+            web.frameText(s)
+        }
+        this.sync()
+    }
+
+    fn paste:boolean (html:string plain:string) {
+        if (this.dialogOpen()) {
+            ui.type(plain)
+            this.sync()
+            return true
+        }
+        if readOnly {
+            return false
+        }
+        def ok:boolean (web.paste(html plain))
+        this.sync()
+        return ok
+    }
+
+    fn copySelection:string () {
+        return (web.copySelection())
+    }
+
+    fn cutSelection:string () {
+        if readOnly {
+            return (web.copySelection())
+        }
+        def t:string (web.cutSelection())
+        this.sync()
+        return t
+    }
+
+    fn tick:boolean (dtMs:double) {
+        def busy:boolean (ui.tick(dtMs))
+        return (busy || (fileBar.pendingSub()))
+    }
+
+    ; The regions F6 visits: the quick access bar, the tab row, the ribbon,
+    ; the document.
+    fn regionStops:[string] () {
+        def a:[string]
+        if (showHeader && (readOnly == false)) {
+            push a (quick.itemTid(quick.rovingValue))
+        }
+        if (showRibbon && (readOnly == false)) {
+            push a (tabs.tabTid(tab))
+            def rbs:[RibbonCtl] (this.ribbons())
+            def i:int 2
+            def found:boolean false
+            while ((i < (array_length rbs)) && (found == false)) {
+                def g:RibbonCtl (itemAt rbs i)
+                if ((g.buttonCount()) > 0) {
+                    if ((strlen (ui.rectOf(g.tid))) > 0) {
+                        push a (g.itemTid(g.rovingValue))
+                        found = true
+                    }
+                }
+                i = (i + 1)
+            }
+        }
+        push a "dx-doc"
+        return a
+    }
+
+    fn cycleRegion:void (back:boolean) {
+        this.closeMenus()
+        def stops:[string] (this.regionStops())
+        def n:int (array_length stops)
+        def cur:int (n - 1)
+        def i:int 0
+        while (i < n) {
+            def s:string (itemAt stops i)
+            if (s == "dx-doc") {
+                if docFocused {
+                    cur = i
+                }
+            } {
+                if ((docFocused == false) && (s == ui.focusId)) {
+                    cur = i
+                }
+            }
+            i = (i + 1)
+        }
+        def next:int (cur + 1)
+        if back {
+            next = (cur - 1)
+        }
+        if (next >= n) {
+            next = 0
+        }
+        if (next < 0) {
+            next = (n - 1)
+        }
+        def want:string (itemAt stops next)
+        if (want == "dx-doc") {
+            docFocused = true
+            ui.blur()
+        } {
+            docFocused = false
+            ui.focus(want)
+        }
+    }
+
+    ; Press a control by its id — what a test, or a reader's activation, does.
+    fn pressId:boolean (tid:string) {
+        def r:string (ui.rectOf(tid))
+        if ((strlen r) == 0) {
+            return false
+        }
+        def parts:[string] (strsplit r ",")
+        def x:int (?? (to_int (itemAt parts 0)) 0)
+        def y:int (?? (to_int (itemAt parts 1)) 0)
+        def w:int (?? (to_int (itemAt parts 2)) 0)
+        def h:int (?? (to_int (itemAt parts 3)) 0)
+        this.pointer((x + (idiv w 2)) (y + (idiv h 2)) true false false)
+        this.pointer((x + (idiv w 2)) (y + (idiv h 2)) false false false)
+        return true
+    }
+
+    fn rectOf:string (tid:string) {
+        return (ui.rectOf(tid))
+    }
+
+    ; What the core asked the page to do: "open", "saveAs", "print", "copy",
+    ; "paste" or "".
+    fn takeFileRequest:string () {
+        return (web.takeFileRequest())
+    }
+
+    fn state:string () {
+        def v:DocxViewer web.viewer
+        def s:string "{"
+        s = (s + "\"docFocused\":" + (? docFocused "true" "false"))
+        s = (s + ",\"uiFocus\":\"" + ui.focusId + "\"")
+        s = (s + ",\"menuOpen\":" + (? (this.anyMenuOpen()) "true" "false"))
+        s = (s + ",\"dialogOpen\":" + (? (this.dialogOpen()) "true" "false"))
+        s = (s + ",\"tab\":\"" + tab + "\"")
+        s = (s + ",\"editing\":" + (? (v.editMode()) "true" "false"))
+        s = (s + ",\"page\":" + (to_string v.currentPage))
+        s = (s + ",\"pages\":" + (to_string (v.pageCount())))
+        s = (s + ",\"preset\":\"" + preset + "\"")
+        s = (s + ",\"readOnly\":" + (? readOnly "true" "false"))
+        s = (s + "}")
+        return s
+    }
+}

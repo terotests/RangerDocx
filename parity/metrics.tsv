@@ -13,7 +13,7 @@ P1	performance	Cold open + layout of a 188-page document	ms	lower	61	unmeasured	
 P2	performance	Relayout after one keystroke, 188-page document	ms	lower	1.4	unmeasured	unmeasured	8	bench/	Median keystroke-to-display-list time over 100 keystrokes
 P3	performance	Scroll frame, 1,096-page table document	ms	lower	4.5	unmeasured	unmeasured	16	bench/	Mean frame time over a scripted scroll
 U1	ui	Ribbon tabs present	count of 24	higher	24	0	0	10	parity/catalog.tsv	Distinct tabs with at least one done feature
-U2	ui	Modal dialogs	count (Word ~100)	higher	54	2	2	25	src/ui	Font and Colour dialogs exist in docx_viewer
+U2	ui	Modal dialogs	count (Word ~100)	higher	54	2	3	25	src/ui	Font and Colour dialogs in the core; Find and replace in the EVGUI shell (shell/DxFindDialog.rgr)
 U3	ui	Side panes (navigation, styles, comments...)	count	higher	7	0	1	3	src/ui	Navigation pane with headings is the first one (see reference screenshot)
 R1	robustness	Hostile inputs that crash or hang	count	lower	0	unmeasured	unmeasured	0	tests/malformed	Truncated zips, bad XML, huge dimensions, cyclic basedOn, zip bombs
 R2	robustness	Fuzz iterations without a crash	count	higher	0	0	0	100000	tests/fuzz	Mutation fuzzing of fixture packages

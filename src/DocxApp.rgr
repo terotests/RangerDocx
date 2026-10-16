@@ -246,6 +246,10 @@ class DocxApp {
     def wordCountVal:int 0
     ; The highlighter's colour: the last one picked.
     def highlightName:string "yellow"
+    ; Hosted: another interface (the EVGUI shell, src/DocsApp.rgr) draws the
+    ; title bar, the ribbon and the status line around this frame, so the
+    ; frame is only the desk: the navigation pane, the rulers and the pages.
+    def hosted:boolean false
 
     Constructor () {
     }
@@ -260,14 +264,46 @@ class DocxApp {
         }
     }
 
+    fn setHosted:void (on:boolean) {
+        hosted = on
+        if on {
+            this.setRibbonUi(true)
+            titleH = 0
+            statusH = 0
+        } {
+            titleH = 44
+            this.setRibbonUi(ribbonUi)
+        }
+    }
+
+    ; The frame's palette: the navigation pane, the rulers and the desk.
+    fn setDarkUi:void (on:boolean) {
+        chrome.theme.setDark(on)
+        def rt (new EVGRulerTheme)
+        if on {
+            rt.bg = (EVGColor.rgb(31 35 42))
+            rt.paper = (EVGColor.rgb(64 71 82))
+            rt.margin = (EVGColor.rgb(45 51 60))
+            rt.line = (EVGColor.rgb(96 104 116))
+            rt.ink = (EVGColor.rgb(200 205 212))
+            rt.marker = (EVGColor.rgb(110 168 254))
+            rt.markerHot = (EVGColor.rgb(150 190 255))
+        }
+        rulerView.theme = rt
+    }
+
     ; The file has just been opened: nothing in it is an edit yet.
     fn markOpened:void (name:string) {
         docName = name
         openedRevision = viewer.doc.revision
+        wordCountRev = -1
         nav.markDirty()
     }
 
     fn chromeTop:int () {
+        if hosted {
+            return 0
+        }
         if ribbonUi {
             return (titleH + (ribbon.height()))
         }
@@ -853,7 +889,7 @@ class DocxApp {
             return (this.runFormat("clear" ""))
         }
         if (id == "format.case") {
-            return (this.runFormat("case" ""))
+            return (this.runFormat("case" arg))
         }
         if (id == "edit.selectAll") {
             viewer.keySelectAll()
@@ -972,8 +1008,8 @@ class DocxApp {
     }
 
     ; Fills the ribbon's dropdown for a button and opens it under it.
-    fn openMenu:void (it:RibbonItem) {
-        def m:RibbonMenu ribbon.menu
+    fn openMenu:void (it:DocxRibbonItem) {
+        def m:DocxRibbonMenu ribbon.menu
         if (m.open && (m.owner == it.command)) {
             m.close()
             return
@@ -994,7 +1030,7 @@ class DocxApp {
                 def diff:double (d - p.lineSpacing)
                 m.add(v "para.spacing" v ((diff < 0.01) && (diff > -0.01)))
             }
-            def sb:RibbonMenuEntry (m.add((? (p.spaceBeforePt > 0.0) "Remove space before paragraph" "Add space before paragraph") "para.spaceBefore" "" false))
+            def sb:DocxMenuEntry (m.add((? (p.spaceBeforePt > 0.0) "Remove space before paragraph" "Add space before paragraph") "para.spaceBefore" "" false))
             sb.rule = true
             m.add((? (p.spaceAfterPt > 0.0) "Remove space after paragraph" "Add space after paragraph") "para.spaceAfter" "" false)
         }
@@ -1030,7 +1066,7 @@ class DocxApp {
             push looks "–"
             push looks "✓"
             for looks g:string gi {
-                def e:RibbonMenuEntry (m.add("" "para.bullets" ("bullet:" + g) (cur == ("bullet:" + g))))
+                def e:DocxMenuEntry (m.add("" "para.bullets" ("bullet:" + g) (cur == ("bullet:" + g))))
                 e.sample = g
                 e.label = (DocxApp.bulletName(g))
             }
@@ -1049,7 +1085,7 @@ class DocxApp {
             for nf spec:string si {
                 def parts:[string] (strsplit spec "|")
                 def look:string (itemAt parts 0)
-                def e2:RibbonMenuEntry (m.add((itemAt parts 2) "para.numbering" look (cur2 == look)))
+                def e2:DocxMenuEntry (m.add((itemAt parts 2) "para.numbering" look (cur2 == look)))
                 e2.sample = (itemAt parts 1)
             }
         }
@@ -1064,10 +1100,10 @@ class DocxApp {
             push names "lightGray|Grey 25%"
             for names hn:string hi {
                 def hp:[string] (strsplit hn "|")
-                def e3:RibbonMenuEntry (m.add((itemAt hp 1) "format.highlight" (itemAt hp 0) (highlightName == (itemAt hp 0))))
+                def e3:DocxMenuEntry (m.add((itemAt hp 1) "format.highlight" (itemAt hp 0) (highlightName == (itemAt hp 0))))
                 e3.sample = "■"
             }
-            def none:RibbonMenuEntry (m.add("No colour" "format.highlight" "none" false))
+            def none:DocxMenuEntry (m.add("No colour" "format.highlight" "none" false))
             none.rule = true
         }
         if (c == "format.color") {
@@ -1081,14 +1117,14 @@ class DocxApp {
             push cols "7030A0|Purple"
             for cols cn:string ci {
                 def cp:[string] (strsplit cn "|")
-                def e4:RibbonMenuEntry (m.add((itemAt cp 1) "format.color" (itemAt cp 0) false))
+                def e4:DocxMenuEntry (m.add((itemAt cp 1) "format.color" (itemAt cp 0) false))
                 e4.sample = "■"
             }
-            def more:RibbonMenuEntry (m.add("More colours…" "format.color" "" false))
+            def more:DocxMenuEntry (m.add("More colours…" "format.color" "" false))
             more.rule = true
         }
         def widest:int 120
-        for m.entries e5:RibbonMenuEntry ei {
+        for m.entries e5:DocxMenuEntry ei {
             def lw:int (to_int (chrome.textW(e5.label 12.5)))
             if ((strlen e5.sample) > 0) {
                 lw = (lw + 30)
@@ -1473,7 +1509,7 @@ class DocxApp {
     }
 
     fn titlePart:int (px:int py:int) {
-        if ((py < 8) || (py >= 36)) {
+        if (hosted || (py < 8) || (py >= 36)) {
             return -1
         }
         if ((px >= ((W - 120) - 12)) && (px < (W - 12))) {
@@ -1517,7 +1553,7 @@ class DocxApp {
             def mi:int (ribbon.menu.hit(px py))
             def owner:string ribbon.menu.owner
             if (mi >= 0) {
-                def e:RibbonMenuEntry (ribbon.menu.at(mi))
+                def e:DocxMenuEntry (ribbon.menu.at(mi))
                 ribbon.menu.close()
                 this.runCommand(e.command e.arg)
                 return 1
@@ -1525,7 +1561,7 @@ class DocxApp {
             ribbon.menu.close()
             def oi:int (ribbon.hit(px py))
             if (oi >= 0) {
-                def o:RibbonItem (ribbon.at(oi))
+                def o:DocxRibbonItem (ribbon.at(oi))
                 if ((o.command == owner) && (o.opensMenu(px))) {
                     return 1
                 }
@@ -1571,7 +1607,7 @@ class DocxApp {
             }
             def hi:int (ribbon.hit(px py))
             if (hi >= 0) {
-                def it:RibbonItem (ribbon.at(hi))
+                def it:DocxRibbonItem (ribbon.at(hi))
                 if it.enabled {
                     if (it.opensMenu(px)) {
                         this.openMenu(it)
@@ -1908,7 +1944,7 @@ class DocxApp {
         def listKind:string (viewer.edit.caretListKind())
         def i:int 0
         while (i < (array_length ribbon.items)) {
-            def it:RibbonItem (ribbon.at(i))
+            def it:DocxRibbonItem (ribbon.at(i))
             it.pressed = false
             if ((strlen it.toggleOp) > 0) {
                 if editing {
@@ -1965,17 +2001,19 @@ class DocxApp {
         }
         def editing:boolean (viewer.editMode())
 
-        ; The title bar.
-        def title:string docName
-        if ((strlen title) == 0) {
-            title = viewer.doc.title
-        }
-        chrome.paintTitleBar(framed W titleH title (viewer.doc.revision != openedRevision) (titleHot == 1))
+        if (hosted == false) {
+            ; The title bar.
+            def title:string docName
+            if ((strlen title) == 0) {
+                title = viewer.doc.title
+            }
+            chrome.paintTitleBar(framed W titleH title (viewer.doc.revision != openedRevision) (titleHot == 1))
 
-        ; The ribbon.
-        this.refreshRibbon()
-        ribbon.layout(0 titleH W chrome.view)
-        chrome.paintRibbon(framed ribbon editing)
+            ; The ribbon.
+            this.refreshRibbon()
+            ribbon.layout(0 titleH W chrome.view)
+            chrome.paintRibbon(framed ribbon editing)
+        }
 
         ; The rulers.
         if showRuler {
@@ -2020,10 +2058,11 @@ class DocxApp {
                 left = (left + "      " + status)
             }
         }
-        chrome.paintStatus(framed (H - statusH) W statusH left zoom)
-
-        chrome.paintTip(framed ribbon W)
-        chrome.paintMenu(framed ribbon.menu)
+        if (hosted == false) {
+            chrome.paintStatus(framed (H - statusH) W statusH left zoom)
+            chrome.paintTip(framed ribbon W)
+            chrome.paintMenu(framed ribbon.menu)
+        }
         def wi:int 0
         while (wi < (array_length windows.windows)) {
             def wnd:EVGWindow (itemAt windows.windows wi)

@@ -122,8 +122,8 @@ Home	Editing	Find	edit.find	live	no	yes	tests/DocxChromeTest.rgr
 Home	Editing	Find Next	edit.findNext	live	no	yes	tests/DocxChromeTest.rgr
 Home	Editing	Find Previous	edit.findPrevious	live	no	no	-
 Home	Editing	Advanced Find	edit.advancedFind	live	no	no	-
-Home	Editing	Replace	edit.replace	live	no	partial	tests/DocxChromeTest.rgr
-Home	Editing	Replace All	edit.replaceAll	live	no	no	-
+Home	Editing	Replace	edit.replace	live	no	yes	tests/DocsAppTest.rgr
+Home	Editing	Replace All	edit.replaceAll	live	no	yes	tests/DocsAppTest.rgr
 Home	Editing	Go To	edit.goto	live	no	no	-
 Home	Editing	Select All	select.all	live	yes	yes	tests/DocxTest.rgr
 Home	Editing	Select Objects	select.objects	live	no	no	-

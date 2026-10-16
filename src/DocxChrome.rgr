@@ -43,13 +43,58 @@ class DocxChromeTheme {
     def pressed:EVGColor (EVGColor.rgb(216 226 250))
     def field:EVGColor (EVGColor.rgb(255 255 255))
     def heading:EVGColor (EVGColor.rgb(31 78 121))
+    ; The vertical ruler's band beside the paper.
+    def rulerPage:EVGColor (EVGColor.rgb(214 218 226))
 
     Constructor () {
+    }
+
+    ; The dark palette, for a host whose interface is dark: the frame turns,
+    ; the paper does not — a document is printed on white.
+    fn setDark:void (on:boolean) {
+        if on {
+            window = (EVGColor.rgb(31 35 42))
+            titleBar = (EVGColor.rgb(31 35 42))
+            ribbon = (EVGColor.rgb(31 35 42))
+            desk = (EVGColor.rgb(21 24 29))
+            line = (EVGColor.rgb(54 61 72))
+            ink = (EVGColor.rgb(230 232 235))
+            dim = (EVGColor.rgb(161 169 181))
+            faint = (EVGColor.rgb(111 120 132))
+            off = (EVGColor.rgb(90 98 110))
+            accent = (EVGColor.rgb(110 168 254))
+            accentInk = (EVGColor.rgb(15 23 42))
+            accentSoft = (EVGColor.rgb(30 58 95))
+            hover = (EVGColor.rgb(43 49 58))
+            pressed = (EVGColor.rgb(54 61 72))
+            field = (EVGColor.rgb(27 31 37))
+            heading = (EVGColor.rgb(160 190 240))
+            rulerPage = (EVGColor.rgb(45 51 60))
+            return
+        }
+        def light (new DocxChromeTheme)
+        window = light.window
+        titleBar = light.titleBar
+        ribbon = light.ribbon
+        desk = light.desk
+        line = light.line
+        ink = light.ink
+        dim = light.dim
+        faint = light.faint
+        off = light.off
+        accent = light.accent
+        accentInk = light.accentInk
+        accentSoft = light.accentSoft
+        hover = light.hover
+        pressed = light.pressed
+        field = light.field
+        heading = light.heading
+        rulerPage = light.rulerPage
     }
 }
 
 ; One button, combo box or style tile on the ribbon.
-class RibbonItem {
+class DocxRibbonItem {
     def command:string ""
     def arg:string ""
     def label:string ""
@@ -106,7 +151,7 @@ class RibbonItem {
 }
 
 ; A line in a ribbon dropdown.
-class RibbonMenuEntry {
+class DocxMenuEntry {
     def label:string ""
     def command:string ""
     def arg:string ""
@@ -121,10 +166,10 @@ class RibbonMenuEntry {
 }
 
 ; The list a dropdown button opens, hanging under it.
-class RibbonMenu {
+class DocxRibbonMenu {
     def open:boolean false
     def owner:string ""
-    def entries:[RibbonMenuEntry]
+    def entries:[DocxMenuEntry]
     def x:int 0
     def y:int 0
     def w:int 180
@@ -146,8 +191,8 @@ class RibbonMenu {
         hot = -1
     }
 
-    fn add:RibbonMenuEntry (label:string command:string arg:string checked:boolean) {
-        def e:RibbonMenuEntry (new RibbonMenuEntry)
+    fn add:DocxMenuEntry (label:string command:string arg:string checked:boolean) {
+        def e:DocxMenuEntry (new DocxMenuEntry)
         e.label = label
         e.command = command
         e.arg = arg
@@ -179,13 +224,13 @@ class RibbonMenu {
         return k
     }
 
-    fn at:RibbonMenuEntry (i:int) {
+    fn at:DocxMenuEntry (i:int) {
         return (itemAt entries i)
     }
 }
 
 ; A column of the ribbon: one large button, or a stack of rows of small ones.
-class RibbonCell {
+class DocxRibbonCell {
     def large:boolean false
     ; Item indices into the ribbon's list, row by row; `rowEnds` says where
     ; each row stops.
@@ -198,9 +243,9 @@ class RibbonCell {
     }
 }
 
-class RibbonGroup {
+class DocxRibbonGroup {
     def name:string ""
-    def cells:[RibbonCell]
+    def cells:[DocxRibbonCell]
     def x:int 0
     def w:int 0
     ; How many rows the stacks in this group have: two rows sit lower and
@@ -214,8 +259,8 @@ class RibbonGroup {
 class DocxRibbon {
     def tabs:[string]
     def active:int 1
-    def items:[RibbonItem]
-    def groups:[RibbonGroup]
+    def items:[DocxRibbonItem]
+    def groups:[DocxRibbonGroup]
     def hot:int -1
     def hotTab:int -1
     ; Geometry, set by `layout`.
@@ -227,7 +272,7 @@ class DocxRibbon {
     def tabRowH:int 36
     def bodyH:int 108
     def built:string ""
-    def menu:RibbonMenu (new RibbonMenu)
+    def menu:DocxRibbonMenu (new DocxRibbonMenu)
 
     Constructor () {
         push tabs "File"
@@ -266,23 +311,23 @@ class DocxRibbon {
 
     ; --- building a page --------------------------------------------------------
     fn group:void (name:string rows:int) {
-        def g:RibbonGroup (new RibbonGroup)
+        def g:DocxRibbonGroup (new DocxRibbonGroup)
         g.name = name
         g.rows = rows
         push groups g
     }
 
-    fn lastGroup:RibbonGroup () {
+    fn lastGroup:DocxRibbonGroup () {
         return (itemAt groups ((array_length groups) - 1))
     }
 
-    fn put:int (it:RibbonItem) {
+    fn put:int (it:DocxRibbonItem) {
         push items it
         return ((array_length items) - 1)
     }
 
-    fn item:RibbonItem (command:string label:string icon:int) {
-        def it:RibbonItem (new RibbonItem)
+    fn item:DocxRibbonItem (command:string label:string icon:int) {
+        def it:DocxRibbonItem (new DocxRibbonItem)
         it.command = command
         it.label = label
         it.tip = label
@@ -291,70 +336,70 @@ class DocxRibbon {
     }
 
     ; A big button: its own column.
-    fn large:RibbonItem (command:string label:string icon:int) {
-        def it:RibbonItem (this.item(command label icon))
+    fn large:DocxRibbonItem (command:string label:string icon:int) {
+        def it:DocxRibbonItem (this.item(command label icon))
         it.kind = 1
-        def c:RibbonCell (new RibbonCell)
+        def c:DocxRibbonCell (new DocxRibbonCell)
         c.large = true
         push c.members (this.put(it))
         push c.rowEnds (array_length c.members)
-        def g:RibbonGroup (this.lastGroup())
+        def g:DocxRibbonGroup (this.lastGroup())
         push g.cells c
         return it
     }
 
     ; A new stack of rows in the current group; `small` and friends fill it.
     fn stack:void () {
-        def c:RibbonCell (new RibbonCell)
-        def g:RibbonGroup (this.lastGroup())
+        def c:DocxRibbonCell (new DocxRibbonCell)
+        def g:DocxRibbonGroup (this.lastGroup())
         push g.cells c
     }
 
-    fn lastCell:RibbonCell () {
-        def g:RibbonGroup (this.lastGroup())
+    fn lastCell:DocxRibbonCell () {
+        def g:DocxRibbonGroup (this.lastGroup())
         return (itemAt g.cells ((array_length g.cells) - 1))
     }
 
     ; Ends the row being filled; the next item starts a new one.
     fn row:void () {
-        def c:RibbonCell (this.lastCell())
+        def c:DocxRibbonCell (this.lastCell())
         push c.rowEnds (array_length c.members)
     }
 
-    fn addToRow:RibbonItem (it:RibbonItem) {
-        def c:RibbonCell (this.lastCell())
+    fn addToRow:DocxRibbonItem (it:DocxRibbonItem) {
+        def c:DocxRibbonCell (this.lastCell())
         push c.members (this.put(it))
         return it
     }
 
-    fn small:RibbonItem (command:string tip:string icon:int) {
-        def it:RibbonItem (this.item(command tip icon))
+    fn small:DocxRibbonItem (command:string tip:string icon:int) {
+        def it:DocxRibbonItem (this.item(command tip icon))
         it.kind = 0
         return (this.addToRow(it))
     }
 
-    fn glyphButton:RibbonItem (command:string tip:string glyph:string) {
-        def it:RibbonItem (this.item(command tip 0))
+    fn glyphButton:DocxRibbonItem (command:string tip:string glyph:string) {
+        def it:DocxRibbonItem (this.item(command tip 0))
         it.glyph = glyph
         it.kind = 0
         return (this.addToRow(it))
     }
 
-    fn labeled:RibbonItem (command:string label:string icon:int) {
-        def it:RibbonItem (this.item(command label icon))
+    fn labeled:DocxRibbonItem (command:string label:string icon:int) {
+        def it:DocxRibbonItem (this.item(command label icon))
         it.kind = 2
         return (this.addToRow(it))
     }
 
-    fn combo:RibbonItem (command:string tip:string w:int) {
-        def it:RibbonItem (this.item(command tip 0))
+    fn combo:DocxRibbonItem (command:string tip:string w:int) {
+        def it:DocxRibbonItem (this.item(command tip 0))
         it.kind = 3
         it.fieldW = w
         return (this.addToRow(it))
     }
 
-    fn tile:RibbonItem (styleId:string label:string size:double bold:boolean italic:boolean color:string) {
-        def it:RibbonItem (this.item("format.style" label 0))
+    fn tile:DocxRibbonItem (styleId:string label:string size:double bold:boolean italic:boolean color:string) {
+        def it:DocxRibbonItem (this.item("format.style" label 0))
         it.kind = 4
         it.arg = styleId
         it.styleId = styleId
@@ -362,11 +407,11 @@ class DocxRibbon {
         it.sampleBold = bold
         it.sampleItalic = italic
         it.sampleColor = color
-        def c:RibbonCell (new RibbonCell)
+        def c:DocxRibbonCell (new DocxRibbonCell)
         c.large = true
         push c.members (this.put(it))
         push c.rowEnds (array_length c.members)
-        def g:RibbonGroup (this.lastGroup())
+        def g:DocxRibbonGroup (this.lastGroup())
         push g.cells c
         return it
     }
@@ -403,7 +448,7 @@ class DocxRibbon {
         this.large("file.save" "Save a copy" (ToolIcon.save()))
         this.large("file.print" "Print" (ToolIcon.printDoc()))
         this.group("Info" 3)
-        def a:RibbonItem (this.large("file.properties" "Properties" (ToolIcon.report())))
+        def a:DocxRibbonItem (this.large("file.properties" "Properties" (ToolIcon.report())))
         a.enabled = false
     }
 
@@ -423,56 +468,56 @@ class DocxRibbon {
         this.combo("format.size.pick" "Font size" 48)
         this.small("format.size.up" "Grow font" (ToolIcon.sizeUp()))
         this.small("format.size.down" "Shrink font" (ToolIcon.sizeDown()))
-        def cc:RibbonItem (this.glyphButton("format.case" "Change case" "Aa"))
+        def cc:DocxRibbonItem (this.glyphButton("format.case" "Change case" "Aa"))
         cc.menu = 1
         this.small("format.clear" "Clear formatting" (ToolIcon.clearFmt()))
         this.row()
-        def b:RibbonItem (this.small("format.bold" "Bold (Ctrl+B)" (ToolIcon.bold())))
+        def b:DocxRibbonItem (this.small("format.bold" "Bold (Ctrl+B)" (ToolIcon.bold())))
         b.toggleOp = "bold"
-        def i:RibbonItem (this.small("format.italic" "Italic (Ctrl+I)" (ToolIcon.italic())))
+        def i:DocxRibbonItem (this.small("format.italic" "Italic (Ctrl+I)" (ToolIcon.italic())))
         i.toggleOp = "italic"
-        def u:RibbonItem (this.small("format.underline" "Underline (Ctrl+U)" (ToolIcon.underline())))
+        def u:DocxRibbonItem (this.small("format.underline" "Underline (Ctrl+U)" (ToolIcon.underline())))
         u.toggleOp = "underline"
-        def s:RibbonItem (this.small("format.strike" "Strikethrough" (ToolIcon.strike())))
+        def s:DocxRibbonItem (this.small("format.strike" "Strikethrough" (ToolIcon.strike())))
         s.toggleOp = "strike"
-        def sub:RibbonItem (this.glyphButton("format.subscript" "Subscript (Ctrl+=)" "x₂"))
+        def sub:DocxRibbonItem (this.glyphButton("format.subscript" "Subscript (Ctrl+=)" "x₂"))
         sub.toggleOp = "sub"
-        def sup:RibbonItem (this.glyphButton("format.superscript" "Superscript (Ctrl+Shift+=)" "x²"))
+        def sup:DocxRibbonItem (this.glyphButton("format.superscript" "Superscript (Ctrl+Shift+=)" "x²"))
         sup.toggleOp = "super"
-        def hl:RibbonItem (this.small("format.highlight" "Text highlight colour" (ToolIcon.fill())))
+        def hl:DocxRibbonItem (this.small("format.highlight" "Text highlight colour" (ToolIcon.fill())))
         hl.toggleOp = "highlight"
         hl.menu = 2
-        def fc:RibbonItem (this.small("format.color" "Font colour" (ToolIcon.textColor())))
+        def fc:DocxRibbonItem (this.small("format.color" "Font colour" (ToolIcon.textColor())))
         fc.menu = 2
 
         this.group("Paragraph" 2)
         this.stack()
-        def bl:RibbonItem (this.small("para.bullets" "Bullets" (ToolIcon.bulletList())))
+        def bl:DocxRibbonItem (this.small("para.bullets" "Bullets" (ToolIcon.bulletList())))
         bl.menu = 2
-        def nl:RibbonItem (this.small("para.numbering" "Numbering" (ToolIcon.numberList())))
+        def nl:DocxRibbonItem (this.small("para.numbering" "Numbering" (ToolIcon.numberList())))
         nl.menu = 2
-        def ml:RibbonItem (this.small("para.multilevel" "Multilevel list" (ToolIcon.outlineList())))
+        def ml:DocxRibbonItem (this.small("para.multilevel" "Multilevel list" (ToolIcon.outlineList())))
         ml.enabled = false
         this.small("text.outdent" "Decrease indent" (ToolIcon.indentLess()))
         this.small("text.indent" "Increase indent" (ToolIcon.indentMore()))
-        def so:RibbonItem (this.small("para.sort" "Sort" (ToolIcon.sortAsc())))
+        def so:DocxRibbonItem (this.small("para.sort" "Sort" (ToolIcon.sortAsc())))
         so.enabled = false
-        def pm:RibbonItem (this.glyphButton("view.marks" "Show paragraph marks" "¶"))
+        def pm:DocxRibbonItem (this.glyphButton("view.marks" "Show paragraph marks" "¶"))
         pm.enabled = false
         this.row()
-        def al:RibbonItem (this.small("para.align" "Align left" (ToolIcon.alignLeft())))
+        def al:DocxRibbonItem (this.small("para.align" "Align left" (ToolIcon.alignLeft())))
         al.arg = "0"
-        def ac:RibbonItem (this.small("para.align" "Centre" (ToolIcon.alignCenter())))
+        def ac:DocxRibbonItem (this.small("para.align" "Centre" (ToolIcon.alignCenter())))
         ac.arg = "1"
-        def ar:RibbonItem (this.small("para.align" "Align right" (ToolIcon.alignRight())))
+        def ar:DocxRibbonItem (this.small("para.align" "Align right" (ToolIcon.alignRight())))
         ar.arg = "2"
-        def aj:RibbonItem (this.small("para.align" "Justify" (ToolIcon.textJustify())))
+        def aj:DocxRibbonItem (this.small("para.align" "Justify" (ToolIcon.textJustify())))
         aj.arg = "3"
-        def ls:RibbonItem (this.glyphButton("para.spacing" "Line and paragraph spacing" "↕"))
+        def ls:DocxRibbonItem (this.glyphButton("para.spacing" "Line and paragraph spacing" "↕"))
         ls.menu = 1
-        def sh:RibbonItem (this.small("para.shading" "Shading" (ToolIcon.fill())))
+        def sh:DocxRibbonItem (this.small("para.shading" "Shading" (ToolIcon.fill())))
         sh.enabled = false
-        def bo:RibbonItem (this.small("para.borders" "Borders" (ToolIcon.borderAll())))
+        def bo:DocxRibbonItem (this.small("para.borders" "Borders" (ToolIcon.borderAll())))
         bo.enabled = false
 
         this.group("Styles" 3)
@@ -487,7 +532,7 @@ class DocxRibbon {
         this.stack()
         this.labeled("edit.find" "Find" (ToolIcon.search()))
         this.row()
-        def rp:RibbonItem (this.labeled("edit.replace" "Replace" (ToolIcon.formatPaste())))
+        def rp:DocxRibbonItem (this.labeled("edit.replace" "Replace" (ToolIcon.formatPaste())))
         rp.enabled = false
         this.row()
         this.labeled("edit.selectAll" "Select all" (ToolIcon.editMode()))
@@ -500,33 +545,33 @@ class DocxRibbon {
         this.group("Pages" 3)
         this.large("insert.pageBreak" "Page Break" (ToolIcon.newFile()))
         this.group("Tables" 3)
-        def tb:RibbonItem (this.large("insert.table" "Table" (ToolIcon.borderAll())))
+        def tb:DocxRibbonItem (this.large("insert.table" "Table" (ToolIcon.borderAll())))
         tb.menu = 1
         this.group("Illustrations" 3)
-        def pic:RibbonItem (this.large("insert.picture" "Pictures" (ToolIcon.picture())))
+        def pic:DocxRibbonItem (this.large("insert.picture" "Pictures" (ToolIcon.picture())))
         pic.enabled = false
-        def shp:RibbonItem (this.large("insert.shapes" "Shapes" (ToolIcon.shapes())))
+        def shp:DocxRibbonItem (this.large("insert.shapes" "Shapes" (ToolIcon.shapes())))
         shp.enabled = false
-        def ch:RibbonItem (this.large("insert.chart" "Chart" (ToolIcon.chart())))
+        def ch:DocxRibbonItem (this.large("insert.chart" "Chart" (ToolIcon.chart())))
         ch.enabled = false
         this.group("Links" 3)
-        def ln:RibbonItem (this.large("insert.link" "Link" (ToolIcon.link())))
+        def ln:DocxRibbonItem (this.large("insert.link" "Link" (ToolIcon.link())))
         ln.enabled = false
         this.group("Comments" 3)
-        def cm:RibbonItem (this.large("insert.comment" "Comment" (ToolIcon.comment())))
+        def cm:DocxRibbonItem (this.large("insert.comment" "Comment" (ToolIcon.comment())))
         cm.enabled = false
         this.group("Text" 3)
-        def tx:RibbonItem (this.large("insert.textBox" "Text Box" (ToolIcon.textBox())))
+        def tx:DocxRibbonItem (this.large("insert.textBox" "Text Box" (ToolIcon.textBox())))
         tx.enabled = false
     }
 
     fn buildLayout:void () {
         this.group("Page Setup" 3)
-        def mg:RibbonItem (this.large("layout.margins" "Margins" (ToolIcon.borderOut())))
+        def mg:DocxRibbonItem (this.large("layout.margins" "Margins" (ToolIcon.borderOut())))
         mg.enabled = false
-        def orr:RibbonItem (this.large("layout.orientation" "Orientation" (ToolIcon.newFile())))
+        def orr:DocxRibbonItem (this.large("layout.orientation" "Orientation" (ToolIcon.newFile())))
         orr.enabled = false
-        def sz:RibbonItem (this.large("layout.size" "Size" (ToolIcon.report())))
+        def sz:DocxRibbonItem (this.large("layout.size" "Size" (ToolIcon.report())))
         sz.enabled = false
         this.group("Paragraph" 3)
         this.stack()
@@ -534,28 +579,28 @@ class DocxRibbon {
         this.row()
         this.labeled("text.outdent" "Indent less" (ToolIcon.indentLess()))
         this.group("Arrange" 3)
-        def al:RibbonItem (this.large("layout.align" "Align" (ToolIcon.arrangeLeft())))
+        def al:DocxRibbonItem (this.large("layout.align" "Align" (ToolIcon.arrangeLeft())))
         al.enabled = false
     }
 
     fn buildReferences:void () {
         this.group("Table of Contents" 3)
-        def toc:RibbonItem (this.large("ref.toc" "Table of Contents" (ToolIcon.outlineList())))
+        def toc:DocxRibbonItem (this.large("ref.toc" "Table of Contents" (ToolIcon.outlineList())))
         toc.enabled = false
         this.group("Footnotes" 3)
-        def fn:RibbonItem (this.large("ref.footnote" "Insert Footnote" (ToolIcon.comment())))
+        def fn:DocxRibbonItem (this.large("ref.footnote" "Insert Footnote" (ToolIcon.comment())))
         fn.enabled = false
     }
 
     fn buildReview:void () {
         this.group("Proofing" 3)
-        def sp:RibbonItem (this.large("review.spelling" "Spelling" (ToolIcon.validate())))
+        def sp:DocxRibbonItem (this.large("review.spelling" "Spelling" (ToolIcon.validate())))
         sp.enabled = false
         this.group("Comments" 3)
-        def nc:RibbonItem (this.large("review.comment" "New Comment" (ToolIcon.comment())))
+        def nc:DocxRibbonItem (this.large("review.comment" "New Comment" (ToolIcon.comment())))
         nc.enabled = false
         this.group("Tracking" 3)
-        def tc:RibbonItem (this.large("review.track" "Track Changes" (ToolIcon.editMode())))
+        def tc:DocxRibbonItem (this.large("review.track" "Track Changes" (ToolIcon.editMode())))
         tc.enabled = false
     }
 
@@ -605,12 +650,12 @@ class DocxRibbon {
         def gx:int (x + 10)
         def gi:int 0
         while (gi < (array_length groups)) {
-            def g:RibbonGroup (itemAt groups gi)
+            def g:DocxRibbonGroup (itemAt groups gi)
             g.x = gx
             def cx:int (gx + 6)
             def ci:int 0
             while (ci < (array_length g.cells)) {
-                def c:RibbonCell (itemAt g.cells ci)
+                def c:DocxRibbonCell (itemAt g.cells ci)
                 c.x = cx
                 c.w = (this.layoutCell(c cx top g.rows view))
                 cx = ((cx + c.w) + 6)
@@ -628,7 +673,7 @@ class DocxRibbon {
     }
 
     ; One column; answers its width.
-    fn layoutCell:int (c:RibbonCell x:int top:int rows:int view:EVGToolbarView) {
+    fn layoutCell:int (c:DocxRibbonCell x:int top:int rows:int view:EVGToolbarView) {
         ; The row being filled when the page was built has no end yet.
         def n:int (array_length c.rowEnds)
         if ((n == 0) || ((itemAt c.rowEnds (n - 1)) < (array_length c.members))) {
@@ -648,7 +693,7 @@ class DocxRibbon {
             def rx:int x
             def k:int rowStart
             while (k < rowEnd) {
-                def it:RibbonItem (itemAt items (itemAt c.members k))
+                def it:DocxRibbonItem (itemAt items (itemAt c.members k))
                 if (it.kind == 1) {
                     it.x = rx
                     it.y = top
@@ -704,7 +749,7 @@ class DocxRibbon {
     fn hit:int (px:int py:int) {
         def i:int 0
         while (i < (array_length items)) {
-            def it:RibbonItem (itemAt items i)
+            def it:DocxRibbonItem (itemAt items i)
             if (it.contains(px py)) {
                 return i
             }
@@ -728,14 +773,14 @@ class DocxRibbon {
         return -1
     }
 
-    fn at:RibbonItem (i:int) {
+    fn at:DocxRibbonItem (i:int) {
         return (itemAt items i)
     }
 
     fn indexOf:int (command:string arg:string) {
         def i:int 0
         while (i < (array_length items)) {
-            def it:RibbonItem (itemAt items i)
+            def it:DocxRibbonItem (itemAt items i)
             if ((it.command == command) && (it.arg == arg)) {
                 return i
             }
@@ -1202,7 +1247,7 @@ class DocxChromePainter {
         this.roundFrame(dl (x0 + 6) (by + 2) (w - 12) (rb.bodyH - 8) 10 theme.line)
         def gi:int 0
         while (gi < (array_length rb.groups)) {
-            def g:RibbonGroup (itemAt rb.groups gi)
+            def g:DocxRibbonGroup (itemAt rb.groups gi)
             if ((g.x + g.w) <= ((x0 + w) - 8)) {
                 this.textMid(dl g.name (g.x + (idiv g.w 2)) ((by + rb.bodyH) - 15) 11.0 theme.faint false)
                 if (gi < ((array_length rb.groups) - 1)) {
@@ -1213,7 +1258,7 @@ class DocxChromePainter {
         }
         def i:int 0
         while (i < (array_length rb.items)) {
-            def it:RibbonItem (itemAt rb.items i)
+            def it:DocxRibbonItem (itemAt rb.items i)
             if ((it.x + it.w) <= ((x0 + w) - 8)) {
                 this.paintItem(dl it (i == rb.hot))
             }
@@ -1222,7 +1267,7 @@ class DocxChromePainter {
         this.rect(dl x0 ((by + rb.bodyH) - 1) w 1 theme.line)
     }
 
-    fn paintItem:void (dl:EVGDisplayList it:RibbonItem hot:boolean) {
+    fn paintItem:void (dl:EVGDisplayList it:DocxRibbonItem hot:boolean) {
         def ink:EVGColor theme.ink
         if (it.enabled == false) {
             ink = theme.off
@@ -1300,7 +1345,7 @@ class DocxChromePainter {
         if ((rb.hot < 0) || rb.menu.open) {
             return
         }
-        def it:RibbonItem (rb.at(rb.hot))
+        def it:DocxRibbonItem (rb.at(rb.hot))
         if ((strlen it.tip) == 0) {
             return
         }
@@ -1320,7 +1365,7 @@ class DocxChromePainter {
 
     ; An open dropdown: a card with a soft shadow, a tick on the line that
     ; is in effect, and the sample a list line would put in front.
-    fn paintMenu:void (dl:EVGDisplayList m:RibbonMenu) {
+    fn paintMenu:void (dl:EVGDisplayList m:DocxRibbonMenu) {
         if (m.open == false) {
             return
         }
@@ -1331,7 +1376,7 @@ class DocxChromePainter {
         def rh:int (m.rowH())
         def i:int 0
         while (i < (array_length m.entries)) {
-            def e:RibbonMenuEntry (itemAt m.entries i)
+            def e:DocxMenuEntry (itemAt m.entries i)
             def ry:int ((m.y + 5) + (i * rh))
             if e.rule {
                 this.rect(dl (m.x + 8) ry (m.w - 16) 1 theme.line)
@@ -1476,7 +1521,7 @@ class DocxChromePainter {
         def w:int 18
         this.rect(dl x y w h theme.window)
         dl.addClip((to_double x) (to_double clipTop) (to_double w) (to_double ((y + h) - clipTop)))
-        this.rect(dl (x + 3) pageTop (w - 6) pageH (EVGColor.rgb(214 218 226)))
+        this.rect(dl (x + 3) pageTop (w - 6) pageH theme.rulerPage)
         def mt:int (to_int ((to_double marginT) * zoom))
         def mb:int (to_int ((to_double marginB) * zoom))
         this.rect(dl (x + 3) (pageTop + mt) (w - 6) ((pageH - mt) - mb) theme.field)
