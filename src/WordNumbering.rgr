@@ -433,12 +433,25 @@ class WordNumbering {
     ; "decimal:%1." or "lowerLetter:%1)". Deeper levels follow Word's
     ; defaults: bullets ◦ ▪, numbers a. i. 1. ...
     fn newList:int (style:string) {
-        def colon:int (indexOf style ":")
+        def specs:[string]
+        push specs style
+        return (this.newListLevels(specs))
+    }
+
+    ; The same with a look for each level a file stated: `specs[l]` is level
+    ; l's "format:text" as `newList` takes it ("decimal:%1.%2."), and a level
+    ; past the end of `specs` gets the default that follows the first.
+    fn newListLevels:int (specs:[string]) {
+        def first:string "decimal:%1."
+        if ((array_length specs) > 0) {
+            first = (itemAt specs 0)
+        }
+        def colon:int (indexOf first ":")
         def fmt:string "decimal"
         def text:string "%1."
         if (colon > 0) {
-            fmt = (substring style 0 colon)
-            text = (substring style (colon + 1) (strlen style))
+            fmt = (substring first 0 colon)
+            text = (substring first (colon + 1) (strlen first))
         }
         maxAbstractId = (maxAbstractId + 1)
         maxNumId = (maxNumId + 1)
@@ -464,13 +477,17 @@ class WordNumbering {
                     lv.numFmt = "lowerRoman"
                 }
                 lv.lvlText = ("%" + (to_string (l + 1)) + ".")
-                if (l == 0) {
-                    lv.numFmt = fmt
-                    lv.lvlText = text
+            }
+            if (l < (array_length specs)) {
+                def spec:string (itemAt specs l)
+                def c2:int (indexOf spec ":")
+                if (c2 > 0) {
+                    lv.numFmt = (substring spec 0 c2)
+                    lv.lvlText = (substring spec (c2 + 1) (strlen spec))
                 }
             }
             push abs.levels lv
-            x = (x + "<w:lvl w:ilvl=\"" + (to_string l) + "\"><w:start w:val=\"1\"/><w:numFmt w:val=\"" + lv.numFmt + "\"/><w:lvlText w:val=\"" + lv.lvlText + "\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"" + (to_string lv.leftTwips) + "\" w:hanging=\"360\"/></w:pPr></w:lvl>")
+            x = (x + "<w:lvl w:ilvl=\"" + (to_string l) + "\"><w:start w:val=\"1\"/><w:numFmt w:val=\"" + lv.numFmt + "\"/><w:lvlText w:val=\"" + (WordXml.escapeAttr(lv.lvlText)) + "\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"" + (to_string lv.leftTwips) + "\" w:hanging=\"360\"/></w:pPr></w:lvl>")
             l = (l + 1)
         }
         x = (x + "</w:abstractNum>")

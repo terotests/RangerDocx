@@ -1,0 +1,34 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; formats_shot — the first page of a fixture as .docx, .odt and .rtf, each to
+; a PNG in bin/, for looking at the three readers side by side.
+;
+;   bash scripts/rgr-suite.sh ./gallery/docx_viewer/tools/formats_shot.rgr ./gallery/docx_viewer/bin formats_shot.js [fixture]
+
+Import "../src/DocxViewer.rgr"
+Import "../src/DocxFormats.rgr"
+
+class FormatsShot {
+    sfn shot:void (viewer:DocxViewer dir:string file:string out:string) {
+        if ((DocxFormats.openFile(viewer dir file)) == false) {
+            print ("FAIL open " + file + ": " + viewer.lastError)
+            return
+        }
+        viewer.renderPage(0)
+        viewer.writePng("gallery/docx_viewer/bin" out)
+        print ("wrote gallery/docx_viewer/bin/" + out)
+    }
+
+    sfn main:void () {
+        def viewer (new DocxViewer)
+        viewer.init("gallery/pdf_writer/assets/fonts")
+        def fix:string "gallery/docx_viewer/fixtures"
+        def base:string "20-business-report"
+        if ((shell_arg_cnt) > 0) {
+            base = (shell_arg 0)
+        }
+        FormatsShot.shot(viewer fix (base + ".docx") (base + "-docx.png"))
+        FormatsShot.shot(viewer (fix + "/odt") (base + ".odt") (base + "-odt.png"))
+        FormatsShot.shot(viewer (fix + "/rtf") (base + ".rtf") (base + "-rtf.png"))
+    }
+}

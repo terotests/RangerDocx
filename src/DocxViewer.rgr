@@ -134,6 +134,23 @@ class DocxViewer {
         return true
     }
 
+    ; A document another format's reader built (DocxFormats: .odt, .rtf). It
+    ; has no .docx package behind it, so a save writes a fresh one; the
+    ; parser's style table is reset so that nothing from a previously opened
+    ; file leaks into it.
+    fn adoptForeign:void (d:RichDocument nb:WordNumbering name:string) {
+        parser = (new WordMlParser)
+        doc = d
+        numbering = nb
+        if ((strlen doc.title) == 0) {
+            doc.title = name
+        }
+        edit.bindDocument(doc)
+        edit.numbering = numbering
+        view.layout.invalidate()
+        currentPage = 0
+    }
+
     ; The page as an EVGDisplayList, for a backend that draws rather than
     ; receives a picture. Same layout and same painting as `renderPage`.
     fn pageDisplayList:EVGDisplayList (page:int) {

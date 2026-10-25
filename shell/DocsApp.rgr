@@ -198,7 +198,7 @@ class DocsApp {
 
     ; The same from a file, for a host with a file system (the tests).
     fn openFile:boolean (dir:string file:string) {
-        def ok:boolean (web.viewer.openFile(dir file))
+        def ok:boolean (DocxFormats.openFile(web.viewer dir file))
         if ok {
             web.app.markOpened(file)
             if (readOnly == false) {

@@ -756,7 +756,12 @@ class WordMlParser {
         if ((strlen img.partPath) == 0) {
             return
         }
-        def bytes:buffer (pkg.readPartBytes(img.partPath))
+        WordMlParser.decodeImageBytes(img (pkg.readPartBytes(img.partPath)))
+    }
+
+    ; A picture's bytes, decoded: what every reader does once it has found the
+    ; file (the .odt and .rtf readers too).
+    sfn decodeImageBytes:void (img:DocImage bytes:buffer) {
         if ((buffer_length bytes) < 8) {
             return
         }

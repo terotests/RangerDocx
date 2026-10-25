@@ -1,0 +1,77 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; DocxFormats - open a .docx, .odt or .rtf into a DocxViewer
+; ==============================================================================
+;
+; What a file is comes from its bytes, not its name: an .odt is a ZIP like a
+; .docx, and an .rtf starts with `{\rtf`. Anything that is neither of the
+; other two goes to the .docx reader, which says what is wrong with it.
+;
+; Kept out of DocxViewer on purpose. The viewer is imported by programs that
+; only ever see a .docx (a chart pasted from the spreadsheet, the markdown
+; page), and the two readers are a large part of the compiler's memory for a
+; program that holds the Word editor and the spreadsheet together.
+; ==============================================================================
+
+Import "DocxViewer.rgr"
+Import "OdtReader.rgr"
+Import "RtfReader.rgr"
+
+class DocxFormats {
+    ; "odt", "rtf" or "docx": the reader these bytes are for.
+    sfn kindOf:string (data:buffer) {
+        if (OdtReader.isOdt(data)) {
+            return "odt"
+        }
+        if (RtfReader.isRtf(data)) {
+            return "rtf"
+        }
+        return "docx"
+    }
+
+    sfn openBytes:boolean (viewer:DocxViewer data:buffer name:string) {
+        def kind:string (DocxFormats.kindOf(data))
+        if (kind == "odt") {
+            def odt:OdtReader (new OdtReader)
+            def read@(optional):RichDocument (odt.readBytes(data name))
+            if (null? read) {
+                viewer.lastError = odt.lastError
+                return false
+            }
+            viewer.lastError = ""
+            viewer.adoptForeign((unwrap read) odt.numbering name)
+            return true
+        }
+        if (kind == "rtf") {
+            def rtf:RtfReader (new RtfReader)
+            def rd@(optional):RichDocument (rtf.readBytes(data name))
+            if (null? rd) {
+                viewer.lastError = rtf.lastError
+                return false
+            }
+            viewer.lastError = ""
+            viewer.adoptForeign((unwrap rd) rtf.numbering name)
+            return true
+        }
+        return (viewer.openBytes(data name))
+    }
+
+    ; From a file, for a host with a file system (the tests, the tools).
+    sfn openFile:boolean (viewer:DocxViewer dir:string file:string) {
+        def lower:string (to_lowercase file)
+        if ((DocxFormats.endsWith(lower ".docx")) || (DocxFormats.endsWith(lower ".docm"))) {
+            return (viewer.openFile(dir file))
+        }
+        return (DocxFormats.openBytes(viewer (buffer_read_file dir file) file))
+    }
+
+    sfn endsWith:boolean (s:string suffix:string) {
+        def n:int (strlen s)
+        def m:int (strlen suffix)
+        if (m > n) {
+            return false
+        }
+        return ((substring s (n - m) n) == suffix)
+    }
+}

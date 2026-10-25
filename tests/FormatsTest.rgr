@@ -1,0 +1,473 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; FormatsTest - the .odt and .rtf readers.
+; ==============================================================================
+;
+; The fixtures in fixtures/odt and fixtures/rtf are the .docx fixtures saved
+; as .odt and .rtf by LibreOffice, so each one has a twin the .docx reader already reads: the two
+; readers must agree on the text, and the rest is checked one feature at a
+; time.
+; ==============================================================================
+
+Import "../src/DocxViewer.rgr"
+Import "../src/DocxFormats.rgr"
+Import "../src/OdtReader.rgr"
+Import "../src/RtfReader.rgr"
+Import "../src/RichDocument.rgr"
+
+class FmtChecker {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class FormatsTest {
+    ; The document's text as lines with white space collapsed and empty lines
+    ; left out: the two formats disagree about empty paragraphs and tabs, and
+    ; neither is wrong.
+    sfn lines:[string] (doc:RichDocument) {
+        def out:[string]
+        def plain:string (doc.plainText())
+        def cur:string ""
+        def lastSpace:boolean true
+        def n:int (strlen plain)
+        def i:int 0
+        def runStart:int 0
+        while (i <= n) {
+            def c:int 10
+            if (i < n) {
+                c = (charAt plain i)
+            }
+            if (c == 10) {
+                if (i > runStart) {
+                    cur = (cur + (substring plain runStart i))
+                    lastSpace = false
+                }
+                def t:string cur
+                if (((strlen t) > 0) && ((charAt t ((strlen t) - 1)) == 32)) {
+                    t = (substring t 0 ((strlen t) - 1))
+                }
+                if ((strlen t) > 0) {
+                    push out t
+                }
+                cur = ""
+                lastSpace = true
+                runStart = (i + 1)
+            } {
+                if (((c == 32) || (c == 9)) || (c == 160)) {
+                    if (i > runStart) {
+                        cur = (cur + (substring plain runStart i))
+                        lastSpace = false
+                    }
+                    if (lastSpace == false) {
+                        cur = (cur + " ")
+                    }
+                    lastSpace = true
+                    runStart = (i + 1)
+                }
+            }
+            i = (i + 1)
+        }
+        return out
+    }
+
+    sfn sameText:void (c:FmtChecker v:DocxViewer fix:string base:string ext:string) {
+        if ((DocxFormats.openFile(v fix (base + ".docx"))) == false) {
+            c.ok(("open " + base + ".docx") false)
+            return
+        }
+        def want:[string] (FormatsTest.lines((v.document())))
+        def opened:boolean (DocxFormats.openFile(v (fix + "/" + ext) (base + "." + ext)))
+        c.ok(("open " + base + "." + ext) opened)
+        if (opened == false) {
+            print ("    " + v.lastError)
+            return
+        }
+        def got:[string] (FormatsTest.lines((v.document())))
+        def n:int (array_length want)
+        if ((array_length got) < n) {
+            n = (array_length got)
+        }
+        def i:int 0
+        def firstDiff:int -1
+        while ((i < n) && (firstDiff < 0)) {
+            if ((itemAt want i) != (itemAt got i)) {
+                firstDiff = i
+            }
+            i = (i + 1)
+        }
+        if (firstDiff >= 0) {
+            print ("    docx: " + (itemAt want firstDiff))
+            print ("    " + ext + ":  " + (itemAt got firstDiff))
+        }
+        c.eqInt((base + "." + ext + ": the same lines as the .docx") (array_length got) (array_length want))
+        c.ok((base + "." + ext + ": with the same text") (firstDiff < 0))
+    }
+
+    ; The twin's sections: as many, and the same way up.
+    sfn sameSections:void (c:FmtChecker v:DocxViewer fix:string base:string ext:string) {
+        DocxFormats.openFile(v fix (base + ".docx"))
+        def want:RichDocument (v.document())
+        DocxFormats.openFile(v (fix + "/" + ext) (base + "." + ext))
+        def got:RichDocument (v.document())
+        c.eqInt((base + "." + ext + ": as many sections as the .docx") (got.sectionCount()) (want.sectionCount()))
+        if ((got.sectionCount()) == (want.sectionCount())) {
+            def i:int 0
+            while (i < (want.sectionCount())) {
+                def a:DocSection (want.sectionAt(i))
+                def b:DocSection (got.sectionAt(i))
+                c.ok((base + "." + ext + ": section " + (to_string i) + " the same way up") ((a.pageWTwips > a.pageHTwips) == (b.pageWTwips > b.pageHTwips)))
+                c.eqInt((base + "." + ext + ": section " + (to_string i) + " page width") b.pageWTwips a.pageWTwips)
+                i = (i + 1)
+            }
+        }
+    }
+
+    sfn findPara@(optional):Paragraph (doc:RichDocument text:string) {
+        for doc.paragraphs p:Paragraph pi {
+            if ((indexOf p.text text) == 0) {
+                def hit@(optional):Paragraph p
+                return hit
+            }
+        }
+        def missing@(optional):Paragraph
+        return missing
+    }
+
+    sfn spanAt:TextSpan (p:Paragraph offset:int) {
+        for p.spans s:TextSpan si {
+            if ((offset >= s.start) && (offset < s.end)) {
+                return s
+            }
+        }
+        return (new TextSpan)
+    }
+
+    sfn main:void () {
+        def c:FmtChecker (new FmtChecker)
+        def fix:string "gallery/docx_viewer/fixtures"
+        def v:DocxViewer (new DocxViewer)
+        v.init("gallery/pdf_writer/assets/fonts")
+
+        print "== the format is read from the bytes =="
+        def odtBytes:buffer (buffer_read_file (fix + "/odt") "hello.odt")
+        def docxBytes:buffer (buffer_read_file fix "hello.docx")
+        c.ok("an .odt is one" (OdtReader.isOdt(odtBytes)))
+        c.ok("a .docx is not" ((OdtReader.isOdt(docxBytes)) == false))
+        c.ok("opens from bytes under any name" (DocxFormats.openBytes(v odtBytes "upload.bin")))
+        c.ok("and has the text" ((indexOf ((v.document()).plainText()) "Hello") >= 0))
+
+        print "== the same text as the .docx twin =="
+        FormatsTest.sameText(c v fix "hello" "odt")
+        FormatsTest.sameText(c v fix "styles_demo" "odt")
+        FormatsTest.sameText(c v fix "lists_demo" "odt")
+        FormatsTest.sameText(c v fix "05-table-basic" "odt")
+        FormatsTest.sameText(c v fix "07-table-merged" "odt")
+        FormatsTest.sameText(c v fix "13-images-mixed" "odt")
+        FormatsTest.sameText(c v fix "20-business-report" "odt")
+        FormatsTest.sameText(c v fix "22-glyph-fallback" "odt")
+        FormatsTest.sameText(c v fix "12-header-footer" "odt")
+
+        print "== character formatting =="
+        c.ok("open hello.odt" (DocxFormats.openFile(v (fix + "/odt") "hello.odt")))
+        def hello:RichDocument (v.document())
+        def anyBold:boolean false
+        for hello.paragraphs hp:Paragraph hpi {
+            for hp.spans hs:TextSpan hsi {
+                if (hs.bold && (hs.end > hs.start)) {
+                    anyBold = true
+                }
+            }
+        }
+        c.ok("a bold run" anyBold)
+
+        print "== paragraphs and headings =="
+        c.ok("open styles_demo.odt" (DocxFormats.openFile(v (fix + "/odt") "styles_demo.odt")))
+        def sd:RichDocument (v.document())
+        def centered:boolean false
+        def right:boolean false
+        for sd.paragraphs sp:Paragraph spi {
+            if (sp.align == 1) {
+                centered = true
+            }
+            if (sp.align == 2) {
+                right = true
+            }
+        }
+        c.ok("a centred paragraph" centered)
+        c.ok("a right-aligned paragraph" right)
+
+        c.ok("open lists_demo.odt" (DocxFormats.openFile(v (fix + "/odt") "lists_demo.odt")))
+        def ld:RichDocument (v.document())
+        def h1@(optional):Paragraph (FormatsTest.findPara(ld "Lists"))
+        c.ok("the title is there" (!null? h1))
+        if (!null? h1) {
+            def hp1:Paragraph (unwrap h1)
+            c.eqStr("as Heading 1" hp1.styleId "Heading1")
+            def hs0:TextSpan (itemAt hp1.spans 0)
+            c.ok("bigger than the body" (hs0.fontSizePt > 12.0))
+        }
+
+        print "== lists =="
+        def b1@(optional):Paragraph (FormatsTest.findPara(ld "Open OPC package"))
+        def b2@(optional):Paragraph (FormatsTest.findPara(ld "Parse WordprocessingML"))
+        def n1@(optional):Paragraph (FormatsTest.findPara(ld "Read document.xml"))
+        def deep@(optional):Paragraph (FormatsTest.findPara(ld "Roman detail"))
+        def done@(optional):Paragraph (FormatsTest.findPara(ld "Done"))
+        c.ok("the list paragraphs are there" ((((!null? b1) && (!null? b2)) && (!null? n1)) && (!null? deep)))
+        if ((((!null? b1) && (!null? b2)) && (!null? n1)) && (!null? deep)) {
+            def pb1:Paragraph (unwrap b1)
+            def pb2:Paragraph (unwrap b2)
+            def pn1:Paragraph (unwrap n1)
+            def pdeep:Paragraph (unwrap deep)
+            c.ok("a bullet item is in a list" (pb1.listNumId > 0))
+            c.eqStr("of bullets" (v.numbering.kindOf(pb1.listNumId)) "bullet")
+            c.eqInt("the next item is in the same list" pb2.listNumId pb1.listNumId)
+            c.eqStr("a numbered item is numbered" (v.numbering.kindOf(pn1.listNumId)) "number")
+            c.ok("in a list of its own" (pn1.listNumId != pb1.listNumId))
+            c.eqInt("the third level is level 2" pdeep.listLevel 2)
+            c.ok("and indented" (pdeep.indentLeftPt > pb1.indentLeftPt))
+        }
+        if (!null? done) {
+            def pdone:Paragraph (unwrap done)
+            c.eqInt("after the list, no list" pdone.listNumId 0)
+        }
+
+        print "== tables =="
+        c.ok("open 05-table-basic.odt" (DocxFormats.openFile(v (fix + "/odt") "05-table-basic.odt")))
+        def tb:RichDocument (v.document())
+        c.ok("a table" ((array_length tb.tables) >= 1))
+        if ((array_length tb.tables) >= 1) {
+            def t0:DocumentTable (itemAt tb.tables 0)
+            c.ok("with rows" ((array_length t0.rows) >= 2))
+            c.ok("and column widths" ((array_length t0.colWidthsTwips) >= 2))
+            def r0:DocTableRow (itemAt t0.rows 0)
+            c.eqInt("a cell per column" (array_length r0.cells) (array_length t0.colWidthsTwips))
+            def c0:DocTableCell (itemAt r0.cells 0)
+            c.ok("cells have borders" (c0.borderTop.style != "none"))
+        }
+        c.ok("open 07-table-merged.odt" (DocxFormats.openFile(v (fix + "/odt") "07-table-merged.odt")))
+        def tm:RichDocument (v.document())
+        def spanned:boolean false
+        for tm.tables mt:DocumentTable mti {
+            for mt.rows mr:DocTableRow mri {
+                def cols:int 0
+                for mr.cells mc:DocTableCell mci {
+                    cols = (cols + mc.gridSpan)
+                    if (mc.gridSpan > 1) {
+                        spanned = true
+                    }
+                }
+                c.eqInt("each row fills the grid" cols (array_length mt.colWidthsTwips))
+            }
+        }
+        c.ok("a cell spans columns" spanned)
+
+        print "== pictures =="
+        c.ok("open 13-images-mixed.odt" (DocxFormats.openFile(v (fix + "/odt") "13-images-mixed.odt")))
+        def im:RichDocument (v.document())
+        def pics:int 0
+        def decoded:int 0
+        for im.paragraphs ip:Paragraph ipi {
+            for ip.images pic:DocImage pici {
+                pics = (pics + 1)
+                if (pic.ok && (pic.widthPx > 1)) {
+                    decoded = (decoded + 1)
+                }
+            }
+        }
+        c.ok("pictures are read" (pics >= 2))
+        c.eqInt("and decoded" decoded pics)
+
+        print "== the page =="
+        c.ok("open 20-business-report.odt" (DocxFormats.openFile(v (fix + "/odt") "20-business-report.odt")))
+        def br:RichDocument (v.document())
+        def sec:DocSection (br.sectionAt(0))
+        c.ok("a page size" ((sec.pageWTwips > 10000) && (sec.pageHTwips > 10000)))
+        c.ok("margins" (sec.marginLeftTwips > 0))
+        v.renderPage(0)
+        c.ok("lays out into pages" ((v.view.layout.pageCount()) >= 1))
+
+        print "== headers and footers =="
+        def hfExts:[string] ([] _:string ("odt" "rtf"))
+        for hfExts hx:string hxi {
+            DocxFormats.openFile(v fix "12-header-footer.docx")
+            def hw:DocSection ((v.document()).sectionAt(0))
+            def wantHead:string ""
+            for hw.headerParas whp:Paragraph whpi {
+                wantHead = (wantHead + whp.text)
+            }
+            def wantFoot:string ""
+            for hw.footerParas wfp:Paragraph wfpi {
+                wantFoot = (wantFoot + wfp.text)
+            }
+            DocxFormats.openFile(v (fix + "/" + hx) ("12-header-footer." + hx))
+            def hg:DocSection ((v.document()).sectionAt(0))
+            def gotHead:string ""
+            for hg.headerParas ghp:Paragraph ghpi {
+                gotHead = (gotHead + ghp.text)
+            }
+            def gotFoot:string ""
+            for hg.footerParas gfp:Paragraph gfpi {
+                gotFoot = (gotFoot + gfp.text)
+            }
+            c.ok((hx + ": the header has text") ((strlen gotHead) > 0))
+            c.eqStr((hx + ": the header") gotHead wantHead)
+            c.ok((hx + ": the footer has text") ((strlen gotFoot) > 0))
+        }
+
+        print "== sections =="
+        FormatsTest.sameSections(c v fix "20-business-report" "odt")
+        FormatsTest.sameSections(c v fix "10-landscape-section" "odt")
+        FormatsTest.sameSections(c v fix "20-business-report" "rtf")
+        FormatsTest.sameSections(c v fix "10-landscape-section" "rtf")
+        c.ok("open 20-business-report.odt" (DocxFormats.openFile(v (fix + "/odt") "20-business-report.odt")))
+        br = (v.document())
+
+        print "== saved as .docx =="
+        def saved:buffer (v.saveBytes())
+        c.ok("a .docx comes out" ((buffer_length saved) > 100))
+        def before:[string] (FormatsTest.lines(br))
+        c.ok("and opens again" (DocxFormats.openBytes(v saved "saved.docx")))
+        def after:[string] (FormatsTest.lines((v.document())))
+        c.eqInt("with the same lines" (array_length after) (array_length before))
+
+        print "== RTF: read from the bytes =="
+        def rtfBytes:buffer (buffer_read_file (fix + "/rtf") "hello.rtf")
+        c.ok("an .rtf is one" (RtfReader.isRtf(rtfBytes)))
+        c.ok("a .docx is not" ((RtfReader.isRtf(docxBytes)) == false))
+        c.ok("opens from bytes under any name" (DocxFormats.openBytes(v rtfBytes "upload.bin")))
+
+        print "== RTF: the same text as the .docx twin =="
+        FormatsTest.sameText(c v fix "hello" "rtf")
+        FormatsTest.sameText(c v fix "styles_demo" "rtf")
+        FormatsTest.sameText(c v fix "lists_demo" "rtf")
+        FormatsTest.sameText(c v fix "05-table-basic" "rtf")
+        FormatsTest.sameText(c v fix "07-table-merged" "rtf")
+        FormatsTest.sameText(c v fix "13-images-mixed" "rtf")
+        FormatsTest.sameText(c v fix "20-business-report" "rtf")
+        FormatsTest.sameText(c v fix "22-glyph-fallback" "rtf")
+        FormatsTest.sameText(c v fix "12-header-footer" "rtf")
+
+        print "== RTF: formatting =="
+        c.ok("open hello.rtf" (DocxFormats.openFile(v (fix + "/rtf") "hello.rtf")))
+        def rh:RichDocument (v.document())
+        def rBold:boolean false
+        for rh.paragraphs rhp:Paragraph rhpi {
+            for rhp.spans rhs:TextSpan rhsi {
+                if (rhs.bold && (rhs.end > rhs.start)) {
+                    rBold = true
+                }
+            }
+        }
+        c.ok("a bold run" rBold)
+        c.ok("open styles_demo.rtf" (DocxFormats.openFile(v (fix + "/rtf") "styles_demo.rtf")))
+        def rs:RichDocument (v.document())
+        def rCenter:boolean false
+        def rRight:boolean false
+        for rs.paragraphs rsp:Paragraph rspi {
+            if (rsp.align == 1) {
+                rCenter = true
+            }
+            if (rsp.align == 2) {
+                rRight = true
+            }
+        }
+        c.ok("a centred paragraph" rCenter)
+        c.ok("a right-aligned paragraph" rRight)
+
+        print "== RTF: headings and lists =="
+        c.ok("open lists_demo.rtf" (DocxFormats.openFile(v (fix + "/rtf") "lists_demo.rtf")))
+        def rl:RichDocument (v.document())
+        def rh1@(optional):Paragraph (FormatsTest.findPara(rl "Lists"))
+        c.ok("the title is there" (!null? rh1))
+        if (!null? rh1) {
+            def rhp1:Paragraph (unwrap rh1)
+            c.eqStr("as Heading 1" rhp1.styleId "Heading1")
+        }
+        def rb1@(optional):Paragraph (FormatsTest.findPara(rl "Open OPC package"))
+        def rb2@(optional):Paragraph (FormatsTest.findPara(rl "Parse WordprocessingML"))
+        def rn1@(optional):Paragraph (FormatsTest.findPara(rl "Read document.xml"))
+        def rdeep@(optional):Paragraph (FormatsTest.findPara(rl "Roman detail"))
+        if ((((!null? rb1) && (!null? rb2)) && (!null? rn1)) && (!null? rdeep)) {
+            def qb1:Paragraph (unwrap rb1)
+            def qb2:Paragraph (unwrap rb2)
+            def qn1:Paragraph (unwrap rn1)
+            def qdeep:Paragraph (unwrap rdeep)
+            c.eqStr("bullets" (v.numbering.kindOf(qb1.listNumId)) "bullet")
+            c.eqInt("the next item is in the same list" qb2.listNumId qb1.listNumId)
+            c.eqStr("a numbered item is numbered" (v.numbering.kindOf(qn1.listNumId)) "number")
+            c.eqInt("the third level is level 2" qdeep.listLevel 2)
+        } {
+            c.ok("the list paragraphs are there" false)
+        }
+
+        print "== RTF: tables and pictures =="
+        c.ok("open 07-table-merged.rtf" (DocxFormats.openFile(v (fix + "/rtf") "07-table-merged.rtf")))
+        def rm:RichDocument (v.document())
+        c.ok("a table" ((array_length rm.tables) >= 1))
+        def rSpanned:boolean false
+        for rm.tables rmt:DocumentTable rmti {
+            for rmt.rows rmr:DocTableRow rmri {
+                def rcols:int 0
+                for rmr.cells rmc:DocTableCell rmci {
+                    rcols = (rcols + rmc.gridSpan)
+                    if (rmc.gridSpan > 1) {
+                        rSpanned = true
+                    }
+                }
+                c.eqInt("each row fills the grid" rcols (array_length rmt.colWidthsTwips))
+            }
+        }
+        c.ok("a cell spans columns" rSpanned)
+        c.ok("open 13-images-mixed.rtf" (DocxFormats.openFile(v (fix + "/rtf") "13-images-mixed.rtf")))
+        def ri:RichDocument (v.document())
+        def rpics:int 0
+        def rdecoded:int 0
+        for ri.paragraphs rip:Paragraph ripi {
+            for rip.images rpic:DocImage rpici {
+                rpics = (rpics + 1)
+                if (rpic.ok && (rpic.widthPx > 1)) {
+                    rdecoded = (rdecoded + 1)
+                }
+            }
+        }
+        c.ok("pictures are read" (rpics >= 2))
+        c.eqInt("and decoded" rdecoded rpics)
+
+        print "== RTF: the page, and saved as .docx =="
+        c.ok("open 20-business-report.rtf" (DocxFormats.openFile(v (fix + "/rtf") "20-business-report.rtf")))
+        def rb:RichDocument (v.document())
+        def rsec:DocSection (rb.sectionAt(0))
+        c.ok("a page size" ((rsec.pageWTwips > 10000) && (rsec.pageHTwips > 10000)))
+        v.renderPage(0)
+        c.ok("lays out into pages" ((v.view.layout.pageCount()) >= 1))
+        def rbefore:[string] (FormatsTest.lines(rb))
+        def rsaved:buffer (v.saveBytes())
+        c.ok("and opens again as .docx" (DocxFormats.openBytes(v rsaved "saved.docx")))
+        c.eqInt("with the same lines" (array_length (FormatsTest.lines((v.document())))) (array_length rbefore))
+
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        }
+    }
+}

@@ -24,6 +24,8 @@
     "docx_viewer:web:test": "bash gallery/docx_viewer/web/standalone/build.sh && node gallery/docx_viewer/web/standalone/smoke.mjs",
     "docx_viewer:window": "npm run docx_viewer:module && node gallery/docx_viewer/web/serve.mjs --open",
     "docx_viewer:write:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxWriteTest.rgr ./gallery/docx_viewer/bin DocxWriteTest.js",
-    "docx_viewer:chrome:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxChromeTest.rgr ./gallery/docx_viewer/bin DocxChromeTest.js"
+    "docx_viewer:chrome:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxChromeTest.rgr ./gallery/docx_viewer/bin DocxChromeTest.js",
+    "docx_viewer:formats:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/FormatsTest.rgr ./gallery/docx_viewer/bin FormatsTest.js",
+    "docx_viewer:formats:shot": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tools/formats_shot.rgr ./gallery/docx_viewer/bin formats_shot.js"
   }
 }

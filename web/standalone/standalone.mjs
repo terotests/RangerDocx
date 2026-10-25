@@ -341,7 +341,8 @@ fileEl?.addEventListener("change", async (ev) => {
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   const ok = web.openDocument(asRangerBuffer(await file.arrayBuffer()), file.name);
-  if (ok) docName = file.name;
+  // an .odt or .rtf is saved as a .docx: there is only a .docx writer
+  if (ok) docName = file.name.replace(/\.(odt|ott|rtf)$/i, ".docx");
   fileEl.value = "";
   statusEl.textContent = ok ? "opened " + file.name : "could not open: " + web.note;
   page = 0;

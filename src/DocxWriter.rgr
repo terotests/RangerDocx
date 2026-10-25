@@ -65,32 +65,7 @@ class DocxWriter {
     ; --- text --------------------------------------------------------------
 
     sfn esc:string (s:string) {
-        def r:string ""
-        def n:int (strlen s)
-        def from:int 0
-        def i:int 0
-        while (i < n) {
-            def c:int (charAt s i)
-            def rep:string ""
-            if (c == 38) {
-                rep = "&amp;"
-            }
-            if (c == 60) {
-                rep = "&lt;"
-            }
-            if (c == 62) {
-                rep = "&gt;"
-            }
-            if (c == 34) {
-                rep = "&quot;"
-            }
-            if ((strlen rep) > 0) {
-                r = (r + (substring s from i) + rep)
-                from = (i + 1)
-            }
-            i = (i + 1)
-        }
-        return (r + (substring s from n))
+        return (WordXml.escapeAttr(s))
     }
 
     ; Text as UTF-8 bytes, walked by code point so it means the same on every

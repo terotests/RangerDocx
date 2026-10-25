@@ -271,7 +271,7 @@ export async function mountDocs(container, options = {}) {
   // --- files, printing, the clipboard ---------------------------------------------
   const fileInput = document.createElement("input");
   fileInput.type = "file";
-  fileInput.accept = ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  fileInput.accept = ".docx,.odt,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/rtf,text/rtf";
   fileInput.style.display = "none";
   wrap.appendChild(fileInput);
   fileInput.addEventListener("change", async () => {
@@ -280,6 +280,12 @@ export async function mountDocs(container, options = {}) {
     await openBytes(await f.arrayBuffer(), f.name);
     fileInput.value = "";
   });
+
+  // An .odt or .rtf is opened, edited and saved as a .docx: there is only a
+  // .docx writer.
+  function asDocxName(name) {
+    return /\.(odt|ott|rtf)$/i.test(name) ? name.replace(/\.[^.]+$/, ".docx") : name;
+  }
 
   function saveBlob(blob, name) {
     const url = URL.createObjectURL(blob);
@@ -302,7 +308,7 @@ export async function mountDocs(container, options = {}) {
     } else if (want === "saveAs") {
       const raw = app.web.saveDocument();
       if (options.onSave) options.onSave(raw, docName, controller);
-      else saveBlob(new Blob([raw], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), docName);
+      else saveBlob(new Blob([raw], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), asDocxName(docName));
     } else if (want === "print") {
       window.print();
     } else if (want === "copy") {

@@ -21,6 +21,7 @@
 ; ==============================================================================
 
 Import "../src/DocxApp.rgr"
+Import "../src/DocxFormats.rgr"
 
 class DocxWeb {
     ; The application, not the page renderer. `viewer` is still here and still
@@ -169,8 +170,9 @@ class DocxWeb {
         return (viewer.view.ctx.tr.addFaceBytes(data))
     }
 
+    ; A .docx, .odt or .rtf: which one is read from the bytes.
     fn openDocument:boolean (data:buffer name:string) {
-        def ok:boolean (viewer.openBytes(data name))
+        def ok:boolean (DocxFormats.openBytes(viewer data name))
         if (ok == false) {
             note = viewer.lastError
         } {

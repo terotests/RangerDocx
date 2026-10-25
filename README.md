@@ -36,6 +36,30 @@ python3 tools/parity/import_wordcraft.py <wordcraft checkout>   # refresh WordCr
 
 Outside a Ranger checkout, set `RANGER=<ranger checkout>`.
 
+## Other formats: .odt and .rtf
+
+The editor also opens OpenDocument text (`.odt`) and RTF (`.rtf`). Both are
+read into the same `RichDocument` as a `.docx` (`src/OdtReader.rgr`,
+`src/RtfReader.rgr`), so everything the editor does works on them; a save
+writes a `.docx`, as there is no ODF or RTF writer. `src/DocxFormats.rgr` picks
+the reader from the file's bytes, not its name. Spreadsheets and decks are
+their own applications: `.xlsx` is EVGSheets, `.pptx`/`.odp` is RangerPPTX.
+
+Read: paragraphs and headings, character formatting, alignment, indents,
+spacing, page breaks, lists (bullets and numbers, nested, per-level formats),
+tables (widths, merged cells, shading, borders), PNG/JPEG pictures, hyperlinks,
+sections with their page size and orientation, headers and footers. Not read:
+text boxes and shapes, footnote bodies, tracked changes, nested tables (their
+text is kept), WMF/EMF pictures in RTF, and `\'hh` in code pages other than 1252.
+
+```bash
+npm run docx_viewer:formats:test   # each fixtures/odt and fixtures/rtf file against its .docx twin
+npm run docx_viewer:formats:shot   # first page as .docx, .odt and .rtf to bin/*.png
+```
+
+The fixtures in `fixtures/odt` and `fixtures/rtf` are the `.docx` fixtures
+saved by LibreOffice (`soffice --headless --convert-to odt|rtf`).
+
 ## The EVGUI editor (shell/)
 
 `shell/DocsApp.rgr` is the Word-style editor: the ribbon, menus and dialogs are

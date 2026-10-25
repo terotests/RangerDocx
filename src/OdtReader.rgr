@@ -1,0 +1,1540 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; OdtReader - OpenDocument text (.odt) → RichDocument
+; ==============================================================================
+;
+; The container is `gallery/odf/OdfPackage.rgr`, which the .odp reader
+; stands on too, and the XML tree is OdtXml (XmlCore's parser, renamed: see
+; there why). What is
+; here is the part that is about a text document: ODF's styles resolved into
+; the formatting a `TextSpan` and a `Paragraph` hold, and the body walked into
+; blocks.
+;
+; It lands in `RichDocument` and nothing else (PLAN_FORMATS.md: DOCX, ODT,
+; EPUB, HTML and Markdown converge on one model). So an .odt opens in the same
+; editor, and its save is a fresh .docx: there is no ODF writer.
+;
+; WHAT IS READ. Paragraphs and headings, character formatting through spans
+; and their style chains, paragraph alignment / margins / indents / line
+; height / page breaks, lists (bullets and numbers, nested), tables (column
+; widths, spans, cell fill, borders), pictures in frames, hyperlinks, the
+; page size and margins of the first master page and its header and footer.
+;
+; WHAT IS NOT. Text boxes and drawn shapes, notes (the citation stays, the
+; note body does not), tracked changes (the document as it now reads), fields
+; beyond their current text, and the ODF outline numbering of headings.
+;
+; STYLES. ODF states formatting in named styles that inherit through
+; `style:parent-style-name`, with one `style:default-style` per family under
+; them all. Automatic styles (the ones in content.xml) are the same thing
+; with a generated name. Everything is resolved here, at read time, into the
+; spans: the model holds the formatting a reader sees, as it does for DOCX.
+; ==============================================================================
+
+Import "RichDocument.rgr"
+Import "WordNumbering.rgr"
+Import "WordMlParser.rgr"
+Import "WordStyleResolver.rgr"
+Import "../../odf/OdfPackage.rgr"
+Import "OdtXml.rgr"
+Import "../../odp/OdpUnits.rgr"
+
+; One ODF style, as far as a text document needs it. Every field has an
+; "unset" value, because a style that says nothing must not override the one
+; it inherits from.
+class OdtStyle {
+    def name:string ""
+    def family:string ""
+    def parent:string ""
+    def displayName:string ""
+    def listStyle:string ""
+    def masterPage:string ""
+    def outlineLevel:int 0
+    ; text
+    def fontName:string ""
+    def sizePt:double -1.0
+    def sizePct:double -1.0
+    def bold:int -1
+    def italic:int -1
+    def underline:int -1
+    def strike:int -1
+    def vertAlign:int -1
+    def colorHex:string ""
+    def highlight:string ""
+    ; paragraph (-100000 is "not stated"; an indent can be negative)
+    def align:int -1
+    def marginTop:double -100000.0
+    def marginBottom:double -100000.0
+    def marginLeft:double -100000.0
+    def marginRight:double -100000.0
+    def textIndent:double -100000.0
+    def lineSpacing:double -1.0
+    def breakBefore:int -1
+    def breakAfter:int -1
+    ; table cell / row / column
+    def fillHex:string ""
+    def borderAll:string ""
+    def borderTop:string ""
+    def borderBottom:string ""
+    def borderLeft:string ""
+    def borderRight:string ""
+    def padding:double -1.0
+    def columnWidthPt:double -1.0
+    def rowHeightPt:double -1.0
+
+    Constructor () {
+    }
+}
+
+class OdtListLevel {
+    def bullet:boolean true
+    def bulletChar:string "•"
+    def numFmt:string ""
+    def prefix:string ""
+    def suffix:string ""
+    ; how many levels' numbers the marker shows: 2 is "1.1"
+    def displayLevels:int 1
+
+    Constructor () {
+    }
+}
+
+class OdtListStyle {
+    def name:string ""
+    def levels:[int:OdtListLevel]
+
+    Constructor () {
+    }
+
+    fn levelAt:OdtListLevel (level:int) {
+        def lv@(optional):OdtListLevel (get levels level)
+        if (null? lv) {
+            return (new OdtListLevel)
+        }
+        return (unwrap lv)
+    }
+}
+
+class OdtPageLayout {
+    def widthPt:double 612.0
+    def heightPt:double 792.0
+    def marginTop:double 72.0
+    def marginBottom:double 72.0
+    def marginLeft:double 72.0
+    def marginRight:double 72.0
+    def landscape:boolean false
+    ; the header's height and its gap to the text, and the footer's
+    def headerExtra:double 0.0
+    def footerExtra:double 0.0
+
+    Constructor () {
+    }
+}
+
+; Whether the last thing a paragraph got was a space, which is what ODF's
+; white-space collapsing needs to know across text nodes and spans.
+class OdtSpace {
+    def lastSpace:boolean true
+
+    Constructor () {
+    }
+}
+
+class OdtReader {
+    def pkg:OdfPackage (new OdfPackage)
+    def numbering:WordNumbering (new WordNumbering)
+    def lastError:string ""
+    def styles:[string:OdtStyle]
+    def defaults:[string:OdtStyle]
+    def listStyles:[string:OdtListStyle]
+    def fontFaces:[string:string]
+    def pageLayouts:[string:OdtPageLayout]
+    def masterLayout:[string:string]
+    def masterHeader:[string:OdtNode]
+    def masterFooter:[string:OdtNode]
+    def firstMaster:string ""
+    def initialMaster:string ""
+    ; The list a `text:continue-numbering` goes on with, by list style.
+    def lastNumIdByStyle:[string:int]
+    def blockCount:int 0
+
+    Constructor () {
+    }
+
+    ; ------------------------------------------------------------------
+    ; Opening
+    ; ------------------------------------------------------------------
+
+    sfn isOdt:boolean (bytes:buffer) {
+        return ((OdfPackage.sniffKind(bytes)) == "text")
+    }
+
+    fn readBytes@(optional):RichDocument (data:buffer name:string) {
+        lastError = ""
+        def missing@(optional):RichDocument
+        if ((pkg.openBytes(data name)) == false) {
+            lastError = ("failed to open " + name)
+            return missing
+        }
+        if ((pkg.kind()) != "text") {
+            lastError = (name + " is not an OpenDocument text")
+            pkg.close()
+            return missing
+        }
+        def doc:RichDocument (this.readPackage())
+        pkg.close()
+        if ((strlen doc.title) == 0) {
+            doc.title = name
+        }
+        def out@(optional):RichDocument doc
+        return out
+    }
+
+    fn parsePart@(optional):OdtNode (partName:string) {
+        def missing@(optional):OdtNode
+        def xml:string (pkg.readXml(partName))
+        if ((strlen xml) == 0) {
+            return missing
+        }
+        def parser:OdtXmlParser (new OdtXmlParser)
+        return (parser.parse(xml))
+    }
+
+    fn readPackage:RichDocument () {
+        def doc:RichDocument (new RichDocument)
+        numbering = (new WordNumbering)
+        def stylesRoot@(optional):OdtNode (this.parsePart("styles.xml"))
+        if (!null? stylesRoot) {
+            this.collect((unwrap stylesRoot))
+        }
+        def contentRoot@(optional):OdtNode (this.parsePart("content.xml"))
+        if (null? contentRoot) {
+            lastError = "missing content.xml"
+            return doc
+        }
+        def cr:OdtNode (unwrap contentRoot)
+        ; Automatic styles name common ones as their parents, never the other
+        ; way round, so they are read after and into the same table.
+        this.collect(cr)
+        this.readTitle(doc)
+        def body@(optional):OdtNode (cr.find("office:text"))
+        if (!null? body) {
+            this.readBlocks(doc (unwrap body))
+        }
+        if ((array_length doc.blocks) == 0) {
+            doc.addParagraph()
+        }
+        this.applyPage(doc)
+        for doc.paragraphs p:Paragraph pi {
+            if (p.listNumId > 0) {
+                numbering.applyToParagraph(p)
+            }
+        }
+        return doc
+    }
+
+    fn readTitle:void (doc:RichDocument) {
+        def meta@(optional):OdtNode (this.parsePart("meta.xml"))
+        if (null? meta) {
+            return
+        }
+        def t@(optional):OdtNode ((unwrap meta).find("dc:title"))
+        if (!null? t) {
+            doc.title = (OdpUnits.trimText(((unwrap t).textContent())))
+        }
+    }
+
+    ; ------------------------------------------------------------------
+    ; Styles
+    ; ------------------------------------------------------------------
+
+    sfn keyOf:string (family:string name:string) {
+        return (family + "|" + name)
+    }
+
+    fn collect:void (node:OdtNode) {
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                def n:string c.name
+                if (((n == "office:styles") || (n == "office:automatic-styles")) || (n == "office:master-styles")) {
+                    this.collect(c)
+                }
+                if (n == "office:font-face-decls") {
+                    this.collect(c)
+                }
+                if (n == "style:font-face") {
+                    def fam:string (c.attr("svg:font-family"))
+                    fam = (OdtReader.unquote(fam))
+                    set fontFaces (c.attr("style:name")) fam
+                }
+                if (n == "style:style") {
+                    this.addStyle(c false)
+                }
+                if (n == "style:default-style") {
+                    this.addStyle(c true)
+                }
+                if (n == "text:list-style") {
+                    this.addListStyle(c)
+                }
+                if (n == "style:page-layout") {
+                    this.addPageLayout(c)
+                }
+                if (n == "style:master-page") {
+                    this.addMasterPage(c)
+                }
+            }
+        }
+    }
+
+    sfn unquote:string (s:string) {
+        def t:string (OdpUnits.trimText(s))
+        def n:int (strlen t)
+        if (n >= 2) {
+            def a:int (charAt t 0)
+            if ((a == 39) || (a == 34)) {
+                return (substring t 1 (n - 1))
+            }
+        }
+        def comma:int (indexOf t ",")
+        if (comma > 0) {
+            return (OdtReader.unquote((substring t 0 comma)))
+        }
+        return t
+    }
+
+    fn addStyle:void (node:OdtNode isDefault:boolean) {
+        def st:OdtStyle (new OdtStyle)
+        st.name = (node.attr("style:name"))
+        st.family = (node.attr("style:family"))
+        st.parent = (node.attr("style:parent-style-name"))
+        st.displayName = (node.attr("style:display-name"))
+        st.listStyle = (node.attr("style:list-style-name"))
+        st.masterPage = (node.attr("style:master-page-name"))
+        def ol:string (node.attr("style:default-outline-level"))
+        if ((strlen ol) > 0) {
+            st.outlineLevel = (?? (str2int ol) 0)
+        }
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                if (c.name == "style:text-properties") {
+                    this.readTextProps(st c)
+                }
+                if (c.name == "style:paragraph-properties") {
+                    this.readParaProps(st c)
+                }
+                if (c.name == "style:table-cell-properties") {
+                    this.readCellProps(st c)
+                }
+                if (c.name == "style:table-column-properties") {
+                    def w:string (c.attr("style:column-width"))
+                    if ((strlen w) > 0) {
+                        st.columnWidthPt = (OdpUnits.toPt(w))
+                    }
+                }
+                if (c.name == "style:table-row-properties") {
+                    def h:string (c.attr("style:row-height"))
+                    if ((strlen h) == 0) {
+                        h = (c.attr("style:min-row-height"))
+                    }
+                    if ((strlen h) > 0) {
+                        st.rowHeightPt = (OdpUnits.toPt(h))
+                    }
+                }
+            }
+        }
+        if isDefault {
+            set defaults st.family st
+        } {
+            set styles (OdtReader.keyOf(st.family st.name)) st
+        }
+    }
+
+    sfn hexOf:string (c:string) {
+        if (((strlen c) == 7) && ((charAt c 0) == 35)) {
+            return (substring c 1 7)
+        }
+        return ""
+    }
+
+    ; A colour as one of Word's highlight names, when it is one; a highlight
+    ; is a name in the model, so a colour that is not one is not invented.
+    sfn highlightOf:string (hex:string) {
+        def h:string (to_lowercase hex)
+        if (h == "ffff00") { return "yellow" }
+        if (h == "00ff00") { return "green" }
+        if (h == "00ffff") { return "cyan" }
+        if (h == "ff00ff") { return "magenta" }
+        if (h == "0000ff") { return "blue" }
+        if (h == "ff0000") { return "red" }
+        if (h == "000080") { return "darkBlue" }
+        if (h == "008080") { return "darkCyan" }
+        if (h == "008000") { return "darkGreen" }
+        if (h == "800080") { return "darkMagenta" }
+        if (h == "800000") { return "darkRed" }
+        if (h == "808000") { return "darkYellow" }
+        if (h == "808080") { return "darkGray" }
+        if (h == "c0c0c0") { return "lightGray" }
+        return ""
+    }
+
+    fn readTextProps:void (st:OdtStyle c:OdtNode) {
+        def fn0:string (c.attr("style:font-name"))
+        if ((strlen fn0) == 0) {
+            fn0 = (OdtReader.unquote((c.attr("fo:font-family"))))
+            if ((strlen fn0) > 0) {
+                set fontFaces fn0 fn0
+            }
+        }
+        if ((strlen fn0) > 0) {
+            st.fontName = fn0
+        }
+        def size:string (c.attr("fo:font-size"))
+        if ((strlen size) > 0) {
+            if ((charAt size ((strlen size) - 1)) == 37) {
+                st.sizePct = (OdpUnits.percent(size -1.0))
+            } {
+                st.sizePt = (OdpUnits.toPt(size))
+            }
+        }
+        def w:string (c.attr("fo:font-weight"))
+        if ((strlen w) > 0) {
+            st.bold = 0
+            if ((w == "bold") || (((?? (str2double w) 400.0)) >= 600.0)) {
+                st.bold = 1
+            }
+        }
+        def it:string (c.attr("fo:font-style"))
+        if ((strlen it) > 0) {
+            st.italic = 0
+            if ((it == "italic") || (it == "oblique")) {
+                st.italic = 1
+            }
+        }
+        def ul:string (c.attr("style:text-underline-style"))
+        if ((strlen ul) > 0) {
+            st.underline = 1
+            if (ul == "none") {
+                st.underline = 0
+            }
+        }
+        def lt:string (c.attr("style:text-line-through-style"))
+        if ((strlen lt) > 0) {
+            st.strike = 1
+            if (lt == "none") {
+                st.strike = 0
+            }
+        }
+        def pos:string (c.attr("style:text-position"))
+        if ((strlen pos) > 0) {
+            st.vertAlign = 0
+            if ((indexOf pos "super") == 0) {
+                st.vertAlign = 1
+            }
+            if ((indexOf pos "sub") == 0) {
+                st.vertAlign = 2
+            }
+            if ((charAt pos 0) == 45) {
+                st.vertAlign = 2
+            }
+            def c0:int (charAt pos 0)
+            if ((c0 >= 49) && (c0 <= 57)) {
+                st.vertAlign = 1
+            }
+        }
+        def col:string (OdtReader.hexOf((c.attr("fo:color"))))
+        if ((strlen col) > 0) {
+            st.colorHex = col
+        }
+        def bg:string (c.attr("fo:background-color"))
+        if ((strlen bg) > 0) {
+            if (bg == "transparent") {
+                st.highlight = "-"
+            } {
+                def hl:string (OdtReader.highlightOf((OdtReader.hexOf(bg))))
+                if ((strlen hl) > 0) {
+                    st.highlight = hl
+                }
+            }
+        }
+    }
+
+    fn readParaProps:void (st:OdtStyle c:OdtNode) {
+        def ta:string (c.attr("fo:text-align"))
+        if ((strlen ta) > 0) {
+            st.align = 0
+            if (ta == "center") {
+                st.align = 1
+            }
+            if ((ta == "end") || (ta == "right")) {
+                st.align = 2
+            }
+            if (ta == "justify") {
+                st.align = 3
+            }
+        }
+        def mt:string (c.attr("fo:margin-top"))
+        if ((strlen mt) > 0) {
+            st.marginTop = (OdpUnits.toPt(mt))
+        }
+        def mb:string (c.attr("fo:margin-bottom"))
+        if ((strlen mb) > 0) {
+            st.marginBottom = (OdpUnits.toPt(mb))
+        }
+        def ml:string (c.attr("fo:margin-left"))
+        if ((strlen ml) > 0) {
+            st.marginLeft = (OdpUnits.toPt(ml))
+        }
+        def mr:string (c.attr("fo:margin-right"))
+        if ((strlen mr) > 0) {
+            st.marginRight = (OdpUnits.toPt(mr))
+        }
+        def ti:string (c.attr("fo:text-indent"))
+        if ((strlen ti) > 0) {
+            st.textIndent = (OdpUnits.toPt(ti))
+        }
+        def lh:string (c.attr("fo:line-height"))
+        if ((strlen lh) > 0) {
+            if ((charAt lh ((strlen lh) - 1)) == 37) {
+                st.lineSpacing = (OdpUnits.percent(lh -1.0))
+            }
+            if (lh == "normal") {
+                st.lineSpacing = 1.0
+            }
+        }
+        def bb:string (c.attr("fo:break-before"))
+        if ((strlen bb) > 0) {
+            st.breakBefore = 0
+            if (bb == "page") {
+                st.breakBefore = 1
+            }
+        }
+        def ba:string (c.attr("fo:break-after"))
+        if ((strlen ba) > 0) {
+            st.breakAfter = 0
+            if (ba == "page") {
+                st.breakAfter = 1
+            }
+        }
+    }
+
+    fn readCellProps:void (st:OdtStyle c:OdtNode) {
+        def bg:string (OdtReader.hexOf((c.attr("fo:background-color"))))
+        if ((strlen bg) > 0) {
+            st.fillHex = bg
+        }
+        st.borderAll = (c.attr("fo:border"))
+        st.borderTop = (c.attr("fo:border-top"))
+        st.borderBottom = (c.attr("fo:border-bottom"))
+        st.borderLeft = (c.attr("fo:border-left"))
+        st.borderRight = (c.attr("fo:border-right"))
+        def pad:string (c.attr("fo:padding"))
+        if ((strlen pad) > 0) {
+            st.padding = (OdpUnits.toPt(pad))
+        }
+    }
+
+    fn addListStyle:void (node:OdtNode) {
+        def ls:OdtListStyle (new OdtListStyle)
+        ls.name = (node.attr("style:name"))
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                def lvNum:int (?? (str2int (c.attr("text:level"))) 1)
+                def lv:OdtListLevel (new OdtListLevel)
+                if (c.name == "text:list-level-style-bullet") {
+                    lv.bullet = true
+                    def ch:string (c.attr("text:bullet-char"))
+                    if ((strlen ch) > 0) {
+                        lv.bulletChar = ch
+                    }
+                    set ls.levels lvNum lv
+                }
+                if (c.name == "text:list-level-style-number") {
+                    lv.bullet = false
+                    lv.numFmt = (c.attr("style:num-format"))
+                    lv.prefix = (c.attr("style:num-prefix"))
+                    lv.suffix = (c.attr("style:num-suffix"))
+                    lv.displayLevels = (?? (str2int (c.attr("text:display-levels"))) 1)
+                    set ls.levels lvNum lv
+                }
+                if (c.name == "text:list-level-style-image") {
+                    lv.bullet = true
+                    set ls.levels lvNum lv
+                }
+            }
+        }
+        set listStyles ls.name ls
+    }
+
+    fn addPageLayout:void (node:OdtNode) {
+        def pl:OdtPageLayout (new OdtPageLayout)
+        def props@(optional):OdtNode (node.firstChild("style:page-layout-properties"))
+        if (!null? props) {
+            def p:OdtNode (unwrap props)
+            def w:string (p.attr("fo:page-width"))
+            if ((strlen w) > 0) {
+                pl.widthPt = (OdpUnits.toPt(w))
+            }
+            def h:string (p.attr("fo:page-height"))
+            if ((strlen h) > 0) {
+                pl.heightPt = (OdpUnits.toPt(h))
+            }
+            def mt:string (p.attr("fo:margin-top"))
+            if ((strlen mt) > 0) {
+                pl.marginTop = (OdpUnits.toPt(mt))
+            }
+            def mb:string (p.attr("fo:margin-bottom"))
+            if ((strlen mb) > 0) {
+                pl.marginBottom = (OdpUnits.toPt(mb))
+            }
+            def ml:string (p.attr("fo:margin-left"))
+            if ((strlen ml) > 0) {
+                pl.marginLeft = (OdpUnits.toPt(ml))
+            }
+            def mr:string (p.attr("fo:margin-right"))
+            if ((strlen mr) > 0) {
+                pl.marginRight = (OdpUnits.toPt(mr))
+            }
+            pl.landscape = ((p.attr("style:print-orientation")) == "landscape")
+        }
+        pl.headerExtra = (OdtReader.bandExtent(node "style:header-style"))
+        pl.footerExtra = (OdtReader.bandExtent(node "style:footer-style"))
+        set pageLayouts (node.attr("style:name")) pl
+    }
+
+    sfn bandExtent:double (layout:OdtNode band:string) {
+        def b@(optional):OdtNode (layout.firstChild(band))
+        if (null? b) {
+            return 0.0
+        }
+        def bn:OdtNode (unwrap b)
+        def props@(optional):OdtNode (bn.firstChild("style:header-footer-properties"))
+        if (null? props) {
+            return 0.0
+        }
+        def pp:OdtNode (unwrap props)
+        def h:string (pp.attr("svg:height"))
+        if ((strlen h) == 0) {
+            h = (pp.attr("fo:min-height"))
+        }
+        ; The height includes the gap to the text: ODF measures a header
+        ; from the margin to the body.
+        return (OdpUnits.toPt(h))
+    }
+
+    fn addMasterPage:void (node:OdtNode) {
+        def name:string (node.attr("style:name"))
+        if ((strlen firstMaster) == 0) {
+            firstMaster = name
+        }
+        set masterLayout name (node.attr("style:page-layout-name"))
+        def hd@(optional):OdtNode (node.firstChild("style:header"))
+        if (!null? hd) {
+            set masterHeader name (unwrap hd)
+        }
+        def ft@(optional):OdtNode (node.firstChild("style:footer"))
+        if (!null? ft) {
+            set masterFooter name (unwrap ft)
+        }
+    }
+
+    fn findStyle@(optional):OdtStyle (family:string name:string) {
+        return (get styles (OdtReader.keyOf(family name)))
+    }
+
+    ; The style and its ancestors, root first, with the family's default
+    ; style in front of them all.
+    fn chainOf:[OdtStyle] (family:string name:string) {
+        def leafFirst:[OdtStyle]
+        def cur:string name
+        def guard:int 0
+        while (((strlen cur) > 0) && (guard < 32)) {
+            def st@(optional):OdtStyle (this.findStyle(family cur))
+            if (null? st) {
+                cur = ""
+            } {
+                def s:OdtStyle (unwrap st)
+                push leafFirst s
+                cur = s.parent
+            }
+            guard = (guard + 1)
+        }
+        def out:[OdtStyle]
+        def d@(optional):OdtStyle (get defaults family)
+        if (!null? d) {
+            push out (unwrap d)
+        }
+        def i:int ((array_length leafFirst) - 1)
+        while (i >= 0) {
+            push out (itemAt leafFirst i)
+            i = (i - 1)
+        }
+        return out
+    }
+
+    fn fontFamilyOf:string (fontName:string) {
+        def fam@(optional):string (get fontFaces fontName)
+        if (!null? fam) {
+            return (WordStyleResolver.mapFont((unwrap fam)))
+        }
+        return (WordStyleResolver.mapFont(fontName))
+    }
+
+    fn applyText:void (st:OdtStyle span:TextSpan) {
+        if ((strlen st.fontName) > 0) {
+            span.fontFamily = (this.fontFamilyOf(st.fontName))
+        }
+        if (st.sizePt > 0.0) {
+            span.fontSizePt = st.sizePt
+        }
+        if (st.sizePct > 0.0) {
+            span.fontSizePt = (span.fontSizePt * st.sizePct)
+        }
+        if (st.bold >= 0) {
+            span.bold = (st.bold == 1)
+        }
+        if (st.italic >= 0) {
+            span.italic = (st.italic == 1)
+        }
+        if (st.underline >= 0) {
+            span.underline = (st.underline == 1)
+        }
+        if (st.strike >= 0) {
+            span.strike = (st.strike == 1)
+        }
+        if (st.vertAlign >= 0) {
+            span.vertAlign = st.vertAlign
+        }
+        if ((strlen st.colorHex) > 0) {
+            span.colorHex = st.colorHex
+        }
+        if ((strlen st.highlight) > 0) {
+            if (st.highlight == "-") {
+                span.highlight = ""
+            } {
+                span.highlight = st.highlight
+            }
+        }
+    }
+
+    ; A paragraph's own formatting and the run every span in it starts from.
+    ; ODF's defaults are not Word's: no space after a paragraph, single line
+    ; height, 12 pt text.
+    fn resolveParagraph:TextSpan (p:Paragraph styleName:string) {
+        def base:TextSpan (TextSpan.create(0 0))
+        base.fontSizePt = 12.0
+        base.fontFamily = (WordStyleResolver.mapFont("Liberation Serif"))
+        p.spaceBeforePt = 0.0
+        p.spaceAfterPt = 0.0
+        p.lineSpacing = 1.0
+        p.align = 0
+        p.indentLeftPt = 0.0
+        p.indentRightPt = 0.0
+        p.indentFirstLinePt = 0.0
+        def chain:[OdtStyle] (this.chainOf("paragraph" styleName))
+        for chain st:OdtStyle si {
+            this.applyText(st base)
+            if (st.align >= 0) {
+                p.align = st.align
+            }
+            if (st.marginTop > -99999.0) {
+                p.spaceBeforePt = st.marginTop
+            }
+            if (st.marginBottom > -99999.0) {
+                p.spaceAfterPt = st.marginBottom
+            }
+            if (st.marginLeft > -99999.0) {
+                p.indentLeftPt = st.marginLeft
+            }
+            if (st.marginRight > -99999.0) {
+                p.indentRightPt = st.marginRight
+            }
+            if (st.textIndent > -99999.0) {
+                p.indentFirstLinePt = st.textIndent
+            }
+            if (st.lineSpacing > 0.0) {
+                p.lineSpacing = st.lineSpacing
+            }
+        }
+        return base
+    }
+
+    fn breakOf:int (styleName:string before:boolean) {
+        def r:int 0
+        def chain:[OdtStyle] (this.chainOf("paragraph" styleName))
+        for chain st:OdtStyle si {
+            if before {
+                if (st.breakBefore >= 0) {
+                    r = st.breakBefore
+                }
+            } {
+                if (st.breakAfter >= 0) {
+                    r = st.breakAfter
+                }
+            }
+        }
+        return r
+    }
+
+    fn listStyleOfParagraph:string (styleName:string) {
+        def r:string ""
+        def chain:[OdtStyle] (this.chainOf("paragraph" styleName))
+        for chain st:OdtStyle si {
+            if ((strlen st.listStyle) > 0) {
+                r = st.listStyle
+            }
+        }
+        return r
+    }
+
+    ; "Heading1".."Heading9" or "Title" when the paragraph is one, so the
+    ; navigation pane and a .docx save see a heading.
+    fn styleIdOf:string (styleName:string outline:int) {
+        if (outline > 0) {
+            return ("Heading" + (to_string outline))
+        }
+        def chain:[OdtStyle] (this.chainOf("paragraph" styleName))
+        def i:int ((array_length chain) - 1)
+        while (i >= 0) {
+            def st:OdtStyle (itemAt chain i)
+            def dn:string st.displayName
+            if ((strlen dn) == 0) {
+                dn = st.name
+            }
+            if ((dn == "Title") || (dn == "Subtitle")) {
+                return dn
+            }
+            if ((indexOf dn "Heading_20_") == 0) {
+                dn = ("Heading " + (substring dn 11 (strlen dn)))
+            }
+            if ((indexOf dn "Heading ") == 0) {
+                def lv@(optional):int (str2int (substring dn 8 (strlen dn)))
+                if (!null? lv) {
+                    return ("Heading" + (to_string (unwrap lv)))
+                }
+            }
+            if (st.outlineLevel > 0) {
+                return ("Heading" + (to_string st.outlineLevel))
+            }
+            i = (i - 1)
+        }
+        return "Normal"
+    }
+
+    ; ------------------------------------------------------------------
+    ; The body
+    ; ------------------------------------------------------------------
+
+    sfn isContainer:boolean (n:string) {
+        def names:[string] ([] _:string ("text:section" "text:table-of-content" "text:index-body" "text:index-title" "text:illustration-index" "text:table-index" "text:object-index" "text:user-index" "text:alphabetical-index" "text:bibliography" "text:change-region"))
+        for names k:string ki {
+            if (k == n) {
+                return true
+            }
+        }
+        return false
+    }
+
+    fn readBlocks:void (doc:RichDocument node:OdtNode) {
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                def n:string c.name
+                if ((n == "text:p") || (n == "text:h")) {
+                    this.bodyParagraph(doc c 0 -1)
+                }
+                if (n == "text:list") {
+                    this.readList(doc c 0 "" 0 true)
+                }
+                if (n == "table:table") {
+                    this.readTable(doc c)
+                }
+                if ((OdtReader.isContainer(n)) && (n != "text:change-region")) {
+                    this.readBlocks(doc c)
+                }
+            }
+        }
+    }
+
+    ; A paragraph at the top level, with the page breaks its style asks for
+    ; around it. `numId` 0 is not in a list; `level` is the list depth.
+    fn bodyParagraph:Paragraph (doc:RichDocument node:OdtNode numId:int level:int) {
+        def styleName:string (node.attr("text:style-name"))
+        ; A paragraph whose style names a master page starts a page of that
+        ; kind: the first section, or a new one.
+        def newSection:boolean false
+        def own@(optional):OdtStyle (this.findStyle("paragraph" styleName))
+        if (!null? own) {
+            def ownSt:OdtStyle (unwrap own)
+            if ((strlen ownSt.masterPage) > 0) {
+                if ((array_length doc.blocks) == 0) {
+                    initialMaster = ownSt.masterPage
+                } {
+                    def idx:int (doc.addSectionBreak())
+                    this.applyMaster(doc (doc.sectionAt(idx)) ownSt.masterPage)
+                    newSection = true
+                }
+            }
+        }
+        if (((this.breakOf(styleName true)) == 1) && (newSection == false)) {
+            if ((array_length doc.blocks) > 0) {
+                doc.addPageBreak()
+            }
+        }
+        def p:Paragraph (doc.addParagraph())
+        this.fillParagraph(doc p node)
+        if (numId > 0) {
+            p.listNumId = numId
+            p.listLevel = level
+        }
+        if ((this.breakOf(styleName false)) == 1) {
+            doc.addPageBreak()
+        }
+        return p
+    }
+
+    fn fillParagraph:void (doc:RichDocument p:Paragraph node:OdtNode) {
+        def styleName:string (node.attr("text:style-name"))
+        def outline:int 0
+        if (node.name == "text:h") {
+            outline = (?? (str2int (node.attr("text:outline-level"))) 1)
+        }
+        def base:TextSpan (this.resolveParagraph(p styleName))
+        p.styleId = (this.styleIdOf(styleName outline))
+        clear p.spans
+        p.text = ""
+        def state:OdtSpace (new OdtSpace)
+        this.readInline(doc p node base state)
+        if ((array_length p.spans) == 0) {
+            ; An empty paragraph still has a size: the caret and the line
+            ; height come from it.
+            push p.spans (base.copy())
+        }
+    }
+
+    ; ODF collapses white space in the markup the way HTML does: a run of
+    ; spaces, tabs and line ends is one space, and none at all at the start of
+    ; a paragraph.
+    fn appendCollapsed:void (p:Paragraph raw:string span:TextSpan state:OdtSpace) {
+        def out:string ""
+        def n:int (strlen raw)
+        def i:int 0
+        def runStart:int 0
+        def lastSpace:boolean state.lastSpace
+        while (i < n) {
+            def c:int (charAt raw i)
+            if ((((c == 32) || (c == 9)) || (c == 10)) || (c == 13)) {
+                if (i > runStart) {
+                    out = (out + (substring raw runStart i))
+                }
+                if (lastSpace == false) {
+                    out = (out + " ")
+                }
+                lastSpace = true
+                runStart = (i + 1)
+            } {
+                lastSpace = false
+            }
+            i = (i + 1)
+        }
+        if (n > runStart) {
+            out = (out + (substring raw runStart n))
+        }
+        state.lastSpace = lastSpace
+        if ((strlen out) > 0) {
+            p.appendText(out (span.copy()))
+        }
+    }
+
+    fn appendLiteral:void (p:Paragraph s:string span:TextSpan state:OdtSpace) {
+        state.lastSpace = true
+        p.appendText(s (span.copy()))
+    }
+
+    fn readInline:void (doc:RichDocument p:Paragraph node:OdtNode span:TextSpan state:OdtSpace) {
+        for node.children c:OdtNode ci {
+            if c.isText {
+                this.appendCollapsed(p c.text span state)
+            } {
+                def n:string c.name
+                if (n == "text:span") {
+                    def inner:TextSpan (span.copy())
+                    def chain:[OdtStyle] (this.chainOf("text" (c.attr("text:style-name"))))
+                    for chain st:OdtStyle si {
+                        ; Not the family default (it has no name): the
+                        ; paragraph's run already holds the defaults.
+                        if ((strlen st.name) > 0) {
+                            this.applyText(st inner)
+                        }
+                    }
+                    this.readInline(doc p c inner state)
+                }
+                if (n == "text:a") {
+                    def link:TextSpan (span.copy())
+                    link.hyperlink = (c.attr("xlink:href"))
+                    def lchain:[OdtStyle] (this.chainOf("text" (c.attr("text:style-name"))))
+                    for lchain st2:OdtStyle si2 {
+                        if ((strlen st2.name) > 0) {
+                            this.applyText(st2 link)
+                        }
+                    }
+                    this.readInline(doc p c link state)
+                }
+                if (n == "text:s") {
+                    def count:int (?? (str2int (c.attr("text:c"))) 1)
+                    def spaces:string ""
+                    def k:int 0
+                    while ((k < count) && (k < 256)) {
+                        spaces = (spaces + " ")
+                        k = (k + 1)
+                    }
+                    this.appendLiteral(p spaces span state)
+                }
+                ; A tab and a line break have no character of their own in the
+                ; model (the .docx reader keeps them as anchors), so they are a
+                ; space: the words either side stay apart.
+                if ((n == "text:tab") || (n == "text:line-break")) {
+                    this.appendLiteral(p " " span state)
+                }
+                if (n == "draw:frame") {
+                    this.readFrame(p c)
+                }
+                if (n == "draw:a") {
+                    this.readInline(doc p c span state)
+                }
+                if (n == "text:note") {
+                    def cit@(optional):OdtNode (c.firstChild("text:note-citation"))
+                    if (!null? cit) {
+                        def sup:TextSpan (span.copy())
+                        sup.vertAlign = 1
+                        this.appendLiteral(p ((unwrap cit).textContent()) sup state)
+                    }
+                }
+                if (OdtReader.isField(n)) {
+                    this.readInline(doc p c span state)
+                }
+            }
+        }
+    }
+
+    ; Elements whose current text is what the reader sees: fields and the
+    ; small wrappers ODF puts around text.
+    sfn isField:boolean (n:string) {
+        def names:[string] ([] _:string ("text:page-number" "text:page-count" "text:date" "text:time" "text:title" "text:subject" "text:author-name" "text:author-initials" "text:chapter" "text:file-name" "text:sequence" "text:sequence-ref" "text:bookmark-ref" "text:reference-ref" "text:note-ref" "text:user-defined" "text:variable-get" "text:variable-set" "text:user-field-get" "text:expression" "text:text-input" "text:placeholder" "text:hidden-text" "text:conditional-text" "text:meta" "text:meta-field" "text:ruby-base" "text:word-count" "text:character-count" "text:paragraph-count" "text:initial-creator" "text:creation-date" "text:description" "text:keywords" "text:sender-firstname" "text:sender-lastname" "text:database-display"))
+        for names k:string ki {
+            if (k == n) {
+                return true
+            }
+        }
+        return false
+    }
+
+    fn readFrame:void (p:Paragraph frame:OdtNode) {
+        def imgNode@(optional):OdtNode (frame.firstChild("draw:image"))
+        if (null? imgNode) {
+            return
+        }
+        def im:OdtNode (unwrap imgNode)
+        def href:string (im.attr("xlink:href"))
+        if (((strlen href) == 0) || (OdfPackage.isExternalHref(href))) {
+            return
+        }
+        def img:DocImage (new DocImage)
+        img.relId = href
+        img.partPath = href
+        def w:double (OdpUnits.toPt((frame.attr("svg:width"))))
+        def h:double (OdpUnits.toPt((frame.attr("svg:height"))))
+        img.widthEmu = (to_int ((w * 12700.0) + 0.5))
+        img.heightEmu = (to_int ((h * 12700.0) + 0.5))
+        img.title = (frame.attr("draw:name"))
+        def t@(optional):OdtNode (frame.firstChild("svg:title"))
+        if (!null? t) {
+            img.title = ((unwrap t).textContent())
+        }
+        def d@(optional):OdtNode (frame.firstChild("svg:desc"))
+        if (!null? d) {
+            img.altText = ((unwrap d).textContent())
+        }
+        img.syncPx()
+        WordMlParser.decodeImageBytes(img (pkg.readBinary(href)))
+        if (img.widthEmu == 0) {
+            img.widthEmu = (img.widthPx * 9525)
+            img.heightEmu = (img.heightPx * 9525)
+        }
+        push p.images img
+    }
+
+    ; ------------------------------------------------------------------
+    ; Lists
+    ; ------------------------------------------------------------------
+
+    ; A list and the lists inside it. Each top-level list is its own Word
+    ; list (its own counter) unless it says it continues the one before.
+    fn readList:void (doc:RichDocument node:OdtNode level:int inheritedStyle:string numId:int topLevel:boolean) {
+        def styleName:string (node.attr("text:style-name"))
+        if ((strlen styleName) == 0) {
+            styleName = inheritedStyle
+        }
+        if ((strlen styleName) == 0) {
+            styleName = (this.firstParagraphListStyle(node))
+        }
+        def id:int numId
+        if topLevel {
+            def cont:boolean (((node.attr("text:continue-numbering")) == "true") || ((strlen (node.attr("text:continue-list"))) > 0))
+            def prev@(optional):int (get lastNumIdByStyle styleName)
+            if (cont && (!null? prev)) {
+                id = (unwrap prev)
+            } {
+                id = (this.newListFor(styleName))
+            }
+            if (id > 0) {
+                set lastNumIdByStyle styleName id
+            }
+        }
+        for node.children item:OdtNode ii {
+            if (item.isText == false) {
+                if ((item.name == "text:list-item") || (item.name == "text:list-header")) {
+                    def marked:boolean (item.name == "text:list-item")
+                    for item.children c:OdtNode cj {
+                        if (c.isText == false) {
+                            if ((c.name == "text:p") || (c.name == "text:h")) {
+                                if (marked && (id > 0)) {
+                                    this.bodyParagraph(doc c id level)
+                                    marked = false
+                                } {
+                                    def p:Paragraph (this.bodyParagraph(doc c 0 -1))
+                                    p.indentLeftPt = (p.indentLeftPt + (36.0 * (to_double (level + 1))))
+                                }
+                            }
+                            if (c.name == "text:list") {
+                                this.readList(doc c (level + 1) styleName id false)
+                            }
+                            if (c.name == "table:table") {
+                                this.readTable(doc c)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn firstParagraphListStyle:string (node:OdtNode) {
+        def p@(optional):OdtNode (node.find("text:p"))
+        if (null? p) {
+            return ""
+        }
+        return (this.listStyleOfParagraph(((unwrap p).attr("text:style-name"))))
+    }
+
+    sfn wordNumFmt:string (fmt:string) {
+        if (fmt == "a") {
+            return "lowerLetter"
+        }
+        if (fmt == "A") {
+            return "upperLetter"
+        }
+        if (fmt == "i") {
+            return "lowerRoman"
+        }
+        if (fmt == "I") {
+            return "upperRoman"
+        }
+        return "decimal"
+    }
+
+    ; A Word list with the look of the ODF list style, level by level. 0
+    ; when its first level has no marker at all.
+    fn newListFor:int (styleName:string) {
+        def ls@(optional):OdtListStyle (get listStyles styleName)
+        if (null? ls) {
+            return (numbering.newList("bullet:•"))
+        }
+        def style:OdtListStyle (unwrap ls)
+        def first:OdtListLevel (style.levelAt(1))
+        if ((first.bullet == false) && ((strlen first.numFmt) == 0)) {
+            return 0
+        }
+        def specs:[string]
+        def l:int 1
+        while (l <= 9) {
+            def lvAt@(optional):OdtListLevel (get style.levels l)
+            if (null? lvAt) {
+                l = 10
+            } {
+                def spec:string (OdtReader.levelSpec((unwrap lvAt) l))
+                if ((strlen spec) == 0) {
+                    l = 10
+                } {
+                    push specs spec
+                    l = (l + 1)
+                }
+            }
+        }
+        return (numbering.newListLevels(specs))
+    }
+
+    ; One level as WordNumbering takes it: "bullet:•", "decimal:%1.%2."
+    sfn levelSpec:string (lv:OdtListLevel level:int) {
+        if lv.bullet {
+            def ch:string lv.bulletChar
+            ; OpenSymbol and Wingdings bullets are private-use code points that
+            ; no font here draws.
+            def c0:int (charAt ch 0)
+            if (((c0 >= 57344) && (c0 <= 63743)) || ((c0 == 238) || (c0 == 239))) {
+                ch = (WordNumbering.bulletAt("•" (level - 1)))
+            }
+            return ("bullet:" + ch)
+        }
+        if ((strlen lv.numFmt) == 0) {
+            return ""
+        }
+        def shown:int lv.displayLevels
+        if (shown < 1) {
+            shown = 1
+        }
+        if (shown > level) {
+            shown = level
+        }
+        def text:string lv.prefix
+        def k:int ((level - shown) + 1)
+        while (k <= level) {
+            text = (text + "%" + (to_string k))
+            if (k < level) {
+                text = (text + ".")
+            }
+            k = (k + 1)
+        }
+        return ((OdtReader.wordNumFmt(lv.numFmt)) + ":" + text + lv.suffix)
+    }
+
+    ; ------------------------------------------------------------------
+    ; Tables
+    ; ------------------------------------------------------------------
+
+    fn readTable:void (doc:RichDocument node:OdtNode) {
+        def t:DocumentTable (doc.addTable())
+        def widths:[double]
+        this.readColumns(node widths)
+        def rows:[OdtNode]
+        this.collectRows(node rows)
+        for rows r:OdtNode ri {
+            def rep:int (?? (str2int (r.attr("table:number-rows-repeated"))) 1)
+            if (rep > 50) {
+                rep = 1
+            }
+            def k:int 0
+            while (k < rep) {
+                push t.rows (this.readRow(doc r))
+                k = (k + 1)
+            }
+        }
+        ; Widths the file did not state share what is left of the text width.
+        def ncols:int (array_length widths)
+        if (ncols == 0) {
+            if ((array_length t.rows) > 0) {
+                def r0:DocTableRow (itemAt t.rows 0)
+                for r0.cells c0:DocTableCell c0i {
+                    def s:int 0
+                    while (s < c0.gridSpan) {
+                        push widths -1.0
+                        s = (s + 1)
+                    }
+                }
+            }
+            ncols = (array_length widths)
+        }
+        def known:double 0.0
+        def unknown:int 0
+        for widths w:double wi {
+            if (w > 0.0) {
+                known = (known + w)
+            } {
+                unknown = (unknown + 1)
+            }
+        }
+        def textW:double 451.0
+        def each:double 72.0
+        if (unknown > 0) {
+            each = ((textW - known) / (to_double unknown))
+            if (each < 36.0) {
+                each = 36.0
+            }
+        }
+        clear t.colWidthsTwips
+        for widths w2:double wj {
+            def pt:double w2
+            if (pt <= 0.0) {
+                pt = each
+            }
+            push t.colWidthsTwips (to_int ((pt * 20.0) + 0.5))
+        }
+    }
+
+    fn readColumns:void (node:OdtNode widths:[double]) {
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                if (c.name == "table:table-column") {
+                    def rep:int (?? (str2int (c.attr("table:number-columns-repeated"))) 1)
+                    if (rep > 64) {
+                        rep = 64
+                    }
+                    def w:double -1.0
+                    def st@(optional):OdtStyle (this.findStyle("table-column" (c.attr("table:style-name"))))
+                    if (!null? st) {
+                        def colSt:OdtStyle (unwrap st)
+                        w = colSt.columnWidthPt
+                    }
+                    def k:int 0
+                    while (k < rep) {
+                        push widths w
+                        k = (k + 1)
+                    }
+                }
+                if (((c.name == "table:table-columns") || (c.name == "table:table-header-columns")) || (c.name == "table:table-column-group")) {
+                    this.readColumns(c widths)
+                }
+            }
+        }
+    }
+
+    fn collectRows:void (node:OdtNode rows:[OdtNode]) {
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                if (c.name == "table:table-row") {
+                    push rows c
+                }
+                if (((c.name == "table:table-rows") || (c.name == "table:table-header-rows")) || (c.name == "table:table-row-group")) {
+                    this.collectRows(c rows)
+                }
+            }
+        }
+    }
+
+    fn readRow:DocTableRow (doc:RichDocument r:OdtNode) {
+        def row:DocTableRow (new DocTableRow)
+        def rst@(optional):OdtStyle (this.findStyle("table-row" (r.attr("table:style-name"))))
+        if (!null? rst) {
+            def rowSt:OdtStyle (unwrap rst)
+            def h:double rowSt.rowHeightPt
+            if (h > 0.0) {
+                row.heightTwips = (to_int ((h * 20.0) + 0.5))
+            }
+        }
+        ; Covered cells after a cell that spans columns are part of it; a
+        ; covered cell anywhere else is under a cell spanning rows, and stays
+        ; as an empty cell so the columns line up.
+        def spanLeft:int 0
+        for r.children c:OdtNode ci {
+            if (c.isText == false) {
+                def rep:int (?? (str2int (c.attr("table:number-columns-repeated"))) 1)
+                if (rep > 64) {
+                    rep = 1
+                }
+                def k:int 0
+                while (k < rep) {
+                    if (c.name == "table:table-cell") {
+                        def cell:DocTableCell (this.readCell(doc c))
+                        push row.cells cell
+                        spanLeft = (cell.gridSpan - 1)
+                    }
+                    if (c.name == "table:covered-table-cell") {
+                        if (spanLeft > 0) {
+                            spanLeft = (spanLeft - 1)
+                        } {
+                            def empty:DocTableCell (this.readCell(doc c))
+                            push row.cells empty
+                        }
+                    }
+                    k = (k + 1)
+                }
+            }
+        }
+        return row
+    }
+
+    fn readCell:DocTableCell (doc:RichDocument c:OdtNode) {
+        def cell:DocTableCell (new DocTableCell)
+        cell.gridSpan = (?? (str2int (c.attr("table:number-columns-spanned"))) 1)
+        if (cell.gridSpan < 1) {
+            cell.gridSpan = 1
+        }
+        def none:string "none"
+        cell.borderTop.style = none
+        cell.borderBottom.style = none
+        cell.borderLeft.style = none
+        cell.borderRight.style = none
+        def st@(optional):OdtStyle (this.findStyle("table-cell" (c.attr("table:style-name"))))
+        if (!null? st) {
+            def s:OdtStyle (unwrap st)
+            cell.fillHex = s.fillHex
+            OdtReader.readBorder(s.borderAll cell.borderTop)
+            OdtReader.readBorder(s.borderAll cell.borderBottom)
+            OdtReader.readBorder(s.borderAll cell.borderLeft)
+            OdtReader.readBorder(s.borderAll cell.borderRight)
+            OdtReader.readBorder(s.borderTop cell.borderTop)
+            OdtReader.readBorder(s.borderBottom cell.borderBottom)
+            OdtReader.readBorder(s.borderLeft cell.borderLeft)
+            OdtReader.readBorder(s.borderRight cell.borderRight)
+            if (s.padding >= 0.0) {
+                def px:int (to_int (((s.padding * 96.0) / 72.0) + 0.5))
+                cell.padTopPx = px
+                cell.padBottomPx = px
+                cell.padLeftPx = px
+                cell.padRightPx = px
+            }
+        }
+        this.cellContent(doc cell c 0)
+        if ((array_length cell.paragraphs) == 0) {
+            def p:Paragraph (doc.addParagraphOnly())
+            def base:TextSpan (this.resolveParagraph(p ""))
+            push p.spans base
+            push cell.paragraphs p
+        }
+        return cell
+    }
+
+    ; What a cell holds, flattened: the model's cells hold paragraphs, so a
+    ; list keeps its paragraphs and a table inside a cell keeps its text.
+    fn cellContent:void (doc:RichDocument cell:DocTableCell node:OdtNode level:int) {
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                if ((c.name == "text:p") || (c.name == "text:h")) {
+                    def p:Paragraph (doc.addParagraphOnly())
+                    this.fillParagraph(doc p c)
+                    if (level > 0) {
+                        p.indentLeftPt = (p.indentLeftPt + (18.0 * (to_double level)))
+                    }
+                    push cell.paragraphs p
+                }
+                if ((c.name == "text:list") || (c.name == "text:list-item")) {
+                    this.cellContent(doc cell c (level + 1))
+                }
+                if (c.name == "text:list-header") {
+                    this.cellContent(doc cell c level)
+                }
+                if (c.name == "table:table") {
+                    def rows:[OdtNode]
+                    this.collectRows(c rows)
+                    for rows r:OdtNode ri {
+                        for r.children rc:OdtNode rci {
+                            if ((rc.isText == false) && (rc.name == "table:table-cell")) {
+                                this.cellContent(doc cell rc level)
+                            }
+                        }
+                    }
+                }
+                if (OdtReader.isContainer(c.name)) {
+                    this.cellContent(doc cell c level)
+                }
+            }
+        }
+    }
+
+    ; "0.5pt solid #000000" → style, eighths of a point, colour.
+    sfn readBorder:void (spec:string into:DocTableBorder) {
+        if ((strlen spec) == 0) {
+            return
+        }
+        if ((indexOf spec "none") >= 0) {
+            into.style = "none"
+            return
+        }
+        into.style = "single"
+        if ((indexOf spec "double") >= 0) {
+            into.style = "double"
+        }
+        if ((indexOf spec "dotted") >= 0) {
+            into.style = "dotted"
+        }
+        if ((indexOf spec "dashed") >= 0) {
+            into.style = "dashed"
+        }
+        def sp:int (indexOf spec " ")
+        if (sp > 0) {
+            def pt:double (OdpUnits.toPt((substring spec 0 sp)))
+            def sz:int (to_int ((pt * 8.0) + 0.5))
+            if (sz < 2) {
+                sz = 2
+            }
+            into.sz = sz
+        }
+        def hash:int (indexOf spec "#")
+        if ((hash >= 0) && ((hash + 7) <= (strlen spec))) {
+            into.colorHex = (substring spec (hash + 1) (hash + 7))
+        }
+    }
+
+    ; ------------------------------------------------------------------
+    ; The page
+    ; ------------------------------------------------------------------
+
+    ; The first section's page: the master page the first paragraph asked
+    ; for, else "Standard", else the first one there is.
+    fn applyPage:void (doc:RichDocument) {
+        def master:string initialMaster
+        if ((strlen master) == 0) {
+            master = firstMaster
+            def std@(optional):string (get masterLayout "Standard")
+            if (!null? std) {
+                master = "Standard"
+            }
+        }
+        if ((strlen master) == 0) {
+            return
+        }
+        this.applyMaster(doc (doc.sectionAt(0)) master)
+    }
+
+    ; A section laid out as a master page says. ODF puts the header INSIDE
+    ; the page margin and Word puts it in the margin, so a page with a header
+    ; has the header's height added to its top margin (and the footer's to
+    ; the bottom) to start the text where it started.
+    fn applyMaster:void (doc:RichDocument sec:DocSection master:string) {
+        def hd@(optional):OdtNode (get masterHeader master)
+        def ft@(optional):OdtNode (get masterFooter master)
+        def plName@(optional):string (get masterLayout master)
+        if (!null? plName) {
+            def pl@(optional):OdtPageLayout (get pageLayouts (unwrap plName))
+            if (!null? pl) {
+                def l:OdtPageLayout (unwrap pl)
+                sec.pageWTwips = (OdtReader.twips(l.widthPt))
+                sec.pageHTwips = (OdtReader.twips(l.heightPt))
+                def top:double l.marginTop
+                def bottom:double l.marginBottom
+                if (!null? hd) {
+                    top = (top + l.headerExtra)
+                }
+                if (!null? ft) {
+                    bottom = (bottom + l.footerExtra)
+                }
+                sec.marginTopTwips = (OdtReader.twips(top))
+                sec.marginBottomTwips = (OdtReader.twips(bottom))
+                sec.marginLeftTwips = (OdtReader.twips(l.marginLeft))
+                sec.marginRightTwips = (OdtReader.twips(l.marginRight))
+                sec.landscape = l.landscape
+            }
+        }
+        if (!null? hd) {
+            this.readHeaderFooter(doc (unwrap hd) sec.headerParas)
+        }
+        if (!null? ft) {
+            this.readHeaderFooter(doc (unwrap ft) sec.footerParas)
+        }
+    }
+
+    sfn twips:int (pt:double) {
+        return (to_int ((pt * 20.0) + 0.5))
+    }
+
+    fn readHeaderFooter:void (doc:RichDocument node:OdtNode into:[Paragraph]) {
+        for node.children c:OdtNode ci {
+            if (c.isText == false) {
+                if ((c.name == "text:p") || (c.name == "text:h")) {
+                    def p:Paragraph (doc.addParagraphOnly())
+                    this.fillParagraph(doc p c)
+                    push into p
+                }
+            }
+        }
+    }
+}
