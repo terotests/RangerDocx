@@ -12,7 +12,6 @@
 
 Import "../src/DocxViewer.rgr"
 Import "../src/DocxFormats.rgr"
-Import "../src/OdtReader.rgr"
 Import "../src/RtfReader.rgr"
 Import "../src/lib.rs"
 

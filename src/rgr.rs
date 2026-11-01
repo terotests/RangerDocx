@@ -16,6 +16,8 @@ mod rgr {
     ranger::import_rgr!("../../evg_window/EVGToolbarView");
     ranger::import_rgr!("../../game_engine/ui/UIContext");
     ranger::import_rgr!("../../game_engine/ui/UITextRenderer");
+    ranger::import_rgr!("../../odf/OdfPackage");
+    ranger::import_rgr!("../../odp/OdpUnits");
     ranger::import_rgr!("../../office/text/OfficeCaretMotion");
     ranger::import_rgr!("../../office/text/OfficeFont");
     ranger::import_rgr!("../../office/text/OfficeLineNav");
@@ -32,4 +34,4 @@ mod rgr {
     ranger::import_rgr!("DocEditHistory");
     ranger::import_rgr!("DxNative");
 }
-pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGToolbarTheme, EVGToolbarView, ImageBuffer, Inflate, JPEGDecoder, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, OpcPackage, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer, Utf8, ZipWriter};
+pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGToolbarTheme, EVGToolbarView, ImageBuffer, Inflate, JPEGDecoder, OdfPackage, OdpUnits, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, OpcPackage, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer, Utf8, ZipWriter};

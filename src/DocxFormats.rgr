@@ -15,7 +15,7 @@
 ; ==============================================================================
 
 Import "DocxViewer.rgr"
-Import "OdtReader.rgr"
+Import "lib.rs"
 Import "RtfReader.rgr"
 
 class DocxFormats {
@@ -33,7 +33,7 @@ class DocxFormats {
     sfn openBytes:boolean (viewer:DocxViewer data:buffer name:string) {
         def kind:string (DocxFormats.kindOf(data))
         if (kind == "odt") {
-            def odt:OdtReader (new OdtReader)
+            def odt:OdtReader (OdtReader.new_())
             def read@(optional):RichDocument (odt.readBytes(data name))
             if (null? read) {
                 viewer.lastError = odt.lastError

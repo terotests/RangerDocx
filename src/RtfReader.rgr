@@ -27,7 +27,6 @@
 ; ==============================================================================
 
 Import "lib.rs"
-Import "OdtReader.rgr"
 Import "pkg:evg/EVGCodepoint.rgr"
 
 ; Where the text of a group goes.
