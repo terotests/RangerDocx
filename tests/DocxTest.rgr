@@ -558,8 +558,7 @@ class DocxTest {
         c.ok("caret geometry resolves there" ((viewer.edit.caretPixelX(viewer.view.layout endPage)) >= 0))
         c.ok("caret height resolves there" ((viewer.edit.caretHeight(viewer.view.layout endPage)) > 0))
         def endPara:Paragraph (viewer.edit.adapter.findParagraph(ce.paragraphId))
-        def probeAt:[int]
-        viewer.edit.findLineFor(viewer.view.layout ce.paragraphId (strlen endPara.text) probeAt)
+        def probeAt:[int] (viewer.edit.lineFor(viewer.view.layout ce.paragraphId (strlen endPara.text)))
         c.ok("offset past the last laid line still finds one" ((itemAt probeAt 0) >= 0))
         viewer.keyHome(false true)
         def ch2:DocumentPosition (viewer.edit.caret())
@@ -1226,11 +1225,9 @@ class DocxTest {
             ; The drag, ending in a different paragraph further down.
             viewer.dragTo((to.x + 20) (to.y + 2))
             c.ok("dragging selected something" (((viewer.edit.selection()).isCollapsed()) == false))
-            def startAt:[int]
-            def endAt:[int]
-            viewer.edit.orderedEnds(startAt endAt)
-            c.ok("the selection spans two paragraphs" ((itemAt startAt 0) != (itemAt endAt 0)))
-            c.eqInt("and it starts where the press was" (itemAt startAt 0) anchorPara)
+            def ends:[int] (viewer.edit.orderedEndList())
+            c.ok("the selection spans two paragraphs" ((itemAt ends 0) != (itemAt ends 2)))
+            c.eqInt("and it starts where the press was" (itemAt ends 0) anchorPara)
             ; Dragging back onto the first line collapses it again.
             viewer.dragTo((from.x + 4) (from.y + 2))
             c.ok("dragging back to the press point clears it" ((viewer.edit.selection()).isCollapsed()))

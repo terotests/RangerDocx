@@ -1,0 +1,53 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+; ==============================================================================
+; DocEditHistory - the editor's undo history: OfficeHistory of DocEditOp.
+; ==============================================================================
+;
+; A class of its own, not OfficeHistory@(DocEditOp) in the field's type: the
+; editor (docx_edit_controller.rs) is Rust syntax, and Ranger's Rust frontend
+; does not instantiate a generic .rgr class (it monomorphizes generics of the
+; Rust code only). When it does, this file can go.
+
+Import "../../office/editor/OfficeHistory.rgr"
+Import "../../text_editor/src/TextEditCore.rgr"
+
+class DocEditHistory {
+    def h:OfficeHistory@(DocEditOp) (new OfficeHistory@(DocEditOp) ())
+
+    fn reset:void () {
+        h.reset()
+    }
+    fn begin:void () {
+        h.begin()
+    }
+    fn end:void () {
+        h.end()
+    }
+    fn record:void (op:DocEditOp) {
+        h.record(op)
+    }
+    fn canUndo:boolean () {
+        return (h.canUndo())
+    }
+    fn canRedo:boolean () {
+        return (h.canRedo())
+    }
+    fn undoSpan:int () {
+        return (h.undoSpan())
+    }
+    fn redoSpan:int () {
+        return (h.redoSpan())
+    }
+    fn peekUndo:DocEditOp () {
+        return (h.peekUndo())
+    }
+    fn peekRedo:DocEditOp () {
+        return (h.peekRedo())
+    }
+    fn moveUndoToRedo:void () {
+        h.moveUndoToRedo()
+    }
+    fn moveRedoToUndo:void () {
+        h.moveRedoToUndo()
+    }
+}

@@ -11,7 +11,6 @@ Import "RichDocument.rgr"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "../../datagrid/src/GridChartView.rgr"
 Import "../../datagrid/src/SoftPainter.rgr"
-Import "DocxEditController.rgr"
 Import "lib.rs"
 Import "../../game_engine/framebuffer.rgr"
 Import "../../game_engine/ui/UIContext.rgr"
@@ -238,13 +237,11 @@ class DocxView {
         if (sel.isCollapsed()) {
             return
         }
-        def a:[int]
-        def b:[int]
-        edit.orderedEnds(a b)
-        def sPid:int (itemAt a 0)
-        def sOff:int (itemAt a 1)
-        def ePid:int (itemAt b 0)
-        def eOff:int (itemAt b 1)
+        def ends:[int] (edit.orderedEndList())
+        def sPid:int (itemAt ends 0)
+        def sOff:int (itemAt ends 1)
+        def ePid:int (itemAt ends 2)
+        def eOff:int (itemAt ends 3)
         def sOrder:int (edit.adapter.bodyOrderOf(sPid))
         def eOrder:int (edit.adapter.bodyOrderOf(ePid))
         if ((sOrder < 0) || (eOrder < 0)) {

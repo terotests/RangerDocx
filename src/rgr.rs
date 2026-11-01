@@ -7,10 +7,14 @@ mod rgr {
     ranger::import_rgr!("../../../lib/evg/EVGColor");
     ranger::import_rgr!("../../../lib/evg/EVGDisplayList");
     ranger::import_rgr!("../../../lib/evg/EVGToolbar");
+    ranger::import_rgr!("../../datagrid/src/ChartDoc");
+    ranger::import_rgr!("../../datagrid/src/GridChart");
     ranger::import_rgr!("../../evg_window/EVGToolbarView");
     ranger::import_rgr!("../../game_engine/ui/UIContext");
     ranger::import_rgr!("../../game_engine/ui/UITextRenderer");
+    ranger::import_rgr!("../../office/text/OfficeCaretMotion");
     ranger::import_rgr!("../../office/text/OfficeFont");
+    ranger::import_rgr!("../../office/text/OfficeLineNav");
     ranger::import_rgr!("../../office/text/OfficeStyle");
     ranger::import_rgr!("../../office/text/OfficeText");
     ranger::import_rgr!("../../office/text/OfficeTextMetrics");
@@ -18,7 +22,8 @@ mod rgr {
     ranger::import_rgr!("../../ooxml/OoxmlText");
     ranger::import_rgr!("../../ooxml/SourceRef");
     ranger::import_rgr!("../../text_editor/src/TextEditCore");
+    ranger::import_rgr!("DocEditHistory");
     ranger::import_rgr!("DxNative");
     ranger::import_rgr!("RichDocument");
 }
-pub use rgr::{DocumentPosition, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGToolbarTheme, EVGToolbarView, OfficeFont, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer};
+pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGToolbarTheme, EVGToolbarView, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer};

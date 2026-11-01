@@ -9,7 +9,6 @@ Import "WordMlParser.rgr"
 Import "DocxWriter.rgr"
 Import "RichDocument.rgr"
 Import "DocxView.rgr"
-Import "DocxEditController.rgr"
 Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
@@ -19,7 +18,7 @@ class DocxViewer {
     def view:DocxView (new DocxView)
     def doc:RichDocument (new RichDocument)
     def numbering:WordNumbering (WordNumbering.new_())
-    def edit:DocxEditController (new DocxEditController)
+    def edit:DocxEditController (DocxEditController.new_())
     def lastError:string ""
     def currentPage:int 0
     ; How far down the current page the window is looking, in scene pixels.
@@ -366,8 +365,7 @@ class DocxViewer {
     ; renderPage already does it) and then follows the caret onto its page, so
     ; Up / Down / PageUp / PageDown walk across page boundaries.
     fn pageOfCaret:int () {
-        def cur:[int]
-        edit.caretLine(view.layout cur)
+        def cur:[int] (edit.caretLineAt(view.layout))
         def cp:int (itemAt cur 0)
         if (cp < 0) {
             return currentPage
