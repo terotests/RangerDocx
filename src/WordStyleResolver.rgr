@@ -12,7 +12,7 @@
 
 Import "RichDocument.rgr"
 Import "../../office/text/OfficeFont.rgr"
-Import "WordXml.rgr"
+Import "lib.rs"
 Import "../../office/text/OfficeStyle.rgr"
 
 class ResolvedRunStyle {

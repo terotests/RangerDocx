@@ -2,6 +2,7 @@
 
 #[allow(dead_code, unused, non_snake_case)]
 mod rgr {
+    ranger::import_rgr!("../../ooxml/OoxmlText");
     ranger::import_rgr!("DxNative");
 }
-pub use rgr::{DxNative};
+pub use rgr::{DxNative, OoxmlText};

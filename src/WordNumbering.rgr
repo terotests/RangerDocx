@@ -8,7 +8,7 @@
 ; Editor model keeps only (listNumId, level); marker text is resolved here.
 ; ==============================================================================
 
-Import "WordXml.rgr"
+Import "lib.rs"
 Import "RichDocument.rgr"
 Import "pkg:evg/EVGCodepoint.rgr"
 

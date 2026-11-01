@@ -9,7 +9,7 @@
 
 Import "RichDocument.rgr"
 Import "DocxPackage.rgr"
-Import "WordXml.rgr"
+Import "lib.rs"
 Import "WordStyleResolver.rgr"
 Import "WordNumbering.rgr"
 Import "DocxPng.rgr"

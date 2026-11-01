@@ -5,7 +5,7 @@
 ; ==============================================================================
 
 Import "../src/DocxViewer.rgr"
-Import "../src/WordXml.rgr"
+Import "../src/lib.rs"
 Import "../src/WordMlParser.rgr"
 Import "../src/WordNumbering.rgr"
 Import "../src/WordStyleResolver.rgr"

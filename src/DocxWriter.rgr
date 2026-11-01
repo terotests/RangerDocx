@@ -29,7 +29,7 @@
 
 Import "RichDocument.rgr"
 Import "DocxFingerprint.rgr"
-Import "WordXml.rgr"
+Import "lib.rs"
 Import "WordStyleResolver.rgr"
 Import "WordNumbering.rgr"
 Import "../../zip/ZipWriter.rgr"
