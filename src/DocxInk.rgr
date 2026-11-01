@@ -26,7 +26,7 @@
 Import "../../game_engine/ui/UIContext.rgr"
 Import "pkg:evg/EVGDisplayList.rgr"
 Import "pkg:evg/EVGColor.rgr"
-Import "DocxTextMetrics.rgr"
+Import "lib.rs"
 Import "../../office/text/OfficeText.rgr"
 
 class DocxInk {

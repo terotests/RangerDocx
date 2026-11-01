@@ -4,6 +4,7 @@
 mod clipboard_table;
 mod docx_fingerprint;
 mod docx_para_format;
+mod docx_text_metrics;
 mod odt_xml;
 mod rgr;
 mod word_numbering;

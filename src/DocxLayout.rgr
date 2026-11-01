@@ -8,7 +8,6 @@
 ; ==============================================================================
 
 Import "RichDocument.rgr"
-Import "DocxTextMetrics.rgr"
 Import "lib.rs"
 Import "../../game_engine/ui/UITextRenderer.rgr"
 
