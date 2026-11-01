@@ -5,9 +5,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::rich_document::{Paragraph};
 use crate::rgr::DxNative;
 use crate::word_xml::WordXml;
-use crate::rgr::{EVGCodepoint, Paragraph};
+use crate::rgr::{EVGCodepoint};
 
 /// ==============================================================================
 /// WordNumbering - numbering.xml → list markers (canvas-editor / Word listId).

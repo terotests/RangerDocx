@@ -32,7 +32,6 @@
 ; spans: the model holds the formatting a reader sees, as it does for DOCX.
 ; ==============================================================================
 
-Import "RichDocument.rgr"
 Import "WordMlParser.rgr"
 Import "../../odf/OdfPackage.rgr"
 Import "lib.rs"
@@ -200,7 +199,7 @@ class OdtReader {
     }
 
     fn readPackage:RichDocument () {
-        def doc:RichDocument (new RichDocument)
+        def doc:RichDocument (RichDocument.new_())
         numbering = (WordNumbering.new_())
         def stylesRoot@(optional):OdtNode (this.parsePart("styles.xml"))
         if (!null? stylesRoot) {
@@ -1036,7 +1035,7 @@ class OdtReader {
         if (((strlen href) == 0) || (OdfPackage.isExternalHref(href))) {
             return
         }
-        def img:DocImage (new DocImage)
+        def img:DocImage (DocImage.new_())
         img.relId = href
         img.partPath = href
         def w:double (OdpUnits.toPt((frame.attr("svg:width"))))
@@ -1309,7 +1308,7 @@ class OdtReader {
     }
 
     fn readRow:DocTableRow (doc:RichDocument r:OdtNode) {
-        def row:DocTableRow (new DocTableRow)
+        def row:DocTableRow (DocTableRow.new_())
         def rst@(optional):OdtStyle (this.findStyle("table-row" (r.attr("table:style-name"))))
         if (!null? rst) {
             def rowSt:OdtStyle (unwrap rst)
@@ -1351,7 +1350,7 @@ class OdtReader {
     }
 
     fn readCell:DocTableCell (doc:RichDocument c:OdtNode) {
-        def cell:DocTableCell (new DocTableCell)
+        def cell:DocTableCell (DocTableCell.new_())
         cell.gridSpan = (?? (str2int (c.attr("table:number-columns-spanned"))) 1)
         if (cell.gridSpan < 1) {
             cell.gridSpan = 1

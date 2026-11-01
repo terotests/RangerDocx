@@ -27,7 +27,6 @@
 ; style's run properties.
 ; ==============================================================================
 
-Import "RichDocument.rgr"
 Import "lib.rs"
 Import "../../zip/ZipWriter.rgr"
 Import "../../pdf_writer/src/core/Utf8.rgr"

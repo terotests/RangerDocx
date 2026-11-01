@@ -7,7 +7,6 @@
 Import "DocxPackage.rgr"
 Import "WordMlParser.rgr"
 Import "DocxWriter.rgr"
-Import "RichDocument.rgr"
 Import "DocxView.rgr"
 Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
@@ -16,7 +15,7 @@ Import "../../text_editor/src/TextEditCore.rgr"
 class DocxViewer {
     def parser:WordMlParser (new WordMlParser)
     def view:DocxView (new DocxView)
-    def doc:RichDocument (new RichDocument)
+    def doc:RichDocument (RichDocument.new_())
     def numbering:WordNumbering (WordNumbering.new_())
     def edit:DocxEditController (DocxEditController.new_())
     def lastError:string ""

@@ -5,9 +5,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::rich_document::{Paragraph, TextSpan};
 use crate::rgr::DxNative;
-use crate::rgr::Paragraph;
-use crate::rgr::TextSpan;
 use crate::word_xml::WordXml;
 use crate::rgr::{OfficeFont, OfficeTextStyle, StyleFlag};
 

@@ -6,7 +6,9 @@ mod rgr {
     ranger::import_rgr!("../../../lib/evg/EVGCodepoint");
     ranger::import_rgr!("../../../lib/evg/EVGColor");
     ranger::import_rgr!("../../../lib/evg/EVGDisplayList");
+    ranger::import_rgr!("../../../lib/evg/EVGElement");
     ranger::import_rgr!("../../../lib/evg/EVGToolbar");
+    ranger::import_rgr!("../../../lib/image/ImageBuffer");
     ranger::import_rgr!("../../datagrid/src/ChartDoc");
     ranger::import_rgr!("../../datagrid/src/GridChart");
     ranger::import_rgr!("../../evg_window/EVGToolbarView");
@@ -24,6 +26,5 @@ mod rgr {
     ranger::import_rgr!("../../text_editor/src/TextEditCore");
     ranger::import_rgr!("DocEditHistory");
     ranger::import_rgr!("DxNative");
-    ranger::import_rgr!("RichDocument");
 }
-pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGToolbarTheme, EVGToolbarView, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer};
+pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGToolbarTheme, EVGToolbarView, ImageBuffer, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer};

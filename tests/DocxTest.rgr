@@ -7,7 +7,6 @@
 Import "../src/DocxViewer.rgr"
 Import "../src/lib.rs"
 Import "../src/WordMlParser.rgr"
-Import "../src/RichDocument.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
 class Checker {
@@ -1245,15 +1244,15 @@ class DocxTest {
         ; its upright one, so measuring the same string both ways answers the
         ; same number only if the face never changed.
         print "== italic reaches the face =="
-        def itDoc:RichDocument (new RichDocument)
+        def itDoc:RichDocument (RichDocument.new_())
         def itPara:Paragraph (itDoc.addParagraph())
         itPara.text = "Hamburgefonstiv and again"
-        def plainSpan:TextSpan (new TextSpan)
+        def plainSpan:TextSpan (TextSpan.new_())
         plainSpan.start = 0
         plainSpan.end = 15
         plainSpan.fontSizePt = 11.0
         push itPara.spans plainSpan
-        def slantSpan:TextSpan (new TextSpan)
+        def slantSpan:TextSpan (TextSpan.new_())
         slantSpan.start = 15
         slantSpan.end = (strlen itPara.text)
         slantSpan.italic = true
@@ -1469,7 +1468,7 @@ class DocxTest {
         ; no `w:jc` was written, so the new paragraph also jumped to the left
         ; margin. A hand-written copy list that had gone stale, which is the
         ; failure `copyFormatTo` exists to end.
-        def rd (new RichDocument)
+        def rd (RichDocument.new_())
         def rp:Paragraph (rd.addParagraph())
         rp.text = "one two"
         rp.bidi = 1

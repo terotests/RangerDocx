@@ -7,7 +7,6 @@
 ; headers/footers, DrawingML images (JPEG+PNG).
 ; ==============================================================================
 
-Import "RichDocument.rgr"
 Import "DocxPackage.rgr"
 Import "lib.rs"
 Import "DocxPng.rgr"
@@ -105,7 +104,7 @@ class WordMlParser {
     }
 
     fn parseDocumentXml:RichDocument (xml:string) {
-        def doc:RichDocument (new RichDocument)
+        def doc:RichDocument (RichDocument.new_())
         doc.source.mainXml = xml
         currentSection = 0
         def bodyAt:int (WordXml.findNext(xml "w:body" 0))
@@ -385,7 +384,7 @@ class WordMlParser {
                 return t
             }
             def trEl:string (WordXml.sliceElement(tEl "w:tr" tr))
-            def row:DocTableRow (new DocTableRow)
+            def row:DocTableRow (DocTableRow.new_())
             def rowBase:int -1
             if (base >= 0) {
                 rowBase = (base + tr)
@@ -444,7 +443,7 @@ class WordMlParser {
     }
 
     fn parseCell:DocTableCell (doc:RichDocument tcEl:string base:int) {
-        def cell:DocTableCell (new DocTableCell)
+        def cell:DocTableCell (DocTableCell.new_())
         if (base >= 0) {
             cell.source.set("main" base (base + (strlen tcEl)))
         }
@@ -658,7 +657,7 @@ class WordMlParser {
                 off = (off + (strlen tx))
             } {
                 if (WordMlParser.anchorTag(name)) {
-                    def a:InlineAnchor (new InlineAnchor)
+                    def a:InlineAnchor (InlineAnchor.new_())
                     a.offset = off
                     a.xml = ("<w:r>" + rPrXml + (substring rEl lt endAt) + "</w:r>")
                     push p.anchors a
@@ -674,7 +673,7 @@ class WordMlParser {
     }
 
     fn parseDrawing:DocImage (rEl:string) {
-        def empty:DocImage (new DocImage)
+        def empty:DocImage (DocImage.new_())
         def blipAt:int (indexOf rEl "<a:blip")
         if (blipAt < 0) {
             blipAt = (indexOf rEl "<v:imagedata")
@@ -694,7 +693,7 @@ class WordMlParser {
                 if ((strlen rid) == 0) {
                     return empty
                 }
-                def img:DocImage (new DocImage)
+                def img:DocImage (DocImage.new_())
                 img.relId = rid
                 img.partPath = (pkg.resolveRel(rid))
                 ; `wp:docPr` carries the author's alt text. It is the only

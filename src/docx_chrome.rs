@@ -5,14 +5,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::rich_document::{DocBlock, DocBlockKind, Paragraph, RichDocument};
 use crate::docx_layout::DocxLayout;
 use crate::docx_layout::LaidLine;
 use crate::docx_layout::LaidPage;
-use crate::rgr::DocBlock;
-use crate::rgr::DocBlockKind;
 use crate::rgr::DxNative;
-use crate::rgr::Paragraph;
-use crate::rgr::RichDocument;
 use crate::rgr::{EVGColor, EVGDisplayList, EVGToolbarTheme, EVGToolbarView, ToolIcon, ToolItem, UIContext, UITextRenderer};
 
 /// ==============================================================================

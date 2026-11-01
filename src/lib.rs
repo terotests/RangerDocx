@@ -12,6 +12,7 @@ mod docx_para_format;
 mod docx_text_metrics;
 mod odt_xml;
 mod rgr;
+mod rich_document;
 mod rich_document_edit;
 mod word_numbering;
 mod word_style_resolver;

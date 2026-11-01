@@ -4,7 +4,6 @@
 ; DocxView - SoftCanvas paint of laid-out RichDocument pages.
 ; ==============================================================================
 
-Import "RichDocument.rgr"
 ; The chart component: the same model, the same generator and the same Vela
 ; renderer the spreadsheet uses. A chart pasted into a document is not a second
 ; implementation of charts — it is the first one, running here.

@@ -26,7 +26,6 @@
 ; fresh .docx.
 ; ==============================================================================
 
-Import "RichDocument.rgr"
 Import "lib.rs"
 Import "WordMlParser.rgr"
 Import "OdtReader.rgr"
@@ -182,10 +181,10 @@ class RtfCellDef {
     def rightTw:int 0
     def merged:boolean false
     def fill:int 0
-    def borderTop:DocTableBorder (new DocTableBorder)
-    def borderBottom:DocTableBorder (new DocTableBorder)
-    def borderLeft:DocTableBorder (new DocTableBorder)
-    def borderRight:DocTableBorder (new DocTableBorder)
+    def borderTop:DocTableBorder (DocTableBorder.new_())
+    def borderBottom:DocTableBorder (DocTableBorder.new_())
+    def borderLeft:DocTableBorder (DocTableBorder.new_())
+    def borderRight:DocTableBorder (DocTableBorder.new_())
 
     Constructor () {
         borderTop.style = "none"
@@ -207,7 +206,7 @@ class RtfRowInfo {
 class RtfReader {
     def lastError:string ""
     def numbering:WordNumbering (WordNumbering.new_())
-    def doc:RichDocument (new RichDocument)
+    def doc:RichDocument (RichDocument.new_())
     def src:string ""
     def pos:int 0
     def len:int 0
@@ -264,7 +263,7 @@ class RtfReader {
     def sawFooter:boolean false
     def curSection:int 0
     def blocksAtSection:int 0
-    def pageDefaults:DocSection (new DocSection)
+    def pageDefaults:DocSection (DocSection.new_())
 
     Constructor () {
     }
@@ -300,7 +299,7 @@ class RtfReader {
     }
 
     fn readString:RichDocument (text:string) {
-        doc = (new RichDocument)
+        doc = (RichDocument.new_())
         numbering = (WordNumbering.new_())
         src = text
         pos = 0
@@ -308,13 +307,13 @@ class RtfReader {
         st = (new RtfState)
         curSection = 0
         blocksAtSection = 0
-        pageDefaults = (new DocSection)
+        pageDefaults = (DocSection.new_())
         clear stack
         clear cur
         clear curOpen
         def t:int 0
         while (t < 3) {
-            push cur (new Paragraph)
+            push cur (Paragraph.new_())
             push curOpen false
             t = (t + 1)
         }
@@ -1429,7 +1428,7 @@ class RtfReader {
     }
 
     fn openParagraph:void (t:int) {
-        def p:Paragraph (new Paragraph)
+        def p:Paragraph (Paragraph.new_())
         clear p.spans
         set cur t p
         set curOpen t true
@@ -1697,13 +1696,13 @@ class RtfReader {
         if (itemAt curOpen 0) {
             this.endParagraph(false)
         }
-        def cell:DocTableCell (new DocTableCell)
+        def cell:DocTableCell (DocTableCell.new_())
         for cellParas p:Paragraph pi {
             push cell.paragraphs p
         }
         clear cellParas
         if ((array_length cell.paragraphs) == 0) {
-            def e:Paragraph (new Paragraph)
+            def e:Paragraph (Paragraph.new_())
             clear e.spans
             push e.spans (this.spanNow())
             this.adopt(e)
@@ -1725,7 +1724,7 @@ class RtfReader {
             clear tableRows
         }
         def tbl:DocumentTable (unwrap table)
-        def row:DocTableRow (new DocTableRow)
+        def row:DocTableRow (DocTableRow.new_())
         row.heightTwips = rowHeightTw
         def info:RtfRowInfo (new RtfRowInfo)
         info.left = rowLeftTw
@@ -1878,7 +1877,7 @@ class RtfReader {
             return
         }
         def data:buffer (buffer_slice bytes 0 count)
-        def img:DocImage (new DocImage)
+        def img:DocImage (DocImage.new_())
         img.relId = ("rtf-image-" + (to_string (doc.nextParaId)) + "." + picKind)
         img.partPath = img.relId
         def gw:int picGoalW

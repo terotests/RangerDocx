@@ -4,10 +4,7 @@ use ranger::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::rgr::DocumentTable;
-use crate::rgr::Paragraph;
-use crate::rgr::RichDocument;
-use crate::rgr::TextSpan;
+use crate::rich_document::{DocumentTable, Paragraph, RichDocument, TextSpan};
 
 /// ==============================================================================
 /// DocxFingerprint - what a paragraph or table looked like when it was read.

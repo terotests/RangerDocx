@@ -29,7 +29,7 @@
 ; ==============================================================================
 
 Import "../src/WordMlParser.rgr"
-Import "../src/RichDocument.rgr"
+Import "../src/lib.rs"
 
 class LoadCheck {
     def passed:int 0

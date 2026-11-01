@@ -11,7 +11,6 @@
 Import "../src/DocxViewer.rgr"
 Import "../src/DocxWriter.rgr"
 Import "../src/DocxPackage.rgr"
-Import "../src/RichDocument.rgr"
 Import "../src/lib.rs"
 
 class WChecker {
@@ -99,7 +98,7 @@ class DocxWriteTest {
                 return p
             }
         }
-        return (new Paragraph)
+        return (Paragraph.new_())
     }
 
     sfn main:void () {
@@ -250,7 +249,7 @@ class DocxWriteTest {
         v7.init("gallery/pdf_writer/assets/fonts")
         v7.openFile(fix "images_demo.docx")
         def d7:RichDocument (v7.document())
-        def withImg:Paragraph (new Paragraph)
+        def withImg:Paragraph (Paragraph.new_())
         def imgs:int 0
         for d7.paragraphs pp:Paragraph ppi {
             if (((array_length pp.images) > 0) && (imgs == 0)) {
@@ -273,7 +272,7 @@ class DocxWriteTest {
         c.eqInt("same number of pictures" total7 total0)
 
         print "== a document built in memory =="
-        def fresh:RichDocument (new RichDocument)
+        def fresh:RichDocument (RichDocument.new_())
         def h:Paragraph (fresh.addParagraph())
         h.styleId = "Heading1"
         def hs:TextSpan (TextSpan.create(0 0))
@@ -284,12 +283,12 @@ class DocxWriteTest {
         def t:DocumentTable (fresh.addTable())
         push t.colWidthsTwips 2000
         push t.colWidthsTwips 2000
-        def row:DocTableRow (new DocTableRow)
-        def cell1:DocTableCell (new DocTableCell)
+        def row:DocTableRow (DocTableRow.new_())
+        def cell1:DocTableCell (DocTableCell.new_())
         def cp1:Paragraph (fresh.addParagraphOnly())
         cp1.appendText("A1" (TextSpan.create(0 0)))
         push cell1.paragraphs cp1
-        def cell2:DocTableCell (new DocTableCell)
+        def cell2:DocTableCell (DocTableCell.new_())
         def cp2:Paragraph (fresh.addParagraphOnly())
         cp2.appendText("B1" (TextSpan.create(0 0)))
         push cell2.paragraphs cp2

@@ -4,9 +4,8 @@ use ranger::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::rich_document::{Paragraph, TextSpan};
 use crate::rgr::DxNative;
-use crate::rgr::Paragraph;
-use crate::rgr::TextSpan;
 use crate::word_style_resolver::ResolvedParagraphStyle;
 use crate::word_style_resolver::ResolvedRunStyle;
 use crate::word_style_resolver::WordStyleResolver;

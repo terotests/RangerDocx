@@ -4,17 +4,8 @@ use ranger::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::rgr::DocBlock;
-use crate::rgr::DocBlockKind;
-use crate::rgr::DocChart;
-use crate::rgr::DocTableBorder;
-use crate::rgr::DocTableCell;
-use crate::rgr::DocTableRow;
-use crate::rgr::DocumentTable;
+use crate::rich_document::{DocBlock, DocBlockKind, DocChart, DocTableBorder, DocTableCell, DocTableRow, DocumentTable, Paragraph, RichDocument, TextSpan};
 use crate::rgr::DxNative;
-use crate::rgr::Paragraph;
-use crate::rgr::RichDocument;
-use crate::rgr::TextSpan;
 use crate::rgr::{DocumentPosition};
 
 /// ==============================================================================
