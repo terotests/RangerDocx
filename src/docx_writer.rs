@@ -701,28 +701,30 @@ impl DocxWriter {
                 if part == doc.borrow().source.borrow().mainPart {
                     ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&xml));
                     wrote_main = true;
-                } else {
-                    let mut bytes: Option<Vec<u8>> = doc.borrow().source.borrow().bytes.get(&part).cloned();
-                    if bytes.is_some() {
+                } else if doc.borrow().source.borrow().bytes.contains_key(&part) {
+                    // the part's bytes as read; not an Option<Vec<u8>>, which
+                    // the C++ target has no shape for
+                    let bytes: Vec<u8> = doc.borrow().source.borrow().bytes[&part].clone();
+                    {
                         let mut handled: bool = false;
                         if lists && part == num_part {
-                            let _tmp_4024 = self.numbering.borrow().withAdditions(&DocxWriter::text(&bytes.clone().unwrap()));
+                            let _tmp_4024 = self.numbering.borrow().withAdditions(&DocxWriter::text(&bytes));
                             ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4024));
                             handled = true;
                         }
                         if new_num_part && part == "[Content_Types].xml" {
-                            let _tmp_4026 = DocxWriter::withNumberingType(&DocxWriter::text(&bytes.clone().unwrap()), &format!("/{}numbering.xml", main_dir));
+                            let _tmp_4026 = DocxWriter::withNumberingType(&DocxWriter::text(&bytes), &format!("/{}numbering.xml", main_dir));
                             ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4026));
                             handled = true;
                         }
                         if new_num_part && part == rels_part {
-                            let _tmp_4028 = DocxWriter::withNumberingRel(DocxWriter::text(&bytes.clone().unwrap()));
+                            let _tmp_4028 = DocxWriter::withNumberingRel(DocxWriter::text(&bytes));
                             ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4028));
                             handled = true;
                             wrote_rels = true;
                         }
                         if !handled {
-                            ZipWriter::addFile(&zip, &part, &bytes.clone().unwrap());
+                            ZipWriter::addFile(&zip, &part, &bytes);
                         }
                     }
                 }
