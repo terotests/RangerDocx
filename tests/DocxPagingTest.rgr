@@ -23,7 +23,7 @@
 ;   npm run docx_viewer:paging:test
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
+Import "../src/lib.rs"
 
 class PagingCheck {
     def passed:int 0
@@ -46,7 +46,7 @@ class PagingCheck {
 
 class DocxPagingTest {
     sfn open:DocxViewer (name:string) {
-        def v:DocxViewer (new DocxViewer)
+        def v:DocxViewer (DocxViewer.new_())
         if ((v.openFile("gallery/docx_viewer/fixtures" name)) == false) {
             print ("  could not open " + name)
         }

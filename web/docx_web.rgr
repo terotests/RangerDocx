@@ -21,7 +21,7 @@
 ; ==============================================================================
 
 Import "../src/DocxApp.rgr"
-Import "../src/DocxFormats.rgr"
+Import "../src/lib.rs"
 
 class DocxWeb {
     ; The application, not the page renderer. `viewer` is still here and still

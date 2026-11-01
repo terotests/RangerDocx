@@ -10,11 +10,7 @@
 ; time.
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
-Import "../src/DocxFormats.rgr"
-Import "../src/OdtReader.rgr"
-Import "../src/RtfReader.rgr"
-Import "../src/RichDocument.rgr"
+Import "../src/lib.rs"
 
 class FmtChecker {
     def passed:int 0
@@ -158,13 +154,13 @@ class FormatsTest {
                 return s
             }
         }
-        return (new TextSpan)
+        return (TextSpan.new_())
     }
 
     sfn main:void () {
         def c:FmtChecker (new FmtChecker)
         def fix:string "gallery/docx_viewer/fixtures"
-        def v:DocxViewer (new DocxViewer)
+        def v:DocxViewer (DocxViewer.new_())
         v.init("gallery/pdf_writer/assets/fonts")
 
         print "== the format is read from the bytes =="

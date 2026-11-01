@@ -22,6 +22,33 @@ measured against [WordCraft](https://github.com/storytold/wordcraft).
 > Imported from outside this repository by Ranger's `gallery/ooxml` tests and
 > `gallery/mfiles`, which find it at the same path.
 
+## Ranger-flavoured Rust (src/*.rs)
+
+The library is written in Ranger's Rust syntax: `src/lib.rs` is the crate
+root and each `src/*.rs` module is one former `.rgr` file (`RichDocument.rgr`
+is `rich_document.rs`, and so on). Ranger compiles it to every target as
+before; `.rgr` code imports the crate with `Import "lib.rs"` (from `src/`) or
+`Import "../src/lib.rs"`. The `.rgr` classes the modules use (EVG, ooxml,
+office, text_editor, datagrid) are imported once, in `src/rgr.rs`.
+
+Still `.rgr` in `src/`:
+
+- `DxNative.rgr`: text in the target's own units (strlen, charAt, substring,
+  indexOf: UTF-16 units in JavaScript, bytes in Go, C++ and Rust), and reading
+  a file. Rust's `s.as_bytes()[i]` is a UTF-8 byte on every target, which on
+  JavaScript and Go copies the string at each call.
+- `DocEditHistory.rgr`: the editor's undo history, `OfficeHistory@(DocEditOp)`
+  under a name of its own; Ranger's Rust frontend does not instantiate a
+  generic `.rgr` class.
+- `DocxApp.rgr`: the window app. Its toolbar extends `EVGToolbar`, a `.rgr`
+  class, and a Rust struct cannot extend one.
+- `docx_demo.rgr`, `docx_oracle_dump.rgr`, `docx_rtl_shot.rgr`: programs.
+
+The conversion was made with MFilesAPI's `scripts/rgr2rs` (`rgr2rs.py
+--shared-rgr --native-text --text-class DxNative`, then `rsfix.py --str-len
+DxNative::str_len`). It needs a Ranger with `Vec<u8>` as a buffer (Ranger
+#1250) and the frontend fixes of the same series.
+
 ## Feature parity
 
 - [docs/PARITY.md](docs/PARITY.md): the metrics, how each is measured, targets
@@ -39,9 +66,9 @@ Outside a Ranger checkout, set `RANGER=<ranger checkout>`.
 ## Other formats: .odt and .rtf
 
 The editor also opens OpenDocument text (`.odt`) and RTF (`.rtf`). Both are
-read into the same `RichDocument` as a `.docx` (`src/OdtReader.rgr`,
-`src/RtfReader.rgr`), so everything the editor does works on them; a save
-writes a `.docx`, as there is no ODF or RTF writer. `src/DocxFormats.rgr` picks
+read into the same `RichDocument` as a `.docx` (`src/odt_reader.rs`,
+`src/rtf_reader.rs`), so everything the editor does works on them; a save
+writes a `.docx`, as there is no ODF or RTF writer. `src/docx_formats.rs` picks
 the reader from the file's bytes, not its name. Spreadsheets and decks are
 their own applications: `.xlsx` is EVGSheets, `.pptx`/`.odp` is RangerPPTX.
 
@@ -162,7 +189,7 @@ See `harness/ORACLES.md`.
 
 ## Running it in a browser, with no host and no PNG
 
-The page is the word-processor frame (`src/DocxChrome.rgr`, turned on with
+The page is the word-processor frame (`src/docx_chrome.rs`, turned on with
 `DocxWeb.setRibbon(true)`): a title bar, a ribbon of grouped commands (Home,
 Insert, Layout, References, Review, View, File), the navigation pane
 (headings, pages, search results), both rulers, and a status bar with the word
@@ -193,7 +220,7 @@ rasterized **on the server** and shipped to the browser as a PNG per page — a
 machine with a GPU receiving a picture of a page it could have drawn.
 
 The layout and the painting did not change. What changed is where the marks go:
-[`DocxInk`](src/DocxInk.rgr) is one object with two modes, and every `rect`,
+[`DocxInk`](src/docx_ink.rs) is one object with two modes, and every `rect`,
 `text` and `image` the page painter makes either lands on the SoftCanvas or
 becomes a draw command. A second painter would have meant two descriptions of
 what a Word page looks like, drifting apart at their own pace; this way a
@@ -232,11 +259,11 @@ npm run docx_viewer:window        # http://127.0.0.1:8770/
 
 ## Saving
 
-`DocxWriter` (`src/DocxWriter.rgr`, `DocxViewer.saveBytes()` / `saveFile()`)
+`DocxWriter` (`src/docx_writer.rs`, `DocxViewer.saveBytes()` / `saveFile()`)
 writes the document back by splicing the `word/document.xml` it was read
 from:
 
-- a paragraph or table whose fingerprint (`src/DocxFingerprint.rgr`) still
+- a paragraph or table whose fingerprint (`src/docx_fingerprint.rs`) still
   matches the one stamped when it was read is copied byte for byte;
 - an edited one is regenerated from the model, keeping its `w:p` open tag,
   its `w:pPr` when the paragraph properties did not change (always its

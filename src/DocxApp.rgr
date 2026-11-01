@@ -28,13 +28,11 @@
 ; toolbar is either.
 ; ==============================================================================
 
-Import "DocxViewer.rgr"
 Import "pkg:evg_window/EVGRulerView.rgr"
-Import "DocxA11y.rgr"
+Import "lib.rs"
 Import "pkg:evg_window/EVGToolbarView.rgr"
 Import "pkg:evg_window/EVGWindow.rgr"
 Import "pkg:evg/EVGCommands.rgr"
-Import "DocxChrome.rgr"
 
 ; Which buttons a document has. The strip itself is shared; this is the only
 ; part that is about documents.
@@ -141,7 +139,7 @@ class DocxToolbar extends EVGToolbar {
 }
 
 class DocxApp {
-    def viewer:DocxViewer (new DocxViewer)
+    def viewer:DocxViewer (DocxViewer.new_())
     ; Whether the interface is mirrored. Not the document's direction — that
     ; is the file's business and is read from `w:bidi`; this is which way the
     ; PROGRAM is laid out around it.
@@ -225,9 +223,9 @@ class DocxApp {
     ; frame: a title bar, a ribbon of grouped commands, the navigation pane,
     ; both rulers and a status bar with a zoom slider.
     def ribbonUi:boolean false
-    def ribbon:DocxRibbon (new DocxRibbon)
-    def nav:DocxNavPane (new DocxNavPane)
-    def chrome:DocxChromePainter (new DocxChromePainter)
+    def ribbon:DocxRibbon (DocxRibbon.new_())
+    def nav:DocxNavPane (DocxNavPane.new_())
+    def chrome:DocxChromePainter (DocxChromePainter.new_())
     def titleH:int 44
     def showRuler:boolean true
     def vRulerW:int 18

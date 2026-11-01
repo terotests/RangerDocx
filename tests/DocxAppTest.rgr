@@ -206,7 +206,7 @@ class DocxAppTest {
         ; needs. The frame a selected drawing gets has a handle on each
         ; corner, and a drag on one is the size — the height following the
         ; width, so a diagram is never stretched out of its own shape.
-        def rd (new RichDocument)
+        def rd (RichDocument.new_())
         def hp:Paragraph (rd.addParagraph())
         hp.appendText("A drawing below" (TextSpan.create(0 0)))
         def drw:DocDrawing (rd.addDrawing())

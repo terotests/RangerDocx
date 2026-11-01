@@ -16,7 +16,7 @@
 ; document then holds is asked to draw itself and to change.
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
+Import "../src/lib.rs"
 Import "../../datagrid/src/GridApp.rgr"
 Import "../../datagrid/src/ChartDoc.rgr"
 
@@ -121,7 +121,7 @@ class ChartPasteTest {
         c.ok("and a picture, for programs that only take pictures" (ChartPasteTest.hasSub(html "data:image/png;base64,")))
 
         print "== the word processor pastes it as a chart =="
-        def viewer (new DocxViewer)
+        def viewer (DocxViewer.new_())
         viewer.init(fonts)
         c.ok("open a document" (viewer.openFile(fix "hello.docx")))
         viewer.setEditMode(true)

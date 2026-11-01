@@ -5,8 +5,7 @@
 ;
 ;   bash scripts/rgr-suite.sh ./gallery/docx_viewer/tools/formats_shot.rgr ./gallery/docx_viewer/bin formats_shot.js [fixture]
 
-Import "../src/DocxViewer.rgr"
-Import "../src/DocxFormats.rgr"
+Import "../src/lib.rs"
 
 class FormatsShot {
     sfn shot:void (viewer:DocxViewer dir:string file:string out:string) {

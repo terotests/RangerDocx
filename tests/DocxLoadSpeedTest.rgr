@@ -28,8 +28,7 @@
 ;   npm run docx_viewer:load:test
 ; ==============================================================================
 
-Import "../src/WordMlParser.rgr"
-Import "../src/RichDocument.rgr"
+Import "../src/lib.rs"
 
 class LoadCheck {
     def passed:int 0
@@ -96,7 +95,7 @@ class DocxLoadSpeedTest {
         def xml:string (itemAt held 0)
         print ("  " + (to_string n) + " paragraphs, " + (to_string units) + " units of XML")
 
-        def parser:WordMlParser (new WordMlParser)
+        def parser:WordMlParser (WordMlParser.new_())
         def t0:double (wall_clock_ms)
         def doc:RichDocument (parser.parseDocumentXml(xml))
         def t1:double (wall_clock_ms)

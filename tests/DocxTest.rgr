@@ -4,15 +4,7 @@
 ; DocxTest - parse + layout checks for the DOCX viewer prototype.
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
-Import "../src/WordXml.rgr"
-Import "../src/WordMlParser.rgr"
-Import "../src/WordNumbering.rgr"
-Import "../src/WordStyleResolver.rgr"
-Import "../src/RichDocument.rgr"
-Import "../src/DocxLayout.rgr"
-Import "../src/ClipboardTable.rgr"
-Import "../src/DocxTextMetrics.rgr"
+Import "../src/lib.rs"
 Import "../../text_editor/src/TextEditCore.rgr"
 
 class Checker {
@@ -88,7 +80,7 @@ class DocxTest {
 
         print "== style basedOn chain + loop guard =="
         def stylesXml:string "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type=\"paragraph\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"BaseA\"><w:basedOn w:val=\"Normal\"/><w:rPr><w:b/><w:color w:val=\"112233\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"ChildB\"><w:basedOn w:val=\"BaseA\"/><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"28\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"LoopX\"><w:basedOn w:val=\"LoopY\"/></w:style><w:style w:type=\"paragraph\" w:styleId=\"LoopY\"><w:basedOn w:val=\"LoopX\"/></w:style></w:styles>"
-        def res:WordStyleResolver (new WordStyleResolver)
+        def res:WordStyleResolver (WordStyleResolver.new_())
         res.parseStylesXml(stylesXml)
         def ps:ResolvedParagraphStyle (res.resolveParagraphStyle("ChildB"))
         c.ok("child inherit bold" ps.run.bold)
@@ -99,7 +91,7 @@ class DocxTest {
         c.ok("loop does not hang" ((strlen loopPs.run.colorHex) >= 0))
 
         print "== parse hello.docx =="
-        def viewer:DocxViewer (new DocxViewer)
+        def viewer:DocxViewer (DocxViewer.new_())
         viewer.init("gallery/pdf_writer/assets/fonts")
         c.ok("open hello" (viewer.openFile(fix "hello.docx")))
         def doc:RichDocument (viewer.document())
@@ -164,7 +156,7 @@ class DocxTest {
         c.ok("numbered paras>=3" (nums >= 3))
         c.ok("nested list level" (nested >= 2))
         def markers:string ""
-        def counters:[int:int]
+        def counters:ListCounters (ListCounters.new_())
         def mj:int 0
         while (mj < (d3.paragraphCount())) {
             def mp:Paragraph (d3.paragraphAt(mj))
@@ -563,8 +555,7 @@ class DocxTest {
         c.ok("caret geometry resolves there" ((viewer.edit.caretPixelX(viewer.view.layout endPage)) >= 0))
         c.ok("caret height resolves there" ((viewer.edit.caretHeight(viewer.view.layout endPage)) > 0))
         def endPara:Paragraph (viewer.edit.adapter.findParagraph(ce.paragraphId))
-        def probeAt:[int]
-        viewer.edit.findLineFor(viewer.view.layout ce.paragraphId (strlen endPara.text) probeAt)
+        def probeAt:[int] (viewer.edit.lineFor(viewer.view.layout ce.paragraphId (strlen endPara.text)))
         c.ok("offset past the last laid line still finds one" ((itemAt probeAt 0) >= 0))
         viewer.keyHome(false true)
         def ch2:DocumentPosition (viewer.edit.caret())
@@ -782,8 +773,7 @@ class DocxTest {
         ; Cell paragraphs are not body blocks, so plain caret order cannot see
         ; them — Tab is the way across.
         c.eqInt("cell paragraph has no body order" (viewer.edit.adapter.bodyOrderOf(tp00.id)) -1)
-        def cellAt:[int]
-        viewer.edit.adapter.tableCellOf(tp00.id cellAt)
+        def cellAt:[int] (viewer.edit.adapter.tableCellOf(tp00.id))
         c.ok("locates the table block" ((itemAt cellAt 0) >= 0))
         c.eqInt("row 0" (itemAt cellAt 1) 0)
         c.eqInt("cell 0" (itemAt cellAt 2) 0)
@@ -938,7 +928,7 @@ class DocxTest {
         ; Exactly what gallery/datagrid GridApp.copySelection puts on the
         ; text/html flavour of the clipboard.
         def gridHtml:string "<table border=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td style=\"background-color:#DDEBF7;font-weight:bold;\">Region</td><td style=\"font-weight:bold;\">Q1</td></tr><tr><td>North &amp; South</td><td style=\"text-align:right;\">1&lt;2</td></tr></table>"
-        def ct:ClipboardTable (new ClipboardTable)
+        def ct:ClipboardTable (ClipboardTable.new_())
         c.ok("parses grid html" (ct.parseHtml(gridHtml)))
         c.eqInt("rows" (ct.rowCount()) 2)
         c.eqInt("cols" (ct.columnCount()) 2)
@@ -958,7 +948,7 @@ class DocxTest {
         ; Excel's real shape: <style> block, fragment comments, unquoted and
         ; single-quoted attributes, void <col>, <b> inside a cell.
         def excelHtml:string "<html xmlns:o=\"urn:schemas-microsoft-com:office:office\"><head><meta charset=utf-8><style>.xl65 { color:red; }</style></head><body><table border=0 cellpadding=0 cellspacing=0 width=192 style='border-collapse:collapse'><!--StartFragment--><col width=64><col width=64><tr height=20 style='height:15.0pt'><td height=20 width=64 style='height:15.0pt;background:#FFFF00'><b>Item</b></td><td colspan=2 style='text-align:center'>Cost&nbsp;A</td></tr><tr><td>Bolt</td><td>1.25</td><td>x</td></tr><!--EndFragment--></table></body></html>"
-        def ex:ClipboardTable (new ClipboardTable)
+        def ex:ClipboardTable (ClipboardTable.new_())
         c.ok("parses excel html" (ex.parseHtml(excelHtml)))
         c.eqInt("excel rows" (ex.rowCount()) 2)
         c.eqInt("excel cols (colspan counted)" (ex.columnCount()) 3)
@@ -973,7 +963,7 @@ class DocxTest {
         c.ok("style block not treated as text" ((ex.rowCount()) == 2))
 
         print "== clipboard TSV fallback =="
-        def tsv:ClipboardTable (new ClipboardTable)
+        def tsv:ClipboardTable (ClipboardTable.new_())
         c.ok("tsv looks tabular" (ClipboardTable.looksTabular("a\tb")))
         c.ok("plain line is not tabular" ((ClipboardTable.looksTabular("hello")) == false))
         c.ok("parses tsv" (tsv.parseTsv("a\tb\nc\td\n")))
@@ -1232,11 +1222,9 @@ class DocxTest {
             ; The drag, ending in a different paragraph further down.
             viewer.dragTo((to.x + 20) (to.y + 2))
             c.ok("dragging selected something" (((viewer.edit.selection()).isCollapsed()) == false))
-            def startAt:[int]
-            def endAt:[int]
-            viewer.edit.orderedEnds(startAt endAt)
-            c.ok("the selection spans two paragraphs" ((itemAt startAt 0) != (itemAt endAt 0)))
-            c.eqInt("and it starts where the press was" (itemAt startAt 0) anchorPara)
+            def ends:[int] (viewer.edit.orderedEndList())
+            c.ok("the selection spans two paragraphs" ((itemAt ends 0) != (itemAt ends 2)))
+            c.eqInt("and it starts where the press was" (itemAt ends 0) anchorPara)
             ; Dragging back onto the first line collapses it again.
             viewer.dragTo((from.x + 4) (from.y + 2))
             c.ok("dragging back to the press point clears it" ((viewer.edit.selection()).isCollapsed()))
@@ -1254,15 +1242,15 @@ class DocxTest {
         ; its upright one, so measuring the same string both ways answers the
         ; same number only if the face never changed.
         print "== italic reaches the face =="
-        def itDoc:RichDocument (new RichDocument)
+        def itDoc:RichDocument (RichDocument.new_())
         def itPara:Paragraph (itDoc.addParagraph())
         itPara.text = "Hamburgefonstiv and again"
-        def plainSpan:TextSpan (new TextSpan)
+        def plainSpan:TextSpan (TextSpan.new_())
         plainSpan.start = 0
         plainSpan.end = 15
         plainSpan.fontSizePt = 11.0
         push itPara.spans plainSpan
-        def slantSpan:TextSpan (new TextSpan)
+        def slantSpan:TextSpan (TextSpan.new_())
         slantSpan.start = 15
         slantSpan.end = (strlen itPara.text)
         slantSpan.italic = true
@@ -1309,7 +1297,7 @@ class DocxTest {
         ; which is why only bold and italic were wrong.
         print "== a run that says it is NOT bold =="
         def triStyles:string "<w:styles xmlns:w=\"x\"><w:style w:type=\"paragraph\" w:styleId=\"Strong\"><w:name w:val=\"Strong\"/><w:rPr><w:b/><w:i/></w:rPr></w:style></w:styles>"
-        def triRes:WordStyleResolver (new WordStyleResolver)
+        def triRes:WordStyleResolver (WordStyleResolver.new_())
         triRes.parseStylesXml(triStyles)
         def base:ResolvedParagraphStyle (triRes.resolveParagraphStyle("Strong"))
         c.ok("the style says bold" base.run.bold)
@@ -1379,7 +1367,7 @@ class DocxTest {
         ; Adding an action without adding it here shows up as a failure on the
         ; line that says the document came back.
         print "== every edit is undoable, and redo is its inverse =="
-        def hv:DocxViewer (new DocxViewer)
+        def hv:DocxViewer (DocxViewer.new_())
         hv.init("gallery/pdf_writer/assets/fonts")
         c.ok("open a document to edit" (hv.openFile(fix "hello.docx")))
 
@@ -1478,7 +1466,7 @@ class DocxTest {
         ; no `w:jc` was written, so the new paragraph also jumped to the left
         ; margin. A hand-written copy list that had gone stale, which is the
         ; failure `copyFormatTo` exists to end.
-        def rd (new RichDocument)
+        def rd (RichDocument.new_())
         def rp:Paragraph (rd.addParagraph())
         rp.text = "one two"
         rp.bidi = 1
@@ -1486,7 +1474,7 @@ class DocxTest {
         rp.listKind = 1
         rp.listLevel = 2
         rp.indentLeftPt = 36.0
-        def rEdit (new RichDocumentEdit)
+        def rEdit (RichDocumentEdit.new_())
         rEdit.doc = rd
         def newId:int (rEdit.splitParagraph(rp.id 3))
         def idx:int (rEdit.findParagraphIndex(newId))
@@ -1505,7 +1493,7 @@ class DocxTest {
         ; breaks where Word and M-Files' preview break it. In Open Sans the
         ; first line ended before '("Effective' (fixtures/make_theme_fonts.py).
         print "== theme fonts =="
-        def tv:DocxViewer (new DocxViewer)
+        def tv:DocxViewer (DocxViewer.new_())
         tv.view.ctx.tr.addFontDir("gallery/docx_viewer/fonts")
         tv.init("gallery/pdf_writer/assets/fonts")
         c.ok("open theme fonts" (tv.openFile(fix "25-theme-fonts.docx")))
