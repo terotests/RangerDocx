@@ -80,6 +80,14 @@ class DocxView {
         ctx.tr.addFace("Droid_Serif/DroidSerif.ttf")
         ctx.tr.addFace("Droid_Serif/DroidSerif-Bold.ttf")
         ctx.tr.addFace("Droid_Serif/DroidSerif-Italic.ttf")
+        ; Word's default faces, Cambria and Calibri, as their metric-compatible
+        ; open twins (SIL OFL, this repository's fonts/): the same advance
+        ; widths, so lines break where Word breaks them. A host whose font
+        ; directory has no Caladea/ or Carlito/ draws those in Open Sans.
+        for ([] _:string ("Regular" "Bold" "Italic" "BoldItalic")) st:string si {
+            ctx.tr.addFace(("Caladea/Caladea-" + st + ".ttf"))
+            ctx.tr.addFace(("Carlito/Carlito-" + st + ".ttf"))
+        }
         ; The glyphs a document reaches for that a text face does not carry.
         ; Word writes its bullet levels as ● ○ ▪ — geometric shapes, not
         ; letters — so every list drew a column of empty boxes; and an emoji in
@@ -277,6 +285,7 @@ class DocxView {
                         def p:Paragraph (unwrap line.paragraphRef)
                         def fontPx:double line.fontSizePx
                         def x0:int line.x
+                        DocxTextMetrics.useParagraph(ctx.tr p)
                         if ((strlen line.listPrefix) > 0) {
                             if ((indexOf line.text line.listPrefix) == 0) {
                                 x0 = (x0 + (DocxTextMetrics.measurePlain(ctx.tr line.listPrefix fontPx line.bold)))
@@ -544,6 +553,8 @@ class DocxView {
         ; below is a piece of the same paragraph, so this is set once here
         ; rather than passed down through each of them.
         ink.dir = line.bidi
+        ; the family the layout wrapped this line in
+        DocxTextMetrics.useFamily(ctx.tr line.fontFamily)
         def size:double line.fontSizePx
         if (size < 8.0) {
             size = 8.0

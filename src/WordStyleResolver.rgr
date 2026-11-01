@@ -122,6 +122,11 @@ class WordStyleResolver {
     def defaultAfterPt:double 8.0
     def defaultLineSpacing:double 1.15
     def defaultAlign:int 0
+    ; The theme's Latin faces (word/theme/theme1.xml): what `w:asciiTheme=
+    ; "minorHAnsi"` and its kin name. Word's own documents set body text and
+    ; headings this way rather than by name.
+    def majorFont:string ""
+    def minorFont:string ""
 
     Constructor () {
         defaults.fontSizePt = 11.0
@@ -140,8 +145,63 @@ class WordStyleResolver {
     ;
     ; The shared map already knew Cinzel and Josefin Sans, so nothing this
     ; reader could already do was lost.
+    ;
+    ; Cambria and Calibri, Word's default faces, go to Caladea and Carlito:
+    ; their metric-compatible open (SIL OFL) twins, glyph for glyph the same
+    ; advance widths, so a line breaks where Word breaks it. A host that has
+    ; not loaded them falls back to Open Sans (`DocxTextMetrics.loadedFamily`).
     sfn mapFont:string (name:string) {
+        def n:string (to_lowercase (trim name))
+        if ((n == "cambria") || (n == "caladea")) {
+            return "Caladea"
+        }
+        if ((n == "calibri") || (n == "carlito")) {
+            return "Carlito"
+        }
         return (OfficeFont.aliasFamily(name))
+    }
+
+    ; Read the theme's major and minor Latin typefaces.
+    fn parseThemeXml:void (xml:string) {
+        majorFont = (WordStyleResolver.themeLatin(xml "a:majorFont"))
+        minorFont = (WordStyleResolver.themeLatin(xml "a:minorFont"))
+    }
+
+    sfn themeLatin:string (xml:string tag:string) {
+        def at:int (WordXml.findNext(xml tag 0))
+        if (at < 0) {
+            return ""
+        }
+        def el:string (WordXml.sliceElement(xml tag at))
+        def la:int (WordXml.findNext(el "a:latin" 0))
+        if (la < 0) {
+            return ""
+        }
+        return (WordXml.attr((WordXml.openTag((WordXml.sliceElement(el "a:latin" la)))) "typeface"))
+    }
+
+    ; The family a <w:rFonts> names: w:ascii, then w:hAnsi, then the theme
+    ; face its w:asciiTheme / w:hAnsiTheme points at. "" when it names none
+    ; of them (an rFonts that sets only the East Asian face).
+    fn rFontsName:string (ot:string) {
+        def ascii:string (WordXml.attr(ot "w:ascii"))
+        if ((strlen ascii) == 0) {
+            ascii = (WordXml.attr(ot "w:hAnsi"))
+        }
+        if ((strlen ascii) > 0) {
+            return ascii
+        }
+        def th:string (WordXml.attr(ot "w:asciiTheme"))
+        if ((strlen th) == 0) {
+            th = (WordXml.attr(ot "w:hAnsiTheme"))
+        }
+        if ((indexOf th "major") == 0) {
+            return majorFont
+        }
+        if ((indexOf th "minor") == 0) {
+            return minorFont
+        }
+        return ""
     }
 
     sfn halfPointsToPt:double (sz:string) {
@@ -390,13 +450,11 @@ class WordStyleResolver {
         def rf:int (WordXml.findNext(xml "w:rFonts" 0))
         if (rf >= 0) {
             def rfEl:string (WordXml.sliceElement(xml "w:rFonts" rf))
-            def ot:string (WordXml.openTag(rfEl))
-            def ascii:string (WordXml.attr(ot "w:ascii"))
-            if ((strlen ascii) == 0) {
-                ascii = (WordXml.attr(ot "w:hAnsi"))
+            def ascii:string (this.rFontsName((WordXml.openTag(rfEl))))
+            if ((strlen ascii) > 0) {
+                defn.hasFont = true
+                defn.run.fontFamily = (WordStyleResolver.mapFont(ascii))
             }
-            defn.hasFont = true
-            defn.run.fontFamily = (WordStyleResolver.mapFont(ascii))
         }
         def col:int (WordXml.findNext(xml "w:color" 0))
         if (col >= 0) {
@@ -514,12 +572,10 @@ class WordStyleResolver {
         def rf:int (WordXml.findNext(xml "w:rFonts" 0))
         if (rf >= 0) {
             def rfEl:string (WordXml.sliceElement(xml "w:rFonts" rf))
-            def ot:string (WordXml.openTag(rfEl))
-            def ascii:string (WordXml.attr(ot "w:ascii"))
-            if ((strlen ascii) == 0) {
-                ascii = (WordXml.attr(ot "w:hAnsi"))
+            def ascii:string (this.rFontsName((WordXml.openTag(rfEl))))
+            if ((strlen ascii) > 0) {
+                into.fontFamily = (WordStyleResolver.mapFont(ascii))
             }
-            into.fontFamily = (WordStyleResolver.mapFont(ascii))
         }
         def col:int (WordXml.findNext(xml "w:color" 0))
         if (col >= 0) {

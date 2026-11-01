@@ -1500,6 +1500,46 @@ class DocxTest {
             c.ok("and still indented" ((fabs (np2.indentLeftPt - 36.0)) < 0.001))
         }
 
+        ; Fonts named only through the theme (w:asciiTheme="minorHAnsi" ->
+        ; Cambria), drawn with Caladea, Cambria's metric twin: the paragraph
+        ; breaks where Word and M-Files' preview break it. In Open Sans the
+        ; first line ended before '("Effective' (fixtures/make_theme_fonts.py).
+        print "== theme fonts =="
+        def tv:DocxViewer (new DocxViewer)
+        tv.view.ctx.tr.addFontDir("gallery/docx_viewer/fonts")
+        tv.init("gallery/pdf_writer/assets/fonts")
+        c.ok("open theme fonts" (tv.openFile(fix "25-theme-fonts.docx")))
+        def td:RichDocument (tv.document())
+        c.eqStr("theme minor face" tv.parser.resolver.minorFont "Cambria")
+        c.eqStr("theme major face" tv.parser.resolver.majorFont "Calibri")
+        def tb:Paragraph (td.paragraphAt(1))
+        def tbs:TextSpan (itemAt tb.spans 0)
+        c.eqStr("body is Cambria -> Caladea" tbs.fontFamily "Caladea")
+        def tt:Paragraph (td.paragraphAt(0))
+        def tts:TextSpan (itemAt tt.spans 0)
+        c.eqStr("title is Calibri -> Carlito" tts.fontFamily "Carlito")
+        tv.pageDisplayList(0)
+        def tpg:LaidPage (tv.view.layout.pageAt(0))
+        def body:[string]
+        def bodyFam:string ""
+        for tpg.lines ln:LaidLine lni {
+            if (ln.paraIndex == tb.id) {
+                push body ln.text
+                bodyFam = ln.fontFamily
+            }
+        }
+        c.eqStr("laid out in Caladea" bodyFam "Caladea")
+        c.ok("five lines" ((array_length body) == 5))
+        if ((array_length body) >= 3) {
+            print ("  line 1: " + (itemAt body 0))
+            print ("  line 2: " + (itemAt body 1))
+            print ("  line 3: " + (itemAt body 2))
+            c.ok("line 1 ends with (\"Effective" (endsWith (itemAt body 0) "(\"Effective"))
+            c.ok("line 2 starts with Date\")," ((indexOf (itemAt body 1) "Date\"),") == 0))
+            c.ok("line 2 ends with the laws" (endsWith (itemAt body 1) "under the laws"))
+            c.ok("line 3 ends with Finland" (endsWith (itemAt body 2) "Finland"))
+        }
+
         print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
         if (c.failed == 0) {
             print "ALL PASS"

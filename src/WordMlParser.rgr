@@ -27,6 +27,11 @@ class WordMlParser {
 
     fn parsePackage:RichDocument (docxPkg:DocxPackage) {
         pkg = docxPkg
+        ; the theme first: styles name its fonts (w:asciiTheme)
+        def theme:string (pkg.themeXml())
+        if ((strlen theme) > 0) {
+            resolver.parseThemeXml(theme)
+        }
         def styles:string (pkg.stylesXml())
         if ((strlen styles) > 0) {
             resolver.parseStylesXml(styles)

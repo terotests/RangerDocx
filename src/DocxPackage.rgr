@@ -104,6 +104,11 @@ class DocxPackage {
         return (this.readRelatedPart("/styles" "word/styles.xml"))
     }
 
+    ; The theme (fonts and colours) — "" when the package has none.
+    fn themeXml:string () {
+        return (this.readRelatedPart("/theme" "word/theme/theme1.xml"))
+    }
+
     fn numberingXml:string () {
         return (this.readRelatedPart("/numbering" "word/numbering.xml"))
     }
