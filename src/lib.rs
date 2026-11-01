@@ -3,6 +3,7 @@
 
 mod clipboard_table;
 mod docx_a11y;
+mod docx_chrome;
 mod docx_fingerprint;
 mod docx_ink;
 mod docx_layout;

@@ -202,7 +202,7 @@ class DocsAppTest {
 
         print "presets and theme"
         c.ok("dark" (app.setTheme("dark")))
-        def lightTheme (new DocxChromeTheme)
+        def lightTheme (DocxChromeTheme.new_())
         c.ok("the frame turns too" (app.web.app.chrome.theme.desk.r != lightTheme.desk.r))
         c.ok("light" (app.setTheme("light")))
         c.ok("viewer" (app.setPreset("viewer")))
