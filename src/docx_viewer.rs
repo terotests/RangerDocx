@@ -642,8 +642,8 @@ impl DocxViewer {
     }
     pub fn keyEnd(&mut self, extend: bool, ctrl: bool) {
         if !self.edit.borrow().isEnabled() {
-            let __arg_0 = self.pageCount() - 1;
-            self.goToPage(__arg_0);
+            let arg_0 = self.pageCount() - 1;
+            self.goToPage(arg_0);
             return;
         }
         if ctrl {

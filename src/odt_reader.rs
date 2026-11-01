@@ -1662,14 +1662,14 @@ impl OdtReader {
             }
         }
         if hd.is_some() {
-            let mut __arg_0 = sec.borrow().headerParas.clone();
-            self.readHeaderFooter(doc, &hd.clone().unwrap(), &mut __arg_0);
-            sec.borrow_mut().headerParas = __arg_0;
+            let mut arg_0 = sec.borrow().headerParas.clone();
+            self.readHeaderFooter(doc, &hd.clone().unwrap(), &mut arg_0);
+            sec.borrow_mut().headerParas = arg_0;
         }
         if ft.is_some() {
-            let mut __arg_0 = sec.borrow().footerParas.clone();
-            self.readHeaderFooter(doc, &ft.clone().unwrap(), &mut __arg_0);
-            sec.borrow_mut().footerParas = __arg_0;
+            let mut arg_0 = sec.borrow().footerParas.clone();
+            self.readHeaderFooter(doc, &ft.clone().unwrap(), &mut arg_0);
+            sec.borrow_mut().footerParas = arg_0;
         }
     }
     pub fn readHeaderFooter(&self, doc: &Rc<RefCell<RichDocument>>, node: &Rc<RefCell<OdtNode>>, mut into: &mut Vec<Rc<RefCell<Paragraph>>>) {

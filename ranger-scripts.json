@@ -10,7 +10,7 @@
     "docx_viewer:demo": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/src/docx_demo.rgr ./gallery/docx_viewer/bin docx_demo.js",
     "docx_viewer:fixtures": "python3 gallery/docx_viewer/fixtures/make_fixtures.py",
     "docx_viewer:load:test": "bash gallery/docx_viewer/tools/run_load_test.sh",
-    "docx_viewer:module": "node dist/rgrc.js -es6 -nodemodule ./gallery/docx_viewer/src/DocxViewer.rgr -d=./gallery/docx_viewer/bin -o=docx_viewer_module.cjs",
+    "docx_viewer:module": "node dist/rgrc.js -es6 -nodemodule ./gallery/docx_viewer/src/lib.rs -d=./gallery/docx_viewer/bin -o=docx_viewer_module.cjs",
     "docx_viewer:oracles": "node gallery/docx_viewer/harness/run_oracles.mjs --skip-visual",
     "docx_viewer:oracles:visual": "node gallery/docx_viewer/harness/run_oracles.mjs",
     "docx_viewer:paging:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/DocxPagingTest.rgr ./gallery/docx_viewer/bin DocxPagingTest.js",

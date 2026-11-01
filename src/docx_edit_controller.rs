@@ -1060,9 +1060,9 @@ impl DocxEditController {
         }
         if DocumentRange::sameParagraph(&self.sel) {
             let mut _tmp_3187 = self.sel.borrow().anchor.borrow().paragraphId.clone();
-            let __arg_0 = DocumentRange::startOffset(&self.sel);
-            let __arg_1 = DocumentRange::endOffset(&self.sel);
-            self.adapter.clone().borrow().applyRun(_tmp_3187, __arg_0, __arg_1, what, on, num, text.to_string());
+            let arg_0 = DocumentRange::startOffset(&self.sel);
+            let arg_1 = DocumentRange::endOffset(&self.sel);
+            self.adapter.clone().borrow().applyRun(_tmp_3187, arg_0, arg_1, what, on, num, text.to_string());
             return;
         }
         let mut a: Vec<i64> = Vec::new();
@@ -1174,9 +1174,9 @@ impl DocxEditController {
             return;
         }
         let mut _tmp_3209 = self.sel.borrow().anchor.borrow().paragraphId.clone();
-        let __arg_0 = DocumentRange::startOffset(&self.sel);
-        let __arg_1 = DocumentRange::endOffset(&self.sel);
-        self.adapter.clone().borrow().applyFont(_tmp_3209, __arg_0, __arg_1, &font);
+        let arg_0 = DocumentRange::startOffset(&self.sel);
+        let arg_1 = DocumentRange::endOffset(&self.sel);
+        self.adapter.clone().borrow().applyFont(_tmp_3209, arg_0, arg_1, &font);
     }
     /// --- caret movement -------------------------------------------------------
     /// `extend` grows the selection from the anchor (Shift+key); otherwise the
@@ -1604,8 +1604,8 @@ impl DocxEditController {
         count
     }
     pub fn pageUp(&mut self, layout: &Rc<RefCell<DocxLayout>>, extend: bool) {
-        let __arg_0 = 0 - self.linesPerPage(layout);
-        self.moveVertical(layout, __arg_0, extend);
+        let arg_0 = 0 - self.linesPerPage(layout);
+        self.moveVertical(layout, arg_0, extend);
     }
     pub fn pageDown(&mut self, layout: &Rc<RefCell<DocxLayout>>, extend: bool) {
         self.moveVertical(layout, self.linesPerPage(layout), extend);
@@ -2016,8 +2016,8 @@ impl DocxEditController {
         self.adapter.clone().borrow().applyRun(pid, a, b, "underline", _tmp_3331, 0.0, String::new());
         let mut _tmp_3334 = sp.borrow().strike.clone();
         self.adapter.clone().borrow().applyRun(pid, a, b, "strike", _tmp_3334, 0.0, String::new());
-        let __arg_0 = sp.borrow().vertAlign == 1;
-        self.adapter.clone().borrow().applyRun(pid, a, b, "super", __arg_0, 0.0, String::new());
+        let arg_0 = sp.borrow().vertAlign == 1;
+        self.adapter.clone().borrow().applyRun(pid, a, b, "super", arg_0, 0.0, String::new());
         if sp.borrow().vertAlign == 2 {
             self.adapter.clone().borrow().applyRun(pid, a, b, "sub", true, 0.0, String::new());
         }
@@ -2545,16 +2545,16 @@ impl DocxEditController {
                 let mut _tmp_3451 = op.borrow().paragraphId.clone();
                 let mut _tmp_3452 = op.borrow().start.clone();
                 let mut _tmp_3453 = op.borrow().newText.clone();
-                let __arg_0 = op.borrow().start + (DxNative::str_len(&op.borrow().oldText));
-                self.adapter.clone().borrow().replaceRange(_tmp_3451, _tmp_3452, __arg_0, &_tmp_3453);
+                let arg_0 = op.borrow().start + (DxNative::str_len(&op.borrow().oldText));
+                self.adapter.clone().borrow().replaceRange(_tmp_3451, _tmp_3452, arg_0, &_tmp_3453);
                 let mut _tmp_3455 = op.borrow().paragraphId.clone();
                 self.setCaret(_tmp_3455, op.borrow().start + (DxNative::str_len(&op.borrow().newText)));
             } else {
                 let mut _tmp_3457 = op.borrow().paragraphId.clone();
                 let mut _tmp_3458 = op.borrow().start.clone();
                 let mut _tmp_3459 = op.borrow().oldText.clone();
-                let __arg_0 = op.borrow().start + (DxNative::str_len(&op.borrow().newText));
-                self.adapter.clone().borrow().replaceRange(_tmp_3457, _tmp_3458, __arg_0, &_tmp_3459);
+                let arg_0 = op.borrow().start + (DxNative::str_len(&op.borrow().newText));
+                self.adapter.clone().borrow().replaceRange(_tmp_3457, _tmp_3458, arg_0, &_tmp_3459);
                 let mut _tmp_3461 = op.borrow().paragraphId.clone();
                 self.setCaret(_tmp_3461, op.borrow().start + (DxNative::str_len(&op.borrow().oldText)));
             }

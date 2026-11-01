@@ -1621,20 +1621,20 @@ impl DocxChromePainter {
             if g.borrow().x + g.borrow().w <= (x0 + w) - 8 {
                 let mut _tmp_2727 = g.borrow().name.clone();
                 let mut _tmp_2728 = self.theme.borrow().faint.clone();
-                let __arg_0 = g.borrow().x + (g.borrow().w / 2);
-                let __arg_1 = (by + rb.borrow().bodyH) - 15;
+                let arg_0 = g.borrow().x + (g.borrow().w / 2);
+                let arg_1 = (by + rb.borrow().bodyH) - 15;
                 self.textMid(dl,
                     &_tmp_2727,
-                    __arg_0,
-                    __arg_1,
+                    arg_0,
+                    arg_1,
                     11.0,
                     &_tmp_2728,
                     false
                 );
                 if gi < (rb.borrow().groups.len() as i64) - 1 {
                     let mut _tmp_2729 = self.theme.borrow().line.clone();
-                    let __arg_0 = (g.borrow().x + g.borrow().w) + 4;
-                    self.rect(dl, __arg_0, by + 10, 1, rb.borrow().bodyH - 24, &_tmp_2729);
+                    let arg_0 = (g.borrow().x + g.borrow().w) + 4;
+                    self.rect(dl, arg_0, by + 10, 1, rb.borrow().bodyH - 24, &_tmp_2729);
                 }
             }
             gi += 1;
@@ -1686,11 +1686,11 @@ impl DocxChromePainter {
                 &edge
             );
             let mut _tmp_2742 = it.borrow().text.clone();
-            let __arg_0 = it.borrow().x + 7;
-            self.text(dl, &_tmp_2742, __arg_0, it.borrow().y + 5, 12.5, &ink, false);
+            let arg_0 = it.borrow().x + 7;
+            self.text(dl, &_tmp_2742, arg_0, it.borrow().y + 5, 12.5, &ink, false);
             let mut _tmp_2743 = self.theme.borrow().dim.clone();
-            let __arg_0 = (it.borrow().x + it.borrow().w) - 10;
-            self.chevron(dl, __arg_0, it.borrow().y + (it.borrow().h / 2), &_tmp_2743);
+            let arg_0 = (it.borrow().x + it.borrow().w) - 10;
+            self.chevron(dl, arg_0, it.borrow().y + (it.borrow().h / 2), &_tmp_2743);
             return;
         }
         if it.borrow().kind == 4 {
@@ -1752,15 +1752,15 @@ impl DocxChromePainter {
             }
             let mut _tmp_2762 = it.borrow().sampleBold.clone();
             let mut _tmp_2763 = it.borrow().sampleItalic.clone();
-            let __arg_0 = ((it.borrow().x + (it.borrow().w / 2)) - (sw / 2)) as f64;
-            let __arg_1 = ((it.borrow().y + 24) - ((sz * 0.7).floor() as i64)) as f64;
+            let arg_0 = ((it.borrow().x + (it.borrow().w / 2)) - (sw / 2)) as f64;
+            let arg_1 = ((it.borrow().y + 24) - ((sz * 0.7).floor() as i64)) as f64;
             let _tmp_2764 = self.view.clone();
             EVGToolbarView::pushStyledText(
                 &_tmp_2764,
                 dl,
                 sample,
-                __arg_0,
-                __arg_1,
+                arg_0,
+                arg_1,
                 sz,
                 &col,
                 "",
@@ -1769,12 +1769,12 @@ impl DocxChromePainter {
             );
             let mut _tmp_2765 = it.borrow().label.clone();
             let mut _tmp_2766 = self.theme.borrow().dim.clone();
-            let __arg_0 = it.borrow().x + (it.borrow().w / 2);
-            let __arg_1 = (it.borrow().y + it.borrow().h) - 12;
+            let arg_0 = it.borrow().x + (it.borrow().w / 2);
+            let arg_1 = (it.borrow().y + it.borrow().h) - 12;
             self.textMid(dl,
                 &_tmp_2765,
-                __arg_0,
-                __arg_1,
+                arg_0,
+                arg_1,
                 11.5,
                 &_tmp_2766,
                 false
@@ -1829,9 +1829,9 @@ impl DocxChromePainter {
         if it.borrow().menu > 0 && it.borrow().kind == 0 {
             if it.borrow().menu == 2 && hot {
                 let mut _tmp_2781 = self.theme.borrow().line.clone();
-                let __arg_0 = (it.borrow().x + it.borrow().w) - 13;
-                let __arg_1 = it.borrow().y + 4;
-                self.rect(dl, __arg_0, __arg_1, 1, it.borrow().h - 8, &_tmp_2781);
+                let arg_0 = (it.borrow().x + it.borrow().w) - 13;
+                let arg_1 = it.borrow().y + 4;
+                self.rect(dl, arg_0, arg_1, 1, it.borrow().h - 8, &_tmp_2781);
             }
             let mut _tmp_2782 = self.theme.borrow().dim.clone();
             self.chevron(dl, (it.borrow().x + it.borrow().w) - 7, cy, &_tmp_2782);
@@ -1879,9 +1879,9 @@ impl DocxChromePainter {
         }
         let h: i64 = m.borrow().height();
         let mut _tmp_2788 = m.borrow().w.clone();
-        let __arg_0 = m.borrow().x + 1;
-        let __arg_1 = m.borrow().y + 3;
-        self.round(dl, __arg_0, __arg_1, _tmp_2788, h, 8, &EVGColor::rgba(20, 30, 50, 0.1).clone());
+        let arg_0 = m.borrow().x + 1;
+        let arg_1 = m.borrow().y + 3;
+        self.round(dl, arg_0, arg_1, _tmp_2788, h, 8, &EVGColor::rgba(20, 30, 50, 0.1).clone());
         let mut _tmp_2789 = m.borrow().x.clone();
         let mut _tmp_2790 = m.borrow().y.clone();
         let mut _tmp_2791 = m.borrow().w.clone();
@@ -1905,22 +1905,22 @@ impl DocxChromePainter {
             let ry: i64 = (m.borrow().y + 5) + i * rh;
             if e.borrow().rule {
                 let mut _tmp_2797 = self.theme.borrow().line.clone();
-                let __arg_0 = m.borrow().x + 8;
-                self.rect(dl, __arg_0, ry, m.borrow().w - 16, 1, &_tmp_2797);
+                let arg_0 = m.borrow().x + 8;
+                self.rect(dl, arg_0, ry, m.borrow().w - 16, 1, &_tmp_2797);
             }
             if i == m.borrow().hot {
                 let mut _tmp_2798 = self.theme.borrow().hover.clone();
-                let __arg_0 = m.borrow().x + 4;
-                self.round(dl, __arg_0, ry + 1, m.borrow().w - 8, rh - 2, 5, &_tmp_2798);
+                let arg_0 = m.borrow().x + 4;
+                self.round(dl, arg_0, ry + 1, m.borrow().w - 8, rh - 2, 5, &_tmp_2798);
             }
             if e.borrow().checked {
                 let mut _tmp_2799 = self.theme.borrow().accent.clone();
                 self.round(dl, m.borrow().x + 4, ry + 1, 4, rh - 2, 2, &_tmp_2799);
                 let mut _tmp_2800 = self.theme.borrow().accent.clone();
-                let __arg_0 = m.borrow().x + 18;
+                let arg_0 = m.borrow().x + 18;
                 self.textMid(dl,
                     "✓",
-                    __arg_0,
+                    arg_0,
                     ry + (rh / 2),
                     13.0,
                     &_tmp_2800,
@@ -1931,10 +1931,10 @@ impl DocxChromePainter {
             if !e.borrow().sample.is_empty() {
                 let mut _tmp_2801 = e.borrow().sample.clone();
                 let mut _tmp_2802 = self.theme.borrow().ink.clone();
-                let __arg_0 = m.borrow().x + 44;
+                let arg_0 = m.borrow().x + 44;
                 self.textMid(dl,
                     &_tmp_2801,
-                    __arg_0,
+                    arg_0,
                     ry + (rh / 2),
                     14.0,
                     &_tmp_2802,

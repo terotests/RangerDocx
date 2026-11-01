@@ -233,18 +233,18 @@ impl DocxView {
         UIContext::attach(&self.ctx.clone(), _tmp_6801);
         let mut _tmp_6804 = self.ctx.clone();
         self.ink.clone().borrow_mut().canvasMode(_tmp_6804);
-        let __arg_0 = EVGColor::red(&self.bg);
-        let __arg_1 = EVGColor::green(&self.bg);
-        SoftCanvas::clear(&self.canvas, __arg_0, __arg_1, EVGColor::blue(&self.bg));
+        let arg_0 = EVGColor::red(&self.bg);
+        let arg_1 = EVGColor::green(&self.bg);
+        SoftCanvas::clear(&self.canvas, arg_0, arg_1, EVGColor::blue(&self.bg));
         let mut sec: Rc<RefCell<DocSection>> = doc.borrow().sectionAt(pg.borrow().sectionIndex.clone());
         let ml: i64 = sec.borrow().marginLeftPx();
         let mt: i64 = sec.borrow().marginTopPx();
         let mr: i64 = sec.borrow().marginRightPx();
         let mb: i64 = sec.borrow().marginBottomPx();
         let mut _tmp_6811 = self.marginGuide.clone();
-        let __arg_0 = (pg.borrow().width - ml) - mr;
-        let __arg_1 = (pg.borrow().height - mt) - mb;
-        self.ink.clone().borrow().strokeRect(ml, mt, __arg_0, __arg_1, 1, &_tmp_6811);
+        let arg_0 = (pg.borrow().width - ml) - mr;
+        let arg_1 = (pg.borrow().height - mt) - mb;
+        self.ink.clone().borrow().strokeRect(ml, mt, arg_0, arg_1, 1, &_tmp_6811);
         self.paintPage(&pg);
     }
     pub fn presentWithEdit(&mut self, doc: Rc<RefCell<RichDocument>>, mut page: i64, nums: Rc<RefCell<WordNumbering>>, edit: &Rc<RefCell<DocxEditController>>) {
@@ -269,18 +269,18 @@ impl DocxView {
         UIContext::attach(&self.ctx.clone(), _tmp_6824);
         let mut _tmp_6827 = self.ctx.clone();
         self.ink.clone().borrow_mut().canvasMode(_tmp_6827);
-        let __arg_0 = EVGColor::red(&self.bg);
-        let __arg_1 = EVGColor::green(&self.bg);
-        SoftCanvas::clear(&self.canvas, __arg_0, __arg_1, EVGColor::blue(&self.bg));
+        let arg_0 = EVGColor::red(&self.bg);
+        let arg_1 = EVGColor::green(&self.bg);
+        SoftCanvas::clear(&self.canvas, arg_0, arg_1, EVGColor::blue(&self.bg));
         let mut sec: Rc<RefCell<DocSection>> = doc.borrow().sectionAt(pg.borrow().sectionIndex.clone());
         let ml: i64 = sec.borrow().marginLeftPx();
         let mt: i64 = sec.borrow().marginTopPx();
         let mr: i64 = sec.borrow().marginRightPx();
         let mb: i64 = sec.borrow().marginBottomPx();
         let mut _tmp_6834 = self.marginGuide.clone();
-        let __arg_0 = (pg.borrow().width - ml) - mr;
-        let __arg_1 = (pg.borrow().height - mt) - mb;
-        self.ink.clone().borrow().strokeRect(ml, mt, __arg_0, __arg_1, 1, &_tmp_6834);
+        let arg_0 = (pg.borrow().width - ml) - mr;
+        let arg_1 = (pg.borrow().height - mt) - mb;
+        self.ink.clone().borrow().strokeRect(ml, mt, arg_0, arg_1, 1, &_tmp_6834);
         if edit.borrow().isActive() {
             self.paintSelection(edit);
         }
@@ -322,9 +322,9 @@ impl DocxView {
         let mr: i64 = sec.borrow().marginRightPx();
         let mb: i64 = sec.borrow().marginBottomPx();
         let mut _tmp_6852 = self.marginGuide.clone();
-        let __arg_0 = (pg.borrow().width - ml) - mr;
-        let __arg_1 = (pg.borrow().height - mt) - mb;
-        self.ink.clone().borrow().strokeRect(ml, mt, __arg_0, __arg_1, 1, &_tmp_6852);
+        let arg_0 = (pg.borrow().width - ml) - mr;
+        let arg_1 = (pg.borrow().height - mt) - mb;
+        self.ink.clone().borrow().strokeRect(ml, mt, arg_0, arg_1, 1, &_tmp_6852);
         if editing {
             if edit.borrow().isActive() {
                 self.paintSelection(edit);
@@ -581,8 +581,8 @@ impl DocxView {
                         } else {
                             let mut _tmp_6939 = line.borrow().width.clone();
                             let mut _tmp_6940 = line.borrow().height.clone();
-                            let __arg_0 = EVGColor::rgb(200, 210, 220).clone();
-                            self.ink.clone().borrow().rect(lx, ly, _tmp_6939, _tmp_6940, &__arg_0);
+                            let arg_0 = EVGColor::rgb(200, 210, 220).clone();
+                            self.ink.clone().borrow().rect(lx, ly, _tmp_6939, _tmp_6940, &arg_0);
                             let mut _tmp_6943 = self.inkColor.clone();
                             self.ink.clone().borrow().text("[image]", lx, ly + 4, 12.0, &_tmp_6943, false);
                         }
@@ -616,11 +616,11 @@ impl DocxView {
             ch.borrow_mut().note = doc.borrow().note.clone();
             let mut _tmp_6950 = line.borrow().width.clone();
             let mut _tmp_6951 = line.borrow().height.clone();
-            let __arg_0 = EVGColor::rgb(240, 242, 246).clone();
-            self.ink.clone().borrow().rect(lx, ly, _tmp_6950, _tmp_6951, &__arg_0);
+            let arg_0 = EVGColor::rgb(240, 242, 246).clone();
+            self.ink.clone().borrow().rect(lx, ly, _tmp_6950, _tmp_6951, &arg_0);
             let mut _tmp_6954 = self.inkColor.clone();
-            let __arg_0 = format!("[chart: {}]", doc.borrow().note).clone();
-            self.ink.clone().borrow().text(&__arg_0, lx + 8, ly + 8, 12.0, &_tmp_6954, false);
+            let arg_0 = format!("[chart: {}]", doc.borrow().note).clone();
+            self.ink.clone().borrow().text(&arg_0, lx + 8, ly + 8, 12.0, &_tmp_6954, false);
             return;
         }
         // The chart's id is the render cache's key, so two charts in one
@@ -669,9 +669,9 @@ impl DocxView {
             // The selection frame is chrome, not part of the chart — it is
             // drawn after, so it never ends up in an exported picture.
             let mut mark: Rc<RefCell<EVGColor>> = EVGColor::rgb(40, 100, 210);
-            let __arg_0 = line.borrow().width + 6;
-            let __arg_1 = line.borrow().height + 6;
-            self.ink.clone().borrow().strokeRect(lx - 3, ly - 3, __arg_0, __arg_1, 2, &mark);
+            let arg_0 = line.borrow().width + 6;
+            let arg_1 = line.borrow().height + 6;
+            self.ink.clone().borrow().strokeRect(lx - 3, ly - 3, arg_0, arg_1, 2, &mark);
         }
     }
     /// A drawing, drawn where the layout put it. The document carries an
@@ -688,15 +688,15 @@ impl DocxView {
         if false == dr.borrow().hasRoot() {
             let mut _tmp_6981 = line.borrow().width.clone();
             let mut _tmp_6982 = line.borrow().height.clone();
-            let __arg_0 = EVGColor::rgb(240, 242, 246).clone();
-            self.ink.clone().borrow().rect(lx, ly, _tmp_6981, _tmp_6982, &__arg_0);
+            let arg_0 = EVGColor::rgb(240, 242, 246).clone();
+            self.ink.clone().borrow().rect(lx, ly, _tmp_6981, _tmp_6982, &arg_0);
             let mut why: String = dr.borrow().note.clone();
             if why.is_empty() {
                 why = "nothing to draw".to_string();
             }
             let mut _tmp_6985 = self.inkColor.clone();
-            let __arg_0 = format!("[{}: {}]", dr.borrow().name, why).clone();
-            self.ink.clone().borrow().text(&__arg_0, lx + 8, ly + 8, 12.0, &_tmp_6985, false);
+            let arg_0 = format!("[{}: {}]", dr.borrow().name, why).clone();
+            self.ink.clone().borrow().text(&arg_0, lx + 8, ly + 8, 12.0, &_tmp_6985, false);
             return;
         }
         let mut root: Rc<RefCell<EVGElement>> = dr.borrow().root.clone().unwrap();
@@ -747,9 +747,9 @@ impl DocxView {
             // The selection frame is chrome, drawn after the drawing so it is
             // never in an exported picture — the same frame a chart gets.
             let mut mark: Rc<RefCell<EVGColor>> = EVGColor::rgb(40, 100, 210);
-            let __arg_0 = line.borrow().width + 6;
-            let __arg_1 = line.borrow().height + 6;
-            self.ink.clone().borrow().strokeRect(lx - 3, ly - 3, __arg_0, __arg_1, 2, &mark);
+            let arg_0 = line.borrow().width + 6;
+            let arg_1 = line.borrow().height + 6;
+            self.ink.clone().borrow().strokeRect(lx - 3, ly - 3, arg_0, arg_1, 2, &mark);
             // And a handle on each corner, which is what says the frame can
             // be dragged: a frame alone says "selected" and nothing more,
             // and a reader who wanted the drawing smaller had no way to ask.
@@ -758,8 +758,8 @@ impl DocxView {
             while k <= 4 {
                 let hx: i64 = DocxView::handleX(line, k);
                 let hy: i64 = DocxView::handleY(line, k);
-                let __arg_0 = EVGColor::rgb(255, 255, 255).clone();
-                self.ink.clone().borrow().rect(hx - 5, hy - 5, 10, 10, &__arg_0);
+                let arg_0 = EVGColor::rgb(255, 255, 255).clone();
+                self.ink.clone().borrow().rect(hx - 5, hy - 5, 10, 10, &arg_0);
                 self.ink.clone().borrow().rect(hx - 4, hy - 4, 8, 8, &mark);
                 k += 1;
             }
@@ -904,8 +904,8 @@ impl DocxView {
         let mut _tmp_7033 = sp.borrow().bold.clone();
         let w: i64 = DocxTextMetrics::measureStyled(&_tmp_7032, chunk, run_size, _tmp_7033, sp.borrow().italic.clone());
         if !sp.borrow().highlight.is_empty() {
-            let __arg_0 = DocxView::highlightColor(&sp.borrow().highlight.clone()).clone();
-            self.ink.clone().borrow().rect(x, y - 1, w, ((run_size * 1.25).floor() as i64) + 2, &__arg_0);
+            let arg_0 = DocxView::highlightColor(&sp.borrow().highlight.clone()).clone();
+            self.ink.clone().borrow().rect(x, y - 1, w, ((run_size * 1.25).floor() as i64) + 2, &arg_0);
         }
         let mut draw_size: f64 = run_size;
         let mut draw_y: i64 = y;
