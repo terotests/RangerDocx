@@ -15,7 +15,7 @@
 ; ==============================================================================
 
 Import "RichDocument.rgr"
-Import "WordStyleResolver.rgr"
+Import "lib.rs"
 
 class DocxParaFormat {
 

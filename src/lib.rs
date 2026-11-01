@@ -5,4 +5,5 @@ mod clipboard_table;
 mod odt_xml;
 mod rgr;
 mod word_numbering;
+mod word_style_resolver;
 mod word_xml;

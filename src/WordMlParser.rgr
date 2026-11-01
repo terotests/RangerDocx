@@ -10,13 +10,12 @@
 Import "RichDocument.rgr"
 Import "DocxPackage.rgr"
 Import "lib.rs"
-Import "WordStyleResolver.rgr"
 Import "DocxPng.rgr"
 Import "DocxFingerprint.rgr"
 Import "pkg:image/JPEGDecoder.rgr"
 
 class WordMlParser {
-    def resolver:WordStyleResolver (new WordStyleResolver)
+    def resolver:WordStyleResolver (WordStyleResolver.new_())
     def numbering:WordNumbering (WordNumbering.new_())
     def pkg:DocxPackage (new DocxPackage)
     def currentSection:int 0

@@ -34,7 +34,6 @@
 
 Import "RichDocument.rgr"
 Import "WordMlParser.rgr"
-Import "WordStyleResolver.rgr"
 Import "../../odf/OdfPackage.rgr"
 Import "lib.rs"
 Import "../../odp/OdpUnits.rgr"

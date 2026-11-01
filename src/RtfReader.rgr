@@ -29,7 +29,6 @@
 Import "RichDocument.rgr"
 Import "lib.rs"
 Import "WordMlParser.rgr"
-Import "WordStyleResolver.rgr"
 Import "OdtReader.rgr"
 Import "pkg:evg/EVGCodepoint.rgr"
 

@@ -30,7 +30,6 @@
 Import "RichDocument.rgr"
 Import "DocxFingerprint.rgr"
 Import "lib.rs"
-Import "WordStyleResolver.rgr"
 Import "../../zip/ZipWriter.rgr"
 Import "../../pdf_writer/src/core/Utf8.rgr"
 
@@ -38,7 +37,7 @@ class DocxWriter {
     ; The styles the document was read with; the parser's resolver. Run and
     ; paragraph properties are written as differences from what the style
     ; already says.
-    def resolver:WordStyleResolver (new WordStyleResolver)
+    def resolver:WordStyleResolver (WordStyleResolver.new_())
     ; The lists; one the editor made is added to numbering.xml.
     def numbering:WordNumbering (WordNumbering.new_())
     def warnings:[string]

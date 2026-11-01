@@ -7,7 +7,6 @@
 Import "../src/DocxViewer.rgr"
 Import "../src/lib.rs"
 Import "../src/WordMlParser.rgr"
-Import "../src/WordStyleResolver.rgr"
 Import "../src/RichDocument.rgr"
 Import "../src/DocxLayout.rgr"
 Import "../src/DocxTextMetrics.rgr"
@@ -86,7 +85,7 @@ class DocxTest {
 
         print "== style basedOn chain + loop guard =="
         def stylesXml:string "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type=\"paragraph\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"BaseA\"><w:basedOn w:val=\"Normal\"/><w:rPr><w:b/><w:color w:val=\"112233\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"ChildB\"><w:basedOn w:val=\"BaseA\"/><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:rPr><w:sz w:val=\"28\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"LoopX\"><w:basedOn w:val=\"LoopY\"/></w:style><w:style w:type=\"paragraph\" w:styleId=\"LoopY\"><w:basedOn w:val=\"LoopX\"/></w:style></w:styles>"
-        def res:WordStyleResolver (new WordStyleResolver)
+        def res:WordStyleResolver (WordStyleResolver.new_())
         res.parseStylesXml(stylesXml)
         def ps:ResolvedParagraphStyle (res.resolveParagraphStyle("ChildB"))
         c.ok("child inherit bold" ps.run.bold)
@@ -1307,7 +1306,7 @@ class DocxTest {
         ; which is why only bold and italic were wrong.
         print "== a run that says it is NOT bold =="
         def triStyles:string "<w:styles xmlns:w=\"x\"><w:style w:type=\"paragraph\" w:styleId=\"Strong\"><w:name w:val=\"Strong\"/><w:rPr><w:b/><w:i/></w:rPr></w:style></w:styles>"
-        def triRes:WordStyleResolver (new WordStyleResolver)
+        def triRes:WordStyleResolver (WordStyleResolver.new_())
         triRes.parseStylesXml(triStyles)
         def base:ResolvedParagraphStyle (triRes.resolveParagraphStyle("Strong"))
         c.ok("the style says bold" base.run.bold)
