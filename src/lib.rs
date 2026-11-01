@@ -6,6 +6,7 @@ mod docx_a11y;
 mod docx_chrome;
 mod docx_edit_controller;
 mod docx_fingerprint;
+mod docx_formats;
 mod docx_ink;
 mod docx_layout;
 mod docx_package;

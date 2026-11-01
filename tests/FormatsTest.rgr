@@ -10,7 +10,6 @@
 ; time.
 ; ==============================================================================
 
-Import "../src/DocxFormats.rgr"
 Import "../src/lib.rs"
 
 class FmtChecker {

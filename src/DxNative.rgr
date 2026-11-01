@@ -11,7 +11,8 @@
 ; a parser loop over a 4 MB document.xml became quadratic.
 ;
 ; Kept in .rgr because Ranger's Rust frontend has no spelling for these
-; operators (runtime/rust/ranger ops.rs lists only snake_case ones).
+; operators (runtime/rust/ranger ops.rs lists only snake_case ones), nor
+; for reading a file.
 
 class DxNative {
     sfn str_len:int (s:string) {
@@ -31,5 +32,9 @@ class DxNative {
     }
     sfn last_index_of:int (text:string key:string) {
         return (lastIndexOf text key)
+    }
+    ; a file's bytes (Ranger's Rust frontend has no std::fs)
+    sfn read_bytes:buffer (dir:string file:string) {
+        return (buffer_read_file dir file)
     }
 }
