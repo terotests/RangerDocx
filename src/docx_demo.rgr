@@ -4,7 +4,7 @@
 ; docx_demo - render sample .docx fixtures to PNG pages.
 ; ==============================================================================
 
-Import "DocxViewer.rgr"
+Import "lib.rs"
 Import "../../datagrid/src/GridApp.rgr"
 
 class DocxDemo {
@@ -107,7 +107,7 @@ class DocxDemo {
     }
 
     sfn main:void () {
-        def viewer:DocxViewer (new DocxViewer)
+        def viewer:DocxViewer (DocxViewer.new_())
         viewer.init("gallery/pdf_writer/assets/fonts")
         def fix:string "gallery/docx_viewer/fixtures"
         DocxDemo.renderOne(viewer fix "hello.docx" "docx_hello.png")

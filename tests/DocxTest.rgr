@@ -4,7 +4,6 @@
 ; DocxTest - parse + layout checks for the DOCX viewer prototype.
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
 Import "../src/lib.rs"
 Import "../../text_editor/src/TextEditCore.rgr"
 
@@ -92,7 +91,7 @@ class DocxTest {
         c.ok("loop does not hang" ((strlen loopPs.run.colorHex) >= 0))
 
         print "== parse hello.docx =="
-        def viewer:DocxViewer (new DocxViewer)
+        def viewer:DocxViewer (DocxViewer.new_())
         viewer.init("gallery/pdf_writer/assets/fonts")
         c.ok("open hello" (viewer.openFile(fix "hello.docx")))
         def doc:RichDocument (viewer.document())
@@ -1368,7 +1367,7 @@ class DocxTest {
         ; Adding an action without adding it here shows up as a failure on the
         ; line that says the document came back.
         print "== every edit is undoable, and redo is its inverse =="
-        def hv:DocxViewer (new DocxViewer)
+        def hv:DocxViewer (DocxViewer.new_())
         hv.init("gallery/pdf_writer/assets/fonts")
         c.ok("open a document to edit" (hv.openFile(fix "hello.docx")))
 
@@ -1494,7 +1493,7 @@ class DocxTest {
         ; breaks where Word and M-Files' preview break it. In Open Sans the
         ; first line ended before '("Effective' (fixtures/make_theme_fonts.py).
         print "== theme fonts =="
-        def tv:DocxViewer (new DocxViewer)
+        def tv:DocxViewer (DocxViewer.new_())
         tv.view.ctx.tr.addFontDir("gallery/docx_viewer/fonts")
         tv.init("gallery/pdf_writer/assets/fonts")
         c.ok("open theme fonts" (tv.openFile(fix "25-theme-fonts.docx")))

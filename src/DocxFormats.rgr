@@ -14,7 +14,6 @@
 ; program that holds the Word editor and the spreadsheet together.
 ; ==============================================================================
 
-Import "DocxViewer.rgr"
 Import "lib.rs"
 
 class DocxFormats {

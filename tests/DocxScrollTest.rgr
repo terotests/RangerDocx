@@ -29,7 +29,7 @@
 ;   npm run docx_viewer:scroll:test
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
+Import "../src/lib.rs"
 
 class ScrollCheck {
     def passed:int 0
@@ -61,7 +61,7 @@ class DocxScrollTest {
     ; A viewer on a many-page fixture, with a window shorter than the paper so
     ; there is something to scroll.
     fn open:DocxViewer (viewportH:int) {
-        def v (new DocxViewer)
+        def v (DocxViewer.new_())
         v.init("gallery/pdf_writer/assets/fonts")
         if ((v.openFile("gallery/docx_viewer/fixtures" "08-pages.docx")) == false) {
             print ("  could not open the fixture: " + v.lastError)

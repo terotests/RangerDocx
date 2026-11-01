@@ -8,7 +8,7 @@
 ;   node gallery/docx_viewer/bin/docx_oracle_dump.js <file.docx> <outDir>
 ; ==============================================================================
 
-Import "DocxViewer.rgr"
+Import "lib.rs"
 Import "pkg:image/PNGEncoder.rgr"
 Import "pkg:image/RasterBuffer.rgr"
 
@@ -65,7 +65,7 @@ class DocxOracleDump {
         def dir:string (itemAt dirs 0)
         def file:string (itemAt names 0)
 
-        def viewer:DocxViewer (new DocxViewer)
+        def viewer:DocxViewer (DocxViewer.new_())
         viewer.init("gallery/pdf_writer/assets/fonts")
         def ok:boolean (viewer.openFile(dir file))
         if (ok == false) {

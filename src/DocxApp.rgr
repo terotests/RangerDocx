@@ -28,7 +28,6 @@
 ; toolbar is either.
 ; ==============================================================================
 
-Import "DocxViewer.rgr"
 Import "pkg:evg_window/EVGRulerView.rgr"
 Import "lib.rs"
 Import "pkg:evg_window/EVGToolbarView.rgr"
@@ -140,7 +139,7 @@ class DocxToolbar extends EVGToolbar {
 }
 
 class DocxApp {
-    def viewer:DocxViewer (new DocxViewer)
+    def viewer:DocxViewer (DocxViewer.new_())
     ; Whether the interface is mirrored. Not the document's direction — that
     ; is the file's business and is read from `w:bidi`; this is which way the
     ; PROGRAM is laid out around it.
