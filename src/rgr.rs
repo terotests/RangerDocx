@@ -23,9 +23,10 @@ mod rgr {
     ranger::import_rgr!("../../office/text/OfficeTextMetrics");
     ranger::import_rgr!("../../office/text/OfficeTextRun");
     ranger::import_rgr!("../../ooxml/OoxmlText");
+    ranger::import_rgr!("../../ooxml/OpcPackage");
     ranger::import_rgr!("../../ooxml/SourceRef");
     ranger::import_rgr!("../../text_editor/src/TextEditCore");
     ranger::import_rgr!("DocEditHistory");
     ranger::import_rgr!("DxNative");
 }
-pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGToolbarTheme, EVGToolbarView, ImageBuffer, Inflate, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer};
+pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGToolbarTheme, EVGToolbarView, ImageBuffer, Inflate, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, OpcPackage, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer};

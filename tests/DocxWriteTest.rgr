@@ -10,7 +10,6 @@
 
 Import "../src/DocxViewer.rgr"
 Import "../src/DocxWriter.rgr"
-Import "../src/DocxPackage.rgr"
 Import "../src/lib.rs"
 
 class WChecker {
@@ -117,7 +116,7 @@ class DocxWriteTest {
                 c.ok((f + ": document.xml identical") (xml == doc.source.mainXml))
                 c.eqInt((f + ": nothing rewritten") w.rewrittenBlocks 0)
                 def bytes:buffer (w.toBuffer(doc))
-                def pkg:DocxPackage (new DocxPackage)
+                def pkg:DocxPackage (DocxPackage.new_())
                 c.ok((f + ": saved package opens") (pkg.openBytes(bytes f)))
                 def same:boolean true
                 def missing:string ""

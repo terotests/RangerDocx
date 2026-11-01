@@ -4,7 +4,6 @@
 ; DocxViewer - load .docx → RichDocument → SoftCanvas pages (+ optional edit).
 ; ==============================================================================
 
-Import "DocxPackage.rgr"
 Import "WordMlParser.rgr"
 Import "DocxWriter.rgr"
 Import "DocxView.rgr"
@@ -41,7 +40,7 @@ class DocxViewer {
 
     fn openFile:boolean (dir:string file:string) {
         lastError = ""
-        def pkg:DocxPackage (new DocxPackage)
+        def pkg:DocxPackage (DocxPackage.new_())
         if ((pkg.open(dir file)) == false) {
             lastError = ("failed to open " + file)
             return false
@@ -107,7 +106,7 @@ class DocxViewer {
     ; The same, from bytes. `openFile` is this with a file read in front of it.
     fn openBytes:boolean (data:buffer name:string) {
         lastError = ""
-        def pkg:DocxPackage (new DocxPackage)
+        def pkg:DocxPackage (DocxPackage.new_())
         if ((pkg.openBytes(data name)) == false) {
             lastError = ("failed to open " + name)
             return false

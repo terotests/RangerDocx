@@ -7,14 +7,13 @@
 ; headers/footers, DrawingML images (JPEG+PNG).
 ; ==============================================================================
 
-Import "DocxPackage.rgr"
 Import "lib.rs"
 Import "pkg:image/JPEGDecoder.rgr"
 
 class WordMlParser {
     def resolver:WordStyleResolver (WordStyleResolver.new_())
     def numbering:WordNumbering (WordNumbering.new_())
-    def pkg:DocxPackage (new DocxPackage)
+    def pkg:DocxPackage (DocxPackage.new_())
     def currentSection:int 0
 
     Constructor () {
