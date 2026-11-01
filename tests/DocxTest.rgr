@@ -7,7 +7,6 @@
 Import "../src/DocxViewer.rgr"
 Import "../src/lib.rs"
 Import "../src/WordMlParser.rgr"
-Import "../src/WordNumbering.rgr"
 Import "../src/WordStyleResolver.rgr"
 Import "../src/RichDocument.rgr"
 Import "../src/DocxLayout.rgr"
@@ -163,7 +162,7 @@ class DocxTest {
         c.ok("numbered paras>=3" (nums >= 3))
         c.ok("nested list level" (nested >= 2))
         def markers:string ""
-        def counters:[int:int]
+        def counters:ListCounters (ListCounters.new_())
         def mj:int 0
         while (mj < (d3.paragraphCount())) {
             def mp:Paragraph (d3.paragraphAt(mj))

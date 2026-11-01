@@ -31,7 +31,6 @@ Import "RichDocument.rgr"
 Import "DocxFingerprint.rgr"
 Import "lib.rs"
 Import "WordStyleResolver.rgr"
-Import "WordNumbering.rgr"
 Import "../../zip/ZipWriter.rgr"
 Import "../../pdf_writer/src/core/Utf8.rgr"
 
@@ -41,7 +40,7 @@ class DocxWriter {
     ; already says.
     def resolver:WordStyleResolver (new WordStyleResolver)
     ; The lists; one the editor made is added to numbering.xml.
-    def numbering:WordNumbering (new WordNumbering)
+    def numbering:WordNumbering (WordNumbering.new_())
     def warnings:[string]
 
     ; Splice state.

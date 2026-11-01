@@ -2,7 +2,9 @@
 
 #[allow(dead_code, unused, non_snake_case)]
 mod rgr {
+    ranger::import_rgr!("../../../lib/evg/EVGCodepoint");
     ranger::import_rgr!("../../ooxml/OoxmlText");
     ranger::import_rgr!("DxNative");
+    ranger::import_rgr!("RichDocument");
 }
-pub use rgr::{DxNative, OoxmlText};
+pub use rgr::{DxNative, EVGCodepoint, OoxmlText, Paragraph};

@@ -67,7 +67,7 @@ class DocxEditController {
     def painterSpan:TextSpan (new TextSpan)
     def painterPara:Paragraph (new Paragraph)
     ; The document's lists, for the list buttons to put paragraphs in.
-    def numbering:WordNumbering (new WordNumbering)
+    def numbering:WordNumbering (WordNumbering.new_())
 
     Constructor () {
     }

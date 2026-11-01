@@ -33,7 +33,6 @@
 ; ==============================================================================
 
 Import "RichDocument.rgr"
-Import "WordNumbering.rgr"
 Import "WordMlParser.rgr"
 Import "WordStyleResolver.rgr"
 Import "../../odf/OdfPackage.rgr"
@@ -143,7 +142,7 @@ class OdtSpace {
 
 class OdtReader {
     def pkg:OdfPackage (new OdfPackage)
-    def numbering:WordNumbering (new WordNumbering)
+    def numbering:WordNumbering (WordNumbering.new_())
     def lastError:string ""
     def styles:[string:OdtStyle]
     def defaults:[string:OdtStyle]
@@ -203,7 +202,7 @@ class OdtReader {
 
     fn readPackage:RichDocument () {
         def doc:RichDocument (new RichDocument)
-        numbering = (new WordNumbering)
+        numbering = (WordNumbering.new_())
         def stylesRoot@(optional):OdtNode (this.parsePart("styles.xml"))
         if (!null? stylesRoot) {
             this.collect((unwrap stylesRoot))

@@ -7,7 +7,6 @@
 Import "DocxPackage.rgr"
 Import "WordMlParser.rgr"
 Import "DocxWriter.rgr"
-Import "WordNumbering.rgr"
 Import "RichDocument.rgr"
 Import "DocxView.rgr"
 Import "DocxEditController.rgr"
@@ -19,7 +18,7 @@ class DocxViewer {
     def parser:WordMlParser (new WordMlParser)
     def view:DocxView (new DocxView)
     def doc:RichDocument (new RichDocument)
-    def numbering:WordNumbering (new WordNumbering)
+    def numbering:WordNumbering (WordNumbering.new_())
     def edit:DocxEditController (new DocxEditController)
     def lastError:string ""
     def currentPage:int 0
@@ -73,7 +72,7 @@ class DocxViewer {
     ; this viewer without a file behind it.
     fn attachDocument:void (d:RichDocument) {
         doc = d
-        numbering = (new WordNumbering)
+        numbering = (WordNumbering.new_())
         if ((strlen doc.title) == 0) {
             doc.title = "untitled"
         }

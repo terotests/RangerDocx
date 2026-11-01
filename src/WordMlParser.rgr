@@ -11,14 +11,13 @@ Import "RichDocument.rgr"
 Import "DocxPackage.rgr"
 Import "lib.rs"
 Import "WordStyleResolver.rgr"
-Import "WordNumbering.rgr"
 Import "DocxPng.rgr"
 Import "DocxFingerprint.rgr"
 Import "pkg:image/JPEGDecoder.rgr"
 
 class WordMlParser {
     def resolver:WordStyleResolver (new WordStyleResolver)
-    def numbering:WordNumbering (new WordNumbering)
+    def numbering:WordNumbering (WordNumbering.new_())
     def pkg:DocxPackage (new DocxPackage)
     def currentSection:int 0
 
@@ -36,7 +35,7 @@ class WordMlParser {
         if ((strlen styles) > 0) {
             resolver.parseStylesXml(styles)
         }
-        numbering = (new WordNumbering)
+        numbering = (WordNumbering.new_())
         def numXml:string (pkg.numberingXml())
         if ((strlen numXml) > 0) {
             numbering.parse(numXml)

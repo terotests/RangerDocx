@@ -9,7 +9,7 @@
 
 Import "RichDocument.rgr"
 Import "DocxTextMetrics.rgr"
-Import "WordNumbering.rgr"
+Import "lib.rs"
 Import "../../game_engine/ui/UITextRenderer.rgr"
 
 ; kind: 0=text 1=image 2=tableCellBg 3=tableBorder 4=headerText 5=footerText
@@ -135,8 +135,8 @@ class DocxLayout {
     def pages:[LaidPage]
     def tr@(late):UITextRenderer
     def contentW:int 500
-    def numbering:WordNumbering (new WordNumbering)
-    def listCounters:[int:int]
+    def numbering:WordNumbering (WordNumbering.new_())
+    def listCounters:ListCounters (ListCounters.new_())
     def docRef:RichDocument
     ; Which revision of the document the pages currently in `pages` were laid
     ; out from. -1 means "nothing valid here": every path that puts a DIFFERENT
@@ -194,8 +194,7 @@ class DocxLayout {
         docRef = doc
         laidRevision = doc.revision
         clear pages
-        def freshCounters:[int:int]
-        listCounters = freshCounters
+        listCounters = (ListCounters.new_())
 
         curSecIdx = 0
         curSec = (doc.sectionAt(0))

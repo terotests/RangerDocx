@@ -27,7 +27,7 @@
 ; ==============================================================================
 
 Import "RichDocument.rgr"
-Import "WordNumbering.rgr"
+Import "lib.rs"
 Import "WordMlParser.rgr"
 Import "WordStyleResolver.rgr"
 Import "OdtReader.rgr"
@@ -207,7 +207,7 @@ class RtfRowInfo {
 
 class RtfReader {
     def lastError:string ""
-    def numbering:WordNumbering (new WordNumbering)
+    def numbering:WordNumbering (WordNumbering.new_())
     def doc:RichDocument (new RichDocument)
     def src:string ""
     def pos:int 0
@@ -302,7 +302,7 @@ class RtfReader {
 
     fn readString:RichDocument (text:string) {
         doc = (new RichDocument)
-        numbering = (new WordNumbering)
+        numbering = (WordNumbering.new_())
         src = text
         pos = 0
         len = (strlen text)
