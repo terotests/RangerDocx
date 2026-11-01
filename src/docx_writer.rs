@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::docx_fingerprint::DocxFingerprint;
+use crate::rgr::DxNative;
 use crate::rich_document::DocBlock;
 use crate::rich_document::DocBlockKind;
 use crate::rich_document::DocSection;
@@ -14,7 +15,6 @@ use crate::rich_document::InlineAnchor;
 use crate::rich_document::Paragraph;
 use crate::rich_document::RichDocument;
 use crate::rich_document::TextSpan;
-use crate::text::DxText;
 use crate::word_numbering::WordNumbering;
 use crate::word_style_resolver::ResolvedParagraphStyle;
 use crate::word_style_resolver::ResolvedRunStyle;
@@ -154,17 +154,17 @@ impl DocxWriter {
     /// w:tblPr, w:trPr and w:tcPr always are. A search that went deeper would
     /// find the properties of a paragraph inside a text box.
     pub fn firstChild(el: &str, tag: &str) -> String {
-        let gt: i64 = DxText::index_of(&el, ">");
+        let gt: i64 = DxNative::index_of(&el, ">");
         if gt < 1 {
             return String::new();
         }
-        if (el.as_bytes()[(gt - 1) as usize] as i64) == 47 {
+        if DxNative::char_at(&el, gt - 1) == 47 {
             return String::new();
         }
         let mut i: i64 = gt + 1;
-        let n: i64 = el.as_bytes().len() as i64;
+        let n: i64 = DxNative::str_len(&el);
         while i < n {
-            let ch: i64 = (el.as_bytes()[i as usize] as i64);
+            let ch: i64 = DxNative::char_at(&el, i);
             if ((ch == 32 || ch == 9) || ch == 10) || ch == 13 {
                 i += 1;
             } else {
@@ -182,14 +182,14 @@ impl DocxWriter {
             return String::new();
         }
         let mut body: String = String::new();
-        let n: i64 = text.as_bytes().len() as i64;
+        let n: i64 = DxNative::str_len(&text);
         let mut from: i64 = 0;
         let mut i: i64 = 0;
         while i < n {
-            let c: i64 = (text.as_bytes()[i as usize] as i64);
+            let c: i64 = DxNative::char_at(&text, i);
             if c == 9 || c == 10 {
                 if i > from {
-                    body = format!("{}<w:t xml:space=\"preserve\">{}</w:t>", body, DocxWriter::esc(&text[(from) as usize..(i) as usize].to_string()));
+                    body = format!("{}<w:t xml:space=\"preserve\">{}</w:t>", body, DocxWriter::esc(&DxNative::substr(&text, from, i)));
                 }
                 body = format!("{}{}", body, if (c == 9) { "<w:tab/>".to_string() } else { "<w:br/>".to_string() });
                 from = i + 1;
@@ -197,7 +197,7 @@ impl DocxWriter {
             i += 1;
         }
         if n > from {
-            body = format!("{}<w:t xml:space=\"preserve\">{}</w:t>", body, DocxWriter::esc(&text[(from) as usize..(n) as usize].to_string()));
+            body = format!("{}<w:t xml:space=\"preserve\">{}</w:t>", body, DocxWriter::esc(&DxNative::substr(&text, from, n)));
         }
         format!("<w:r>{}{}</w:r>", r_pr, body)
     }
@@ -233,24 +233,24 @@ impl DocxWriter {
         Utf8::decode(&String::from_utf8_lossy(&b).to_string())
     }
     pub fn dirOf(part: &str) -> String {
-        let mut i: i64 = (part.as_bytes().len() as i64) - 1;
+        let mut i: i64 = (DxNative::str_len(&part)) - 1;
         while i >= 0 {
-            if (part.as_bytes()[i as usize] as i64) == 47 {
-                return part[(0) as usize..(i + 1) as usize].to_string();
+            if DxNative::char_at(&part, i) == 47 {
+                return DxNative::substr(&part, 0, i + 1);
             }
             i -= 1;
         }
         String::new()
     }
     pub fn withNumberingType(ct: &str, part_name: &str) -> String {
-        if DxText::index_of(&ct, part_name) >= 0 {
+        if DxNative::index_of(&ct, part_name) >= 0 {
             return ct.to_string();
         }
-        let end: i64 = DxText::index_of(&ct, "</Types>");
+        let end: i64 = DxNative::index_of(&ct, "</Types>");
         if end < 0 {
             return ct.to_string();
         }
-        format!("{}<Override PartName=\"{}\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>{}", ct[(0) as usize..(end) as usize].to_string(), part_name, ct[(end) as usize..(ct.as_bytes().len() as i64) as usize].to_string())
+        format!("{}<Override PartName=\"{}\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>{}", DxNative::substr(&ct, 0, end), part_name, DxNative::substr(&ct, end, (DxNative::str_len(&ct))))
     }
     /// The document's relationships with one to numbering.xml, under an id
     /// nothing else uses.
@@ -259,14 +259,14 @@ impl DocxWriter {
             rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"></Relationships>".to_string();
         }
         let mut n: i64 = 1;
-        while DxText::index_of(&rels, &format!("Id=\"rIdNum{}\"", n)) >= 0 {
+        while DxNative::index_of(&rels, &format!("Id=\"rIdNum{}\"", n)) >= 0 {
             n += 1;
         }
-        let end: i64 = DxText::index_of(&rels, "</Relationships>");
+        let end: i64 = DxNative::index_of(&rels, "</Relationships>");
         if end < 0 {
             return rels;
         }
-        format!("{}<Relationship Id=\"rIdNum{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/>{}", rels[(0) as usize..(end) as usize].to_string(), n, rels[(end) as usize..(rels.as_bytes().len() as i64) as usize].to_string())
+        format!("{}<Relationship Id=\"rIdNum{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/>{}", DxNative::substr(&rels, 0, end), n, DxNative::substr(&rels, end, (DxNative::str_len(&rels))))
     }
     /// --- runs --------------------------------------------------------------
     pub fn rPrDiff(&self, sp: &Rc<RefCell<TextSpan>>, base: &Rc<RefCell<ResolvedRunStyle>>) -> String {
@@ -321,7 +321,7 @@ impl DocxWriter {
     pub fn runsXml(&self, p: &Rc<RefCell<Paragraph>>) -> String {
         let mut ps: Rc<RefCell<ResolvedParagraphStyle>> = self.resolver.borrow().resolveParagraphStyle(p.borrow().styleId.clone());
         let mut base: Rc<RefCell<ResolvedRunStyle>> = ps.borrow().run.clone().clone();
-        let n: i64 = p.borrow().text.as_bytes().len() as i64;
+        let n: i64 = DxNative::str_len(&p.borrow().text);
         let na: i64 = p.borrow().anchors.len() as i64;
         let mut ai: i64 = 0;
         let mut r: String = String::new();
@@ -338,7 +338,7 @@ impl DocxWriter {
                 let at: i64 = if (an.borrow().offset > n) { n } else { an.borrow().offset };
                 if at < b {
                     if at > cur {
-                        r = format!("{}{}", r, DocxWriter::textRun(&(p.borrow().text)[(cur) as usize..(at) as usize].to_string(), &r_pr));
+                        r = format!("{}{}", r, DocxWriter::textRun(&DxNative::substr(&p.borrow().text, cur, at), &r_pr));
                         cur = at;
                     }
                     r = format!("{}{}", r, an.borrow().xml);
@@ -348,7 +348,7 @@ impl DocxWriter {
                 }
             }
             if b > cur {
-                r = format!("{}{}", r, DocxWriter::textRun(&(p.borrow().text)[(cur) as usize..(b) as usize].to_string(), &r_pr));
+                r = format!("{}{}", r, DocxWriter::textRun(&DxNative::substr(&p.borrow().text, cur, b), &r_pr));
             }
         }
         while ai < na {
@@ -386,8 +386,8 @@ impl DocxWriter {
         if (p.borrow().indentLeftPt != ps.borrow().indentLeftPt || p.borrow().indentRightPt != ps.borrow().indentRightPt) || p.borrow()
             .indentFirstLinePt != ps.borrow()
             .indentFirstLinePt {
-            let mut _tmp_3919 = p.borrow().indentLeftPt.clone();
-            let mut ind: String = format!("<w:ind w:left=\"{}\" w:right=\"{}\"", DocxWriter::twips(_tmp_3919), DocxWriter::twips(p.borrow().indentRightPt.clone()));
+            let mut _tmp_3995 = p.borrow().indentLeftPt.clone();
+            let mut ind: String = format!("<w:ind w:left=\"{}\" w:right=\"{}\"", DocxWriter::twips(_tmp_3995), DocxWriter::twips(p.borrow().indentRightPt.clone()));
             if p.borrow().indentFirstLinePt >= 0.0 {
                 ind = format!("{} w:firstLine=\"{}\"/>", ind, DocxWriter::twips(p.borrow().indentFirstLinePt));
             } else {
@@ -416,7 +416,7 @@ impl DocxWriter {
         let mut p_pr: String = String::new();
         if !orig.is_empty() {
             let ot: String = WordXml::openTag(orig);
-            if DxText::index_of(&ot, "/>") < 0 {
+            if DxNative::index_of(&ot, "/>") < 0 {
                 open = ot.clone();
             }
             let orig_p_pr: String = DocxWriter::firstChild(orig, "w:pPr");
@@ -433,7 +433,7 @@ impl DocxWriter {
     /// A paragraph inside a table cell: copied when unchanged.
     pub fn cellParagraphXml(&self, p: &Rc<RefCell<Paragraph>>) -> String {
         if p.borrow().source.borrow().known {
-            let orig: String = p.borrow().source.borrow_mut().slice(&self.src);
+            let orig: String = SourceRef::slice(&p.borrow().source, &self.src);
             if !orig.is_empty() && DocxFingerprint::paragraph(p) == p.borrow().srcFp {
                 return orig;
             }
@@ -490,7 +490,7 @@ impl DocxWriter {
                     if span > 1 {
                         tc_pr = format!("{}<w:gridSpan w:val=\"{}\"/>", tc_pr, span);
                     }
-                    if (cell.borrow().fillHex.as_bytes().len() as i64) == 6 {
+                    if (DxNative::str_len(&cell.borrow().fillHex)) == 6 {
                         tc_pr = format!("{}<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{}\"/>", tc_pr, cell.borrow().fillHex);
                     }
                     tc_pr = format!("{}</w:tcPr>", tc_pr);
@@ -522,14 +522,14 @@ impl DocxWriter {
         while self.rangeAt < n && self.ends[(self.rangeAt) as usize] <= b {
             let s: i64 = self.starts[(self.rangeAt) as usize];
             if !self.live.contains_key(&s.to_string()) {
-                self.out = format!("{}{}", self.out, self.src[(from) as usize..(s) as usize].to_string());
+                self.out = format!("{}{}", self.out, DxNative::substr(&self.src, from, s));
                 from = self.ends[(self.rangeAt) as usize];
                 self.droppedBlocks += 1;
             }
             self.rangeAt += 1;
         }
         if b > from {
-            self.out = format!("{}{}", self.out, self.src[(from) as usize..(b) as usize].to_string());
+            self.out = format!("{}{}", self.out, DxNative::substr(&self.src, from, b));
         }
         self.cursor = b;
     }
@@ -583,7 +583,7 @@ impl DocxWriter {
         if !doc.borrow().source.borrow().known || body_at < 0 {
             return self.freshDocumentXml(doc);
         }
-        let body_gt: i64 = DxText::index_of_from(&self.src, ">", body_at);
+        let body_gt: i64 = DxNative::index_of_from(&self.src, ">", body_at);
         if body_gt < 0 {
             return self.freshDocumentXml(doc);
         }
@@ -596,7 +596,7 @@ impl DocxWriter {
         // place is skipped like a deleted one.
         let mut in_order: Vec<bool> = Vec::new();
         let mut last: i64 = -1;
-        let n: i64 = self.src.as_bytes().len() as i64;
+        let n: i64 = DxNative::str_len(&self.src);
         let __it_b = doc.borrow().blocks.clone();
         for b in __it_b.iter().cloned() {
             let mut r#ref: Rc<RefCell<SourceRef>> = self.blockRef(&b);
@@ -617,18 +617,18 @@ impl DocxWriter {
             let mut b2 = doc.borrow().blocks[bj as usize].clone();
             if in_order[bj as usize] {
                 let mut ref2: Rc<RefCell<SourceRef>> = self.blockRef(&b2);
-                let mut _tmp_3933 = self.cursor.clone();
-                self.copyGap(_tmp_3933, ref2.borrow().start.clone());
+                let mut _tmp_4009 = self.cursor.clone();
+                self.copyGap(_tmp_4009, ref2.borrow().start.clone());
                 let orig: String = SourceRef::slice(&ref2, &self.src);
                 if b2.borrow().kind == DocBlockKind::para() {
                     if DocxFingerprint::paragraph(&b2.borrow().paragraph.clone()) == b2.borrow().paragraph.borrow().srcFp {
                         self.out = format!("{}{}", self.out, orig);
                         self.copiedBlocks += 1;
                     } else {
-                        let _tmp_3938 = format!("{}{}", self.out, self.paragraphXml(&b2.borrow().paragraph.clone(),
+                        let _tmp_4014 = format!("{}{}", self.out, self.paragraphXml(&b2.borrow().paragraph.clone(),
                             &orig
                         ));
-                        self.out = _tmp_3938;
+                        self.out = _tmp_4014;
                         self.rewrittenBlocks += 1;
                     }
                 } else {
@@ -636,10 +636,10 @@ impl DocxWriter {
                         self.out = format!("{}{}", self.out, orig);
                         self.copiedBlocks += 1;
                     } else {
-                        let _tmp_3942 = format!("{}{}", self.out, self.tableXml(&b2.borrow().table.clone(),
+                        let _tmp_4018 = format!("{}{}", self.out, self.tableXml(&b2.borrow().table.clone(),
                             &orig
                         ));
-                        self.out = _tmp_3942;
+                        self.out = _tmp_4018;
                         self.rewrittenBlocks += 1;
                     }
                 }
@@ -692,7 +692,7 @@ impl DocxWriter {
                 }
             }
             let main_dir: String = DocxWriter::dirOf(&doc.borrow().source.borrow().mainPart.clone());
-            let rels_part: String = format!("{}_rels/{}.rels", main_dir, (doc.borrow().source.borrow().mainPart)[(main_dir.as_bytes().len() as i64) as usize..((doc.borrow().source.borrow().mainPart.as_bytes().len() as i64)) as usize].to_string());
+            let rels_part: String = format!("{}_rels/{}.rels", main_dir, DxNative::substr(&doc.borrow().source.borrow().mainPart, (DxNative::str_len(&main_dir)), (DxNative::str_len(&doc.borrow().source.borrow().mainPart))));
             let new_num_part: bool = lists && num_part.is_empty();
             let mut wrote_rels: bool = false;
             let __n_pi = doc.borrow().source.borrow().parts.len() as i64;
@@ -706,18 +706,18 @@ impl DocxWriter {
                     if bytes.is_some() {
                         let mut handled: bool = false;
                         if lists && part == num_part {
-                            let _tmp_3948 = self.numbering.borrow().withAdditions(&DocxWriter::text(&bytes.clone().unwrap()));
-                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_3948));
+                            let _tmp_4024 = self.numbering.borrow().withAdditions(&DocxWriter::text(&bytes.clone().unwrap()));
+                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4024));
                             handled = true;
                         }
                         if new_num_part && part == "[Content_Types].xml" {
-                            let _tmp_3950 = DocxWriter::withNumberingType(&DocxWriter::text(&bytes.clone().unwrap()), &format!("/{}numbering.xml", main_dir));
-                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_3950));
+                            let _tmp_4026 = DocxWriter::withNumberingType(&DocxWriter::text(&bytes.clone().unwrap()), &format!("/{}numbering.xml", main_dir));
+                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4026));
                             handled = true;
                         }
                         if new_num_part && part == rels_part {
-                            let _tmp_3952 = DocxWriter::withNumberingRel(DocxWriter::text(&bytes.clone().unwrap()));
-                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_3952));
+                            let _tmp_4028 = DocxWriter::withNumberingRel(DocxWriter::text(&bytes.clone().unwrap()));
+                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4028));
                             handled = true;
                             wrote_rels = true;
                         }

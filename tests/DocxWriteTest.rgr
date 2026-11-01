@@ -9,7 +9,6 @@
 ; ==============================================================================
 
 Import "../src/DocxViewer.rgr"
-Import "../src/DocxWriter.rgr"
 Import "../src/lib.rs"
 
 class WChecker {
@@ -52,7 +51,7 @@ class DocxWriteTest {
     }
 
     sfn writerFor:DocxWriter (v:DocxViewer) {
-        def w:DocxWriter (new DocxWriter)
+        def w:DocxWriter (DocxWriter.new_())
         w.resolver = v.parser.resolver
         return w
     }
@@ -294,7 +293,7 @@ class DocxWriteTest {
         push row.cells cell1
         push row.cells cell2
         push t.rows row
-        def fw:DocxWriter (new DocxWriter)
+        def fw:DocxWriter (DocxWriter.new_())
         def fb:buffer (fw.toBuffer(fresh))
         def fv:DocxViewer (new DocxViewer)
         fv.init("gallery/pdf_writer/assets/fonts")
