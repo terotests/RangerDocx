@@ -30,7 +30,7 @@
 
 Import "DocxViewer.rgr"
 Import "pkg:evg_window/EVGRulerView.rgr"
-Import "DocxA11y.rgr"
+Import "lib.rs"
 Import "pkg:evg_window/EVGToolbarView.rgr"
 Import "pkg:evg_window/EVGWindow.rgr"
 Import "pkg:evg/EVGCommands.rgr"
