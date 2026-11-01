@@ -778,8 +778,7 @@ class DocxTest {
         ; Cell paragraphs are not body blocks, so plain caret order cannot see
         ; them — Tab is the way across.
         c.eqInt("cell paragraph has no body order" (viewer.edit.adapter.bodyOrderOf(tp00.id)) -1)
-        def cellAt:[int]
-        viewer.edit.adapter.tableCellOf(tp00.id cellAt)
+        def cellAt:[int] (viewer.edit.adapter.tableCellOf(tp00.id))
         c.ok("locates the table block" ((itemAt cellAt 0) >= 0))
         c.eqInt("row 0" (itemAt cellAt 1) 0)
         c.eqInt("cell 0" (itemAt cellAt 2) 0)
@@ -1482,7 +1481,7 @@ class DocxTest {
         rp.listKind = 1
         rp.listLevel = 2
         rp.indentLeftPt = 36.0
-        def rEdit (new RichDocumentEdit)
+        def rEdit (RichDocumentEdit.new_())
         rEdit.doc = rd
         def newId:int (rEdit.splitParagraph(rp.id 3))
         def idx:int (rEdit.findParagraphIndex(newId))

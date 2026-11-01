@@ -12,7 +12,7 @@ Import "../src/DocxViewer.rgr"
 Import "../src/DocxWriter.rgr"
 Import "../src/DocxPackage.rgr"
 Import "../src/RichDocument.rgr"
-Import "../src/RichDocumentEdit.rgr"
+Import "../src/lib.rs"
 
 class WChecker {
     def passed:int 0

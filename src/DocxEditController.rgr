@@ -10,7 +10,6 @@
 ; ==============================================================================
 
 Import "RichDocument.rgr"
-Import "RichDocumentEdit.rgr"
 Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "DocxLayout.rgr"
@@ -21,7 +20,7 @@ Import "../../office/text/OfficeCaretMotion.rgr"
 Import "../../office/text/OfficeLineNav.rgr"
 
 class DocxEditController {
-    def adapter:RichDocumentEdit (new RichDocumentEdit)
+    def adapter:RichDocumentEdit (RichDocumentEdit.new_())
     def sel:DocumentRange (new DocumentRange)
     ; The ops, what counts as one action, what an op's transaction is and how
     ; much falls off the bottom at the limit — all of it
@@ -1628,8 +1627,7 @@ class DocxEditController {
         if ((this.isActive()) == false) {
             return false
         }
-        def at:[int]
-        adapter.tableCellOf(sel.focus.paragraphId at)
+        def at:[int] (adapter.tableCellOf(sel.focus.paragraphId))
         return ((itemAt at 0) >= 0)
     }
 
@@ -1638,8 +1636,7 @@ class DocxEditController {
         if ((this.isActive()) == false) {
             return false
         }
-        def at:[int]
-        adapter.tableCellOf(sel.focus.paragraphId at)
+        def at:[int] (adapter.tableCellOf(sel.focus.paragraphId))
         def blk:int (itemAt at 0)
         if (blk < 0) {
             ; Not in a table. Tab just before one steps into its first cell,

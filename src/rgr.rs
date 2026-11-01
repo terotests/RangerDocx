@@ -11,7 +11,8 @@ mod rgr {
     ranger::import_rgr!("../../office/text/OfficeTextRun");
     ranger::import_rgr!("../../ooxml/OoxmlText");
     ranger::import_rgr!("../../ooxml/SourceRef");
+    ranger::import_rgr!("../../text_editor/src/TextEditCore");
     ranger::import_rgr!("DxNative");
     ranger::import_rgr!("RichDocument");
 }
-pub use rgr::{DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, OfficeFont, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, UITextRenderer};
+pub use rgr::{DocumentPosition, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, OfficeFont, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, UITextRenderer};
