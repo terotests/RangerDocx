@@ -12,7 +12,6 @@
 Import "RichDocument.rgr"
 Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
-Import "DocxLayout.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 Import "../../game_engine/ui/UITextRenderer.rgr"
 Import "../../office/editor/OfficeHistory.rgr"

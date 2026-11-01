@@ -8,7 +8,6 @@ Import "../src/DocxViewer.rgr"
 Import "../src/lib.rs"
 Import "../src/WordMlParser.rgr"
 Import "../src/RichDocument.rgr"
-Import "../src/DocxLayout.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
 class Checker {

@@ -881,7 +881,7 @@ class DocxViewer {
             }
             i = (i + 1)
         }
-        return (new LaidLine)
+        return (LaidLine.new_())
     }
 
     ; Which corner handle of the selected drawing's frame is under the point:

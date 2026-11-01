@@ -12,7 +12,6 @@ Import "DocxInk.rgr"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "../../datagrid/src/GridChartView.rgr"
 Import "../../datagrid/src/SoftPainter.rgr"
-Import "DocxLayout.rgr"
 Import "DocxEditController.rgr"
 Import "lib.rs"
 Import "../../game_engine/framebuffer.rgr"
@@ -39,7 +38,7 @@ class DocxView {
     def selectedChartId:int 0
     ; …and which drawing, on the same terms.
     def selectedDrawingId:int 0
-    def layout:DocxLayout (new DocxLayout)
+    def layout:DocxLayout (DocxLayout.new_())
     def pageIndex:int 0
     def bg:EVGColor (EVGColor.rgb(248 248 250))
     def inkColor:EVGColor (EVGColor.rgb(20 24 32))
