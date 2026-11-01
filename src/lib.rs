@@ -12,6 +12,7 @@ mod docx_package;
 mod docx_para_format;
 mod docx_png;
 mod docx_text_metrics;
+mod docx_view;
 mod docx_writer;
 mod odt_reader;
 mod odt_xml;

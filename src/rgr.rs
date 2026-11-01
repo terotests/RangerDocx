@@ -7,13 +7,21 @@ mod rgr {
     ranger::import_rgr!("../../../lib/evg/EVGColor");
     ranger::import_rgr!("../../../lib/evg/EVGDisplayList");
     ranger::import_rgr!("../../../lib/evg/EVGElement");
+    ranger::import_rgr!("../../../lib/evg/EVGLayout");
     ranger::import_rgr!("../../../lib/evg/EVGToolbar");
+    ranger::import_rgr!("../../../lib/evg/EVGUnit");
     ranger::import_rgr!("../../../lib/image/ImageBuffer");
     ranger::import_rgr!("../../../lib/image/JPEGDecoder");
+    ranger::import_rgr!("../../../lib/image/PNGEncoder");
+    ranger::import_rgr!("../../../lib/image/RasterBuffer");
     ranger::import_rgr!("../../../lib/zip/Inflate");
     ranger::import_rgr!("../../datagrid/src/ChartDoc");
     ranger::import_rgr!("../../datagrid/src/GridChart");
+    ranger::import_rgr!("../../datagrid/src/GridChartView");
+    ranger::import_rgr!("../../datagrid/src/GridImages");
+    ranger::import_rgr!("../../datagrid/src/SoftPainter");
     ranger::import_rgr!("../../evg_window/EVGToolbarView");
+    ranger::import_rgr!("../../game_engine/framebuffer");
     ranger::import_rgr!("../../game_engine/ui/UIContext");
     ranger::import_rgr!("../../game_engine/ui/UITextRenderer");
     ranger::import_rgr!("../../odf/OdfPackage");
@@ -34,4 +42,4 @@ mod rgr {
     ranger::import_rgr!("DocEditHistory");
     ranger::import_rgr!("DxNative");
 }
-pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGToolbarTheme, EVGToolbarView, ImageBuffer, Inflate, JPEGDecoder, OdfPackage, OdpUnits, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, OpcPackage, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer, Utf8, ZipWriter};
+pub use rgr::{ChartDoc, ChartDocCodec, ChartKind, ChartStyle, DocEditHistory, DocEditKind, DocEditOp, DocumentPosition, DocumentRange, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, EVGElement, EVGLayout, EVGToolbarTheme, EVGToolbarView, EVGUnit, GridChartView, GridImages, ImageBuffer, Inflate, JPEGDecoder, OdfPackage, OdpUnits, OfficeCaretColumn, OfficeCaretMotion, OfficeFont, OfficeLineNav, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, OpcPackage, PNGEncoder, RasterBuffer, SoftCanvas, SoftPainter, SourceRef, StyleFlag, ToolIcon, ToolItem, UIContext, UITextRenderer, Utf8, ZipWriter};

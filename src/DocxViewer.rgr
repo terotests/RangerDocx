@@ -4,14 +4,13 @@
 ; DocxViewer - load .docx → RichDocument → SoftCanvas pages (+ optional edit).
 ; ==============================================================================
 
-Import "DocxView.rgr"
 Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
 class DocxViewer {
     def parser:WordMlParser (WordMlParser.new_())
-    def view:DocxView (new DocxView)
+    def view:DocxView (DocxView.new_())
     def doc:RichDocument (RichDocument.new_())
     def numbering:WordNumbering (WordNumbering.new_())
     def edit:DocxEditController (DocxEditController.new_())
