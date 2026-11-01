@@ -32,7 +32,6 @@
 ; spans: the model holds the formatting a reader sees, as it does for DOCX.
 ; ==============================================================================
 
-Import "WordMlParser.rgr"
 Import "../../odf/OdfPackage.rgr"
 Import "lib.rs"
 Import "../../odp/OdpUnits.rgr"

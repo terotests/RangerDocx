@@ -4,7 +4,6 @@
 ; DocxViewer - load .docx → RichDocument → SoftCanvas pages (+ optional edit).
 ; ==============================================================================
 
-Import "WordMlParser.rgr"
 Import "DocxWriter.rgr"
 Import "DocxView.rgr"
 Import "lib.rs"
@@ -12,7 +11,7 @@ Import "../../datagrid/src/ChartDoc.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
 class DocxViewer {
-    def parser:WordMlParser (new WordMlParser)
+    def parser:WordMlParser (WordMlParser.new_())
     def view:DocxView (new DocxView)
     def doc:RichDocument (RichDocument.new_())
     def numbering:WordNumbering (WordNumbering.new_())
@@ -135,7 +134,7 @@ class DocxViewer {
     ; parser's style table is reset so that nothing from a previously opened
     ; file leaks into it.
     fn adoptForeign:void (d:RichDocument nb:WordNumbering name:string) {
-        parser = (new WordMlParser)
+        parser = (WordMlParser.new_())
         doc = d
         numbering = nb
         if ((strlen doc.title) == 0) {

@@ -27,7 +27,6 @@
 ; ==============================================================================
 
 Import "lib.rs"
-Import "WordMlParser.rgr"
 Import "OdtReader.rgr"
 Import "pkg:evg/EVGCodepoint.rgr"
 

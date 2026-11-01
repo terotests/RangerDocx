@@ -16,6 +16,7 @@ mod odt_xml;
 mod rgr;
 mod rich_document;
 mod rich_document_edit;
+mod word_ml_parser;
 mod word_numbering;
 mod word_style_resolver;
 mod word_xml;

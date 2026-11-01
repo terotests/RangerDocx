@@ -6,7 +6,6 @@
 
 Import "../src/DocxViewer.rgr"
 Import "../src/lib.rs"
-Import "../src/WordMlParser.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
 class Checker {
