@@ -37,7 +37,7 @@ Import "WordNumbering.rgr"
 Import "WordMlParser.rgr"
 Import "WordStyleResolver.rgr"
 Import "../../odf/OdfPackage.rgr"
-Import "OdtXml.rgr"
+Import "lib.rs"
 Import "../../odp/OdpUnits.rgr"
 
 ; One ODF style, as far as a text document needs it. Every field has an
@@ -197,7 +197,7 @@ class OdtReader {
         if ((strlen xml) == 0) {
             return missing
         }
-        def parser:OdtXmlParser (new OdtXmlParser)
+        def parser:OdtXmlParser (OdtXmlParser.new_())
         return (parser.parse(xml))
     }
 
