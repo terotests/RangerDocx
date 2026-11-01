@@ -9,7 +9,6 @@
 
 Import "DocxPackage.rgr"
 Import "lib.rs"
-Import "DocxPng.rgr"
 Import "pkg:image/JPEGDecoder.rgr"
 
 class WordMlParser {
