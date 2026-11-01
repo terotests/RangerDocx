@@ -11,7 +11,7 @@ Import "WordNumbering.rgr"
 Import "RichDocument.rgr"
 Import "DocxView.rgr"
 Import "DocxEditController.rgr"
-Import "ClipboardTable.rgr"
+Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
@@ -707,7 +707,7 @@ class DocxViewer {
                 }
             }
         }
-        def tbl:ClipboardTable (new ClipboardTable)
+        def tbl:ClipboardTable (ClipboardTable.new_())
         def got:boolean false
         if ((strlen html) > 0) {
             got = (tbl.parseHtml(html))

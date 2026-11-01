@@ -11,7 +11,6 @@ Import "../src/WordNumbering.rgr"
 Import "../src/WordStyleResolver.rgr"
 Import "../src/RichDocument.rgr"
 Import "../src/DocxLayout.rgr"
-Import "../src/ClipboardTable.rgr"
 Import "../src/DocxTextMetrics.rgr"
 Import "../../text_editor/src/TextEditCore.rgr"
 
@@ -938,7 +937,7 @@ class DocxTest {
         ; Exactly what gallery/datagrid GridApp.copySelection puts on the
         ; text/html flavour of the clipboard.
         def gridHtml:string "<table border=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td style=\"background-color:#DDEBF7;font-weight:bold;\">Region</td><td style=\"font-weight:bold;\">Q1</td></tr><tr><td>North &amp; South</td><td style=\"text-align:right;\">1&lt;2</td></tr></table>"
-        def ct:ClipboardTable (new ClipboardTable)
+        def ct:ClipboardTable (ClipboardTable.new_())
         c.ok("parses grid html" (ct.parseHtml(gridHtml)))
         c.eqInt("rows" (ct.rowCount()) 2)
         c.eqInt("cols" (ct.columnCount()) 2)
@@ -958,7 +957,7 @@ class DocxTest {
         ; Excel's real shape: <style> block, fragment comments, unquoted and
         ; single-quoted attributes, void <col>, <b> inside a cell.
         def excelHtml:string "<html xmlns:o=\"urn:schemas-microsoft-com:office:office\"><head><meta charset=utf-8><style>.xl65 { color:red; }</style></head><body><table border=0 cellpadding=0 cellspacing=0 width=192 style='border-collapse:collapse'><!--StartFragment--><col width=64><col width=64><tr height=20 style='height:15.0pt'><td height=20 width=64 style='height:15.0pt;background:#FFFF00'><b>Item</b></td><td colspan=2 style='text-align:center'>Cost&nbsp;A</td></tr><tr><td>Bolt</td><td>1.25</td><td>x</td></tr><!--EndFragment--></table></body></html>"
-        def ex:ClipboardTable (new ClipboardTable)
+        def ex:ClipboardTable (ClipboardTable.new_())
         c.ok("parses excel html" (ex.parseHtml(excelHtml)))
         c.eqInt("excel rows" (ex.rowCount()) 2)
         c.eqInt("excel cols (colspan counted)" (ex.columnCount()) 3)
@@ -973,7 +972,7 @@ class DocxTest {
         c.ok("style block not treated as text" ((ex.rowCount()) == 2))
 
         print "== clipboard TSV fallback =="
-        def tsv:ClipboardTable (new ClipboardTable)
+        def tsv:ClipboardTable (ClipboardTable.new_())
         c.ok("tsv looks tabular" (ClipboardTable.looksTabular("a\tb")))
         c.ok("plain line is not tabular" ((ClipboardTable.looksTabular("hello")) == false))
         c.ok("parses tsv" (tsv.parseTsv("a\tb\nc\td\n")))

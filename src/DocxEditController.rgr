@@ -11,7 +11,7 @@
 
 Import "RichDocument.rgr"
 Import "RichDocumentEdit.rgr"
-Import "ClipboardTable.rgr"
+Import "lib.rs"
 Import "../../datagrid/src/ChartDoc.rgr"
 Import "DocxTextMetrics.rgr"
 Import "DocxLayout.rgr"
@@ -2037,13 +2037,13 @@ class DocxEditController {
         if ((rows < 1) || (cols < 1)) {
             return false
         }
-        def t:ClipboardTable (new ClipboardTable)
+        def t:ClipboardTable (ClipboardTable.new_())
         def r:int 0
         while (r < rows) {
-            def row:ClipRow (new ClipRow)
+            def row:ClipRow (ClipRow.new_())
             def c:int 0
             while (c < cols) {
-                push row.cells (new ClipCell)
+                push row.cells (ClipCell.new_())
                 c = (c + 1)
             }
             push t.rows row
