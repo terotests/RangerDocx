@@ -101,6 +101,9 @@ class LaidLine {
     def italic:boolean false
     def underline:boolean false
     def fontSizePx:double 14.0
+    ; the paragraph's family as laid out (`DocxTextMetrics.paragraphFamily`);
+    ; the painter sets it before drawing the line
+    def fontFamily:string "Open Sans"
     def colorHex:string "000000"
     def fillHex:string ""
     def borderColor:string "666666"
@@ -446,6 +449,7 @@ class DocxLayout {
         if (fontPx < 8.0) {
             fontPx = 8.0
         }
+        DocxTextMetrics.useParagraph((unwrap tr) p)
         def lh:int (to_int ((tr.lineHeight(fontPx)) * p.lineSpacing))
         if (lh < 10) {
             lh = 10
@@ -463,6 +467,7 @@ class DocxLayout {
             line.height = lh
             line.y = y
             line.fontSizePx = fontPx
+            line.fontFamily = (DocxTextMetrics.family((unwrap tr)))
             line.align = p.align
             line.bidi = p.bidi
             if ((array_length p.spans) > 0) {
@@ -511,6 +516,7 @@ class DocxLayout {
         if (fontPx < 8.0) {
             fontPx = 8.0
         }
+        DocxTextMetrics.useParagraph((unwrap tr) p)
         def lh:int (to_int ((tr.lineHeight(fontPx)) * p.lineSpacing))
         if (lh < 12) {
             lh = 12
@@ -660,7 +666,9 @@ class DocxLayout {
         ; for this paragraph's primary run, or a bold paragraph wraps as if it
         ; were regular and every line measures short. The slant counts for the
         ; same reason: an italic face is not the width of its upright one.
+        DocxTextMetrics.useParagraph((unwrap tr) p)
         DocxTextMetrics.applyStyle((unwrap tr) bold italic)
+        def paraFam:string (DocxTextMetrics.family((unwrap tr)))
         def lh:int (to_int ((tr.lineHeight(fontPx)) * p.lineSpacing))
         if (lh < 12) {
             lh = 12
@@ -686,6 +694,9 @@ class DocxLayout {
                 if ((y + lh) > curMaxY) {
                     y = (this.breakPage(y))
                     ml = (curSec.marginLeftPx())
+                    ; the new page's header and footer set their own face
+                    DocxTextMetrics.useFamily((unwrap tr) paraFam)
+                    DocxTextMetrics.applyStyle((unwrap tr) bold italic)
                 }
                 def chunk:string (itemAt wrapped li)
                 def line:LaidLine (new LaidLine)
@@ -711,6 +722,7 @@ class DocxLayout {
                 line.bold = bold
                 line.underline = underline
                 line.fontSizePx = fontPx
+                line.fontFamily = paraFam
                 line.colorHex = colorHex
                 if ((array_length p.spans) > 0) {
                     def sp:TextSpan (itemAt p.spans 0)
@@ -769,6 +781,7 @@ class DocxLayout {
             emptyLine.align = p.align
             emptyLine.bidi = p.bidi
             emptyLine.fontSizePx = fontPx
+            emptyLine.fontFamily = paraFam
             emptyLine.x = (ml + indent)
             emptyLine.width = 4
             ; An empty list item still shows its bullet or number.
@@ -1008,6 +1021,7 @@ class DocxLayout {
         if (fontPx < 8.0) {
             fontPx = 8.0
         }
+        DocxTextMetrics.useParagraph((unwrap tr) p)
         def lh:int (to_int (tr.lineHeight(fontPx)))
         if (lh < 12) {
             lh = 12
@@ -1032,6 +1046,7 @@ class DocxLayout {
             line.height = lh
             line.y = y
             line.fontSizePx = fontPx
+            line.fontFamily = (DocxTextMetrics.family((unwrap tr)))
             line.align = p.align
             line.bidi = p.bidi
             if ((array_length p.spans) > 0) {

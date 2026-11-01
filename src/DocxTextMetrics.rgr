@@ -18,7 +18,8 @@
 ; measuring at another would put the caret outside the painted text. Per-span
 ; FAMILY is not honoured for the same reason: `tr.wrap` breaks the paragraph in
 ; one face, and measuring the pieces in another would put the line ends
-; somewhere the breaks are not.
+; somewhere the breaks are not. A PARAGRAPH's family is honoured: its first
+; run's (`useParagraph`), for the wrap, the paint and the measure alike.
 ;
 ; ITALIC now is. It used to be neither measured nor painted: `applyFace` took
 ; one argument, `bold`, so every italic run in every document opened here was
@@ -41,11 +42,56 @@ class DocxTextMetrics {
     ; next call — which is why bold runs used to be measured, and drawn, in the
     ; regular face. The raster cache key already includes fontFamily, so no cache
     ; flush is needed here.
-    ; The family this reader draws with. Per-span families are parsed and kept
-    ; on the model; honouring them here needs the wrap path to honour them too,
-    ; which is the next piece of work rather than this one.
-    sfn family:string () {
-        return "Open Sans"
+    ; The family a paragraph is set in: its first run's, as the document named
+    ; it (`WordStyleResolver.mapFont`), when this renderer has a face of it;
+    ; Open Sans otherwise. One family per paragraph, not per run: `tr.wrap`
+    ; breaks a paragraph in one face, and measuring its pieces in another
+    ; would put the line ends somewhere the breaks are not.
+    ;
+    ; It matters for where lines break. Open Sans is about 15 % wider than
+    ; Cambria, so a Cambria paragraph wrapped in it broke a word earlier
+    ; than Word (and M-Files' own preview) does on almost every line.
+    sfn paragraphFamily:string (tr:UITextRenderer p:Paragraph) {
+        def fam:string ""
+        if ((array_length p.spans) > 0) {
+            def s0:TextSpan (itemAt p.spans 0)
+            fam = s0.fontFamily
+        }
+        return (DocxTextMetrics.loadedFamily(tr fam))
+    }
+
+    ; `fam` when a face of it is loaded, else "Open Sans".
+    sfn loadedFamily:string (tr:UITextRenderer fam:string) {
+        if ((strlen fam) == 0) {
+            return "Open Sans"
+        }
+        if ((strlen (OfficeFont.nearestInFamily(tr.fm fam false false))) == 0) {
+            return "Open Sans"
+        }
+        return fam
+    }
+
+    ; The family the renderer is set to now: the face name up to its first
+    ; dash ("Caladea-Bold Italic" -> "Caladea", see `OfficeFont`).
+    sfn family:string (tr:UITextRenderer) {
+        def face:string tr.fontFamily
+        def dash:int (indexOf face "-")
+        if (dash > 0) {
+            return (substring face 0 dash)
+        }
+        return face
+    }
+
+    ; Set the renderer to paragraph p's family, upright and regular. Every
+    ; later `applyStyle` keeps the family and changes only weight and slant,
+    ; so layout, paint and hit-testing call this once per paragraph or line.
+    sfn useParagraph:void (tr:UITextRenderer p:Paragraph) {
+        DocxTextMetrics.useFamily(tr (DocxTextMetrics.paragraphFamily(tr p)))
+    }
+
+    sfn useFamily:void (tr:UITextRenderer fam:string) {
+        def f:string (DocxTextMetrics.loadedFamily(tr fam))
+        tr.useFace(f false false "Open Sans")
     }
 
     sfn applyFace:void (tr:UITextRenderer bold:boolean) {
@@ -53,8 +99,8 @@ class DocxTextMetrics {
     }
 
     sfn applyStyle:void (tr:UITextRenderer bold:boolean italic:boolean) {
-        def fam:string (DocxTextMetrics.family())
-        tr.useFace(fam bold italic fam)
+        def fam:string (DocxTextMetrics.family(tr))
+        tr.useFace(fam bold italic "Open Sans")
     }
 
     sfn safeSize:double (px:double) {
@@ -185,8 +231,9 @@ class DocxTextMetrics {
         if (a >= b) {
             return 0
         }
+        DocxTextMetrics.useParagraph(tr p)
         return (to_int (OfficeTextMetrics.measureRange((tr.metrics()) p.text (DocxTextMetrics.runsOf(p))
-            a b (DocxTextMetrics.family()) size true)))
+            a b (DocxTextMetrics.family(tr)) size true)))
     }
 
     ; Inverse of measureRange: the offset in [from,to] whose painted position is
@@ -198,8 +245,9 @@ class DocxTextMetrics {
     ; how they stop being.
     sfn offsetAtX:int (tr:UITextRenderer p:Paragraph linePx:double from:int to:int targetX:int) {
         def size:double (DocxTextMetrics.safeSize(linePx))
+        DocxTextMetrics.useParagraph(tr p)
         return (OfficeTextMetrics.offsetAtX((tr.metrics()) p.text (DocxTextMetrics.runsOf(p))
-            from to (to_double targetX) (DocxTextMetrics.family()) size true))
+            from to (to_double targetX) (DocxTextMetrics.family(tr)) size true))
     }
 
     ; List markers / chrome are painted with the line's own face, not a span.

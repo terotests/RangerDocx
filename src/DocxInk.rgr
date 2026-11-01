@@ -144,7 +144,9 @@ class DocxInk {
         c.w = (ctx.tr.measureWidth(shown size))
         c.h = (ctx.tr.lineHeight(size))
         c.text = shown
-        c.fontFamily = fontFamily
+        ; the family the run was measured in, so a backend that draws by
+        ; family name (the browser) draws the face the widths came from
+        c.fontFamily = (DocxTextMetrics.family(ctx.tr))
         c.fontSize = size
         if bold {
             c.fontWeight = "bold"
