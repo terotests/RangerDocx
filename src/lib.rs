@@ -2,6 +2,7 @@
 //! file and uses its types by name.
 
 mod clipboard_table;
+mod docx_fingerprint;
 mod docx_para_format;
 mod odt_xml;
 mod rgr;

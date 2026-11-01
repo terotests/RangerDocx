@@ -11,7 +11,6 @@ Import "RichDocument.rgr"
 Import "DocxPackage.rgr"
 Import "lib.rs"
 Import "DocxPng.rgr"
-Import "DocxFingerprint.rgr"
 Import "pkg:image/JPEGDecoder.rgr"
 
 class WordMlParser {

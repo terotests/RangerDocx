@@ -6,7 +6,8 @@ mod rgr {
     ranger::import_rgr!("../../office/text/OfficeFont");
     ranger::import_rgr!("../../office/text/OfficeStyle");
     ranger::import_rgr!("../../ooxml/OoxmlText");
+    ranger::import_rgr!("../../ooxml/SourceRef");
     ranger::import_rgr!("DxNative");
     ranger::import_rgr!("RichDocument");
 }
-pub use rgr::{DxNative, EVGCodepoint, OfficeFont, OfficeTextStyle, OoxmlText, Paragraph, StyleFlag};
+pub use rgr::{DxNative, EVGCodepoint, OfficeFont, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag};
