@@ -4,6 +4,7 @@
 mod clipboard_table;
 mod docx_a11y;
 mod docx_fingerprint;
+mod docx_ink;
 mod docx_layout;
 mod docx_para_format;
 mod docx_text_metrics;

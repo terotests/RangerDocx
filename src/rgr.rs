@@ -4,9 +4,13 @@
 mod rgr {
     ranger::import_rgr!("../../../lib/evg/EVGA11yTree");
     ranger::import_rgr!("../../../lib/evg/EVGCodepoint");
+    ranger::import_rgr!("../../../lib/evg/EVGColor");
+    ranger::import_rgr!("../../../lib/evg/EVGDisplayList");
+    ranger::import_rgr!("../../game_engine/ui/UIContext");
     ranger::import_rgr!("../../game_engine/ui/UITextRenderer");
     ranger::import_rgr!("../../office/text/OfficeFont");
     ranger::import_rgr!("../../office/text/OfficeStyle");
+    ranger::import_rgr!("../../office/text/OfficeText");
     ranger::import_rgr!("../../office/text/OfficeTextMetrics");
     ranger::import_rgr!("../../office/text/OfficeTextRun");
     ranger::import_rgr!("../../ooxml/OoxmlText");
@@ -15,4 +19,4 @@ mod rgr {
     ranger::import_rgr!("DxNative");
     ranger::import_rgr!("RichDocument");
 }
-pub use rgr::{DocumentPosition, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, OfficeFont, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, UITextRenderer};
+pub use rgr::{DocumentPosition, DxNative, EVGA11yNode, EVGA11yRole, EVGA11yTree, EVGCodepoint, EVGColor, EVGDisplayList, EVGDrawCmd, OfficeFont, OfficeText, OfficeTextMetrics, OfficeTextRun, OfficeTextStyle, OoxmlText, Paragraph, SourceRef, StyleFlag, UIContext, UITextRenderer};
