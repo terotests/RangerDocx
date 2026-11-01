@@ -18,7 +18,7 @@
 ;   npm run docx:bench -- 2000
 ; ==============================================================================
 
-Import "../src/DocxViewer.rgr"
+Import "../src/lib.rs"
 
 class DocxBench {
     sfn report:void (name:string ms:double) {

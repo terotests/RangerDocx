@@ -20,7 +20,7 @@
 ;   npm run docx:audit:check          # every fixture, as a test
 ; ==============================================================================
 
-Import "../src/DocxPackage.rgr"
+Import "../src/lib.rs"
 
 class DocxAudit {
     def counts:[string:int]
