@@ -179,6 +179,22 @@ class TableTest {
         return back
     }
 
+    ; Laid lines of one paragraph on page 0.
+    sfn linesOf:int (app:DocxApp pid:int) {
+        app.viewer.pageDisplayList(0)
+        def pg:LaidPage (app.viewer.view.layout.pageAt(0))
+        def n:int 0
+        def i:int 0
+        while (i < (array_length pg.lines)) {
+            def ln:LaidLine (itemAt pg.lines i)
+            if ((ln.paraIndex == pid) && (ln.kind == 0)) {
+                n = (n + 1)
+            }
+            i = (i + 1)
+        }
+        return n
+    }
+
     sfn main:void () {
         def c:TableCheck (new TableCheck)
         print "== TableTest =="
@@ -405,6 +421,72 @@ class TableTest {
         c.eqStr("undo: the table" (TableTest.grid(s)) "Name|Qty,pear|10,Apple|9,fig|100")
         def back4:DocxApp (TableTest.reopen(s))
         c.eqStr("saved and read back" (TableTest.grid(back4)) "Name|Qty,pear|10,Apple|9,fig|100")
+
+        print "-- Enter, Backspace and selection in a cell --"
+        def e:DocxApp (TableTest.filled())
+        def eb:int (TableTest.tableBlock(e))
+        def nBlocks:int (array_length e.viewer.edit.adapter.doc.blocks)
+        def p00:int (e.viewer.edit.adapter.cellParagraphId(eb 0 0))
+        e.viewer.edit.setCaret(p00 1)
+        e.viewer.edit.splitAtCaret()
+        c.eqStr("Enter in a cell splits it there" (TableTest.cellText(e 0 0)) "a/1")
+        c.eqInt("and adds nothing to the body" (array_length e.viewer.edit.adapter.doc.blocks) nBlocks)
+        def caretPid:int e.viewer.edit.sel.focus.paragraphId
+        c.ok("the caret stays in the cell" ((e.viewer.edit.adapter.containerOf(caretPid)) != "body"))
+        e.viewer.edit.insertText("x")
+        c.eqStr("typing goes to the new line" (TableTest.cellText(e 0 0)) "a/x1")
+        e.viewer.edit.backspace()
+        e.viewer.edit.backspace()
+        c.eqStr("Backspace joins the lines back" (TableTest.cellText(e 0 0)) "a1")
+        e.viewer.edit.backspace()
+        e.viewer.edit.backspace()
+        c.eqStr("Backspace at the cell start does not join another cell" (TableTest.cellText(e 0 0)) "1")
+        c.eqStr("the cell before is untouched" (TableTest.grid(e)) "1|b1|c1,a2|b2|c2,a3|b3|c3")
+        def f:DocxApp (TableTest.filled())
+        def fb:int (TableTest.tableBlock(f))
+        def f00:int (f.viewer.edit.adapter.cellParagraphId(fb 0 0))
+        f.viewer.edit.setCaret(f00 1)
+        f.viewer.edit.splitAtCaret()
+        f.runCommand("edit.undo" "")
+        c.eqStr("undo of Enter in a cell" (TableTest.cellText(f 0 0)) "a1")
+        f.runCommand("edit.redo" "")
+        c.eqStr("redo" (TableTest.cellText(f 0 0)) "a/1")
+        f.runCommand("edit.undo" "")
+        def f01:int (f.viewer.edit.adapter.cellParagraphId(fb 0 1))
+        f.viewer.edit.setCaret(f00 0)
+        f.viewer.edit.extendTo(f00 2)
+        c.eqStr("a selection in a cell copies" (f.viewer.edit.selectedText()) "a1")
+        f.viewer.edit.extendTo(f01 1)
+        c.eqStr("a selection over two cells" (f.viewer.edit.selectedText()) "a1\nb")
+        f.viewer.edit.deleteSelection()
+        c.eqStr("deleting it keeps the cells apart" (TableTest.grid(f)) "|1|c1,a2|b2|c2,a3|b3|c3")
+        print "-- Line breaks --"
+        def g:DocxApp (TableTest.filled())
+        def gb:int (TableTest.tableBlock(g))
+        def g00:int (g.viewer.edit.adapter.cellParagraphId(gb 0 0))
+        def gp:Paragraph (g.viewer.edit.adapter.findParagraph(g00))
+        c.eqInt("one line before" (TableTest.linesOf(g g00)) 1)
+        def br:InlineAnchor (new InlineAnchor)
+        br.offset = 1
+        br.xml = "<w:br/>"
+        push gp.anchors br
+        g.viewer.edit.adapter.doc.revision = (g.viewer.edit.adapter.doc.revision + 1)
+        c.eqInt("a w:br in a cell starts a new line" (TableTest.linesOf(g g00)) 2)
+        def h:DocxApp (TableTest.fresh())
+        def hp:int (h.viewer.edit.adapter.bodyParagraphIdAt(0))
+        h.viewer.edit.setCaret(hp 0)
+        h.runCommand("text.insert" "first second")
+        def hpp:Paragraph (h.viewer.edit.adapter.findParagraph(hp))
+        def br2:InlineAnchor (new InlineAnchor)
+        br2.offset = 6
+        br2.xml = "<w:br/>"
+        push hpp.anchors br2
+        def pb:InlineAnchor (new InlineAnchor)
+        pb.offset = 0
+        pb.xml = "<w:br w:type=\"page\"/>"
+        push hpp.anchors pb
+        h.viewer.edit.adapter.doc.revision = (h.viewer.edit.adapter.doc.revision + 1)
+        c.eqInt("and in the body; a page break is not a line" (TableTest.linesOf(h hp)) 2)
 
         print "-- Outside a table --"
         def o:DocxApp (TableTest.fresh())

@@ -395,8 +395,8 @@ impl DocxView {
         let s_off: i64 = ends[1];
         let e_pid: i64 = ends[2];
         let e_off: i64 = ends[3];
-        let s_order: i64 = (edit.borrow().adapter).borrow().bodyOrderOf(s_pid);
-        let e_order: i64 = (edit.borrow().adapter).borrow().bodyOrderOf(e_pid);
+        let s_order: i64 = (edit.borrow().adapter).borrow().flowOrderOf(s_pid);
+        let e_order: i64 = (edit.borrow().adapter).borrow().flowOrderOf(e_pid);
         if s_order < 0 || e_order < 0 {
             return;
         }
@@ -406,7 +406,7 @@ impl DocxView {
             let mut line: Rc<RefCell<LaidLine>> = pg.borrow().lines[i as usize].clone();
             if LaidLineKind::isBodyText(line.borrow().kind.clone()) {
                 if line.borrow().paraIndex > 0 {
-                    let order: i64 = (edit.borrow().adapter).borrow().bodyOrderOf(line.borrow().paraIndex.clone());
+                    let order: i64 = (edit.borrow().adapter).borrow().flowOrderOf(line.borrow().paraIndex.clone());
                     if (order >= s_order && order <= e_order) {
                         // Clip the selection to what this visual line covers.
                         let ls: i64 = line.borrow().docStart;

@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use crate::rich_document::{DocBlock, DocBlockKind, DocChart, DocDrawing, DocImage, DocSection, DocTableCell, DocTableRow, DocumentTable, Paragraph, RichDocument, TextSpan};
+use crate::rich_document::{DocBlock, DocBlockKind, DocChart, DocDrawing, DocImage, DocSection, DocTableCell, DocTableRow, DocumentTable, InlineAnchor, Paragraph, RichDocument, TextSpan};
 use crate::docx_text_metrics::DocxTextMetrics;
 use crate::rgr::DxNative;
 use crate::word_numbering::ListCounters;
@@ -229,12 +229,23 @@ impl DocxLayout {
             wrapWidths: RefCell::new(HashMap::new()),
         }
     }
-    /// `UITextRenderer::wrap` in the renderer's current face, remembered per
-    /// paragraph and call site (`slot` = id * 4 + site): the height estimate
-    /// and the layout wrap the same paragraph in different faces.
-    fn wrapLines(&self, slot: i64, text: &str, font_px: f64, width: f64) -> Vec<String> {
+    /// `wrapParagraph` in the renderer's current face, remembered per
+    /// paragraph and call site: the slot is id * 4 + site (0 header/footer,
+    /// 1 height estimate, 2 body layout, 3 table cell), because the estimate
+    /// and the layout wrap the same paragraph in different faces and widths.
+    /// The signature holds everything the lines depend on, the line breaks
+    /// included.
+    fn wrapLines(&self, site: i64, p: &Rc<RefCell<Paragraph>>, font_px: f64, width: f64) -> Vec<String> {
+        let slot: i64 = p.borrow().id * 4 + site;
         let tr = self.tr.clone().unwrap();
-        let sig: String = format!("{}|{}|{}|{}", tr.borrow().fontFamily, font_px, width, text);
+        let breaks: Vec<i64> = DocxLayout::breakOffsets(p);
+        let mut bs: String = String::new();
+        let mut bi: i64 = 0;
+        while bi < (breaks.len() as i64) {
+            bs = format!("{}{},", bs, breaks[bi as usize]);
+            bi += 1;
+        }
+        let sig: String = format!("{}|{}|{}|{}|{}", tr.borrow().fontFamily, font_px, width, bs, p.borrow().text);
         let old: Option<String> = self.wrapSig.borrow().get(&slot).cloned();
         if old.is_some() && old.unwrap() == sig {
             let hit: Option<Vec<String>> = self.wrapOut.borrow().get(&slot).cloned();
@@ -242,15 +253,20 @@ impl DocxLayout {
                 return hit.unwrap();
             }
         }
-        let lines: Vec<String> = UITextRenderer::wrap(&tr, text, font_px, width);
+        let lines: Vec<String> = self.wrapParagraph(p, font_px, width);
         self.wrapWidths.borrow_mut().remove(&slot);
         self.wrapSig.borrow_mut().insert(slot, sig);
         self.wrapOut.borrow_mut().insert(slot, lines.clone());
         lines
     }
-    /// Width of line `li` of what `wrapLines(slot, ..)` returned last, measured
-    /// once and then remembered with the lines.
-    fn lineWidth(&self, slot: i64, li: i64, text: &str, font_px: f64) -> i64 {
+    /// Width of line `li` of what `wrapLines` returned last for `slot`, measured
+    /// once and then remembered with the lines (dropped when they are). Only a
+    /// line that is exactly the wrapped text is remembered: a first line with a
+    /// list number in front changes when the numbering does.
+    fn lineWidth(&self, slot: i64, li: i64, text: &str, font_px: f64, cacheable: bool) -> i64 {
+        if !cacheable {
+            return (UITextRenderer::measureWidth(&self.tr.as_ref().unwrap(), text, font_px)).floor() as i64;
+        }
         let mut ws: Vec<i64> = Vec::new();
         let had: Option<Vec<i64>> = self.wrapWidths.borrow().get(&slot).cloned();
         if had.is_some() {
@@ -301,6 +317,76 @@ impl DocxLayout {
     /// Only WHITESPACE may be stepped over. If the next character is anything
     /// else the chunk is not a slice of this text at all, and moving the cursor
     /// further would invent an offset rather than find one.
+    /// Offsets of the paragraph's line breaks (`w:br` of the text-wrapping
+    /// kind and `w:cr`), in order. The text holds only the `w:t` characters,
+    /// so a break lives as an inline anchor, and wrapping the text as one
+    /// string ran the lines of a cell like "[Employee]<br/>(ID)" together.
+    pub fn breakOffsets(p: &Rc<RefCell<Paragraph>>) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::new();
+        let n_an: i64 = p.borrow().anchors.len() as i64;
+        let __len: i64 = DxNative::str_len(&p.borrow().text);
+        let mut i: i64 = 0;
+        while i < n_an {
+            let an: Rc<RefCell<InlineAnchor>> = p.borrow().anchors[i as usize].clone();
+            let xml: String = an.borrow().xml.clone();
+            let mut is_break: bool = false;
+            if DxNative::index_of(&xml, "<w:br") >= 0 {
+                is_break = true;
+                if DxNative::index_of(&xml, "w:type=\"page\"") >= 0 || DxNative::index_of(&xml, "w:type=\"column\"") >= 0 {
+                    is_break = false;
+                }
+            }
+            if DxNative::index_of(&xml, "<w:cr") >= 0 {
+                is_break = true;
+            }
+            let off: i64 = an.borrow().offset;
+            if is_break && off >= 0 && off <= __len {
+                // keep sorted: anchors are in reading order, edits can append
+                let mut at: i64 = out.len() as i64;
+                while at > 0 && out[(at - 1) as usize] > off {
+                    at -= 1;
+                }
+                out.insert(at as usize, off);
+            }
+            i += 1;
+        }
+        out
+    }
+    /// The paragraph's text wrapped to `wrap_w`, with a new line at each break.
+    fn wrapParagraph(&self, p: &Rc<RefCell<Paragraph>>, font_px: f64, wrap_w: f64) -> Vec<String> {
+        let breaks: Vec<i64> = DocxLayout::breakOffsets(p);
+        let text: String = p.borrow().text.clone();
+        if breaks.is_empty() {
+            return UITextRenderer::wrap(&self.tr.as_ref().unwrap(), &text, font_px, wrap_w);
+        }
+        let mut out: Vec<String> = Vec::new();
+        let __len: i64 = DxNative::str_len(&text);
+        let mut from: i64 = 0;
+        let mut bi: i64 = 0;
+        while bi <= (breaks.len() as i64) {
+            let mut to: i64 = __len;
+            if bi < (breaks.len() as i64) {
+                to = breaks[bi as usize];
+            }
+            let seg: String = DxNative::substr(&text, from, to);
+            if seg.is_empty() {
+                out.push(String::new());
+            } else {
+                let parts: Vec<String> = UITextRenderer::wrap(&self.tr.as_ref().unwrap(), &seg, font_px, wrap_w);
+                if parts.is_empty() {
+                    out.push(String::new());
+                }
+                let mut k: i64 = 0;
+                while k < (parts.len() as i64) {
+                    out.push(parts[k as usize].clone());
+                    k += 1;
+                }
+            }
+            from = to;
+            bi += 1;
+        }
+        out
+    }
     pub fn chunkStart(text: &str, cursor: i64, chunk: &str) -> i64 {
         if chunk.is_empty() {
             return cursor;
@@ -641,12 +727,7 @@ impl DocxLayout {
         if lh < 10 {
             lh = 10;
         }
-        let mut wrapped: Vec<String> = self.wrapLines(
-            p.borrow().id * 4 + 0,
-            &p.borrow().text,
-            font_px,
-            (wrap_w as f64)
-        );
+        let mut wrapped: Vec<String> = self.wrapLines(0, &p, font_px, (wrap_w as f64));
         if wrapped.is_empty() {
             wrapped.push(p.borrow().text.clone());
         }
@@ -723,12 +804,7 @@ impl DocxLayout {
         }
         let mut lines: i64 = 1;
         if !p.borrow().text.is_empty() {
-            let mut wrapped: Vec<String> = self.wrapLines(
-                p.borrow().id * 4 + 1,
-                &p.borrow().text,
-                font_px,
-                wrap
-            );
+            let mut wrapped: Vec<String> = self.wrapLines(1, &p, font_px, wrap);
             lines = wrapped.len() as i64;
             if lines < 1 {
                 lines = 1;
@@ -850,12 +926,7 @@ impl DocxLayout {
                 wrap_w = 40.0;
             }
             // Wrap body text only so doc offsets stay accurate for editing hit-test.
-            let mut wrapped: Vec<String> = self.wrapLines(
-            p.borrow().id * 4 + 2,
-            &p.borrow().text,
-                font_px,
-                wrap_w
-            );
+            let mut wrapped: Vec<String> = self.wrapLines(2, &p, font_px, wrap_w);
             if wrapped.is_empty() {
                 wrapped.push(String::new().to_string());
             }
@@ -905,7 +976,7 @@ impl DocxLayout {
                     line.borrow_mut().fontSizePx = _tmp_1970;
                 }
                 let mut _tmp_1972 = line.borrow().text.clone();
-                let tw: i64 = self.lineWidth(p.borrow().id * 4 + 1, li, &_tmp_1972, font_px);
+                let tw: i64 = self.lineWidth(p.borrow().id * 4 + 2, li, &_tmp_1972, font_px, li > 0 || prefix.is_empty());
                 let mut x0: i64 = ml + indent;
                 if li == 0 {
                     x0 += first_extra;
@@ -1261,12 +1332,7 @@ impl DocxLayout {
         if lh < 12 {
             lh = 12;
         }
-        let mut wrapped: Vec<String> = self.wrapLines(
-            p.borrow().id * 4 + 3,
-            &p.borrow().text,
-            font_px,
-            (wrap_w as f64)
-        );
+        let mut wrapped: Vec<String> = self.wrapLines(3, &p, font_px, (wrap_w as f64));
         if wrapped.is_empty() {
             wrapped.push(String::new().to_string());
         }

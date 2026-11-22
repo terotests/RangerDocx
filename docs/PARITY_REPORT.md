@@ -89,9 +89,9 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | L1 | Page count equals the reference render | % of corpus | higher | unmeasured | unmeasured | 94.7 | 80 |
 | L2 | Line breaks equal the reference render | % of lines | higher | unmeasured | unmeasured | 47.5 | 85 |
 | L3 | Visual similarity to the reference render | mean SSIM | higher | unmeasured | unmeasured | 0.922 | 0.90 |
-| P1 | Cold open + layout of a 188-page document | ms | lower | 61 | unmeasured | 250 | 150 |
-| P2 | Relayout after one keystroke, 188-page document | ms | lower | 1.4 | unmeasured | 3.3 | 8 |
-| P3 | Scroll frame, 1,096-page table document | ms | lower | 4.5 | unmeasured | 6.4 | 16 |
+| P1 | Cold open + layout of a 188-page document | ms | lower | 61 | unmeasured | 260 | 150 |
+| P2 | Relayout after one keystroke, 188-page document | ms | lower | 1.4 | unmeasured | 5.5 | 8 |
+| P3 | Scroll frame, 1,096-page table document | ms | lower | 4.5 | unmeasured | 7.2 | 16 |
 | U1 | Ribbon tabs present | count of 24 | higher | 24 | 0 | 0 | 10 |
 | U2 | Modal dialogs | count (Word ~100) | higher | 54 | 2 | 3 | 25 |
 | U3 | Side panes (navigation, styles, comments...) | count | higher | 7 | 0 | 1 | 3 |
@@ -99,5 +99,5 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | R2 | Fuzz iterations without a crash | count | higher | 0 | 0 | 0 | 100000 |
 | X1 | Other formats read or written (PDF, RTF, ODT, HTML, MD, TXT, LaTeX, .doc) | count of 8 | higher | 8 | 1 | 3 | 4 |
 | A1 | Accessibility tree for the document canvas | yes/no | higher | 1 | 1 | 1 | 1 |
-| T1 | Automated tests | count | higher | 4802 | unmeasured | 1382 checks | 500 |
+| T1 | Automated tests | count | higher | 4802 | unmeasured | 1397 checks | 500 |
 
