@@ -7,7 +7,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 
 | tab | rows | WordCraft | Ranger docx_viewer | RangerDocx |
 |---|---:|---:|---:|---:|
-| File | 23 | 23 | 1.5 | 3 |
+| File | 23 | 23 | 1.5 | 4 |
 | Quick Access | 5 | 5 | 2 | 2 |
 | Title Bar | 1 | 1 | 0 | 0 |
 | Home | 106 | 105 | 13 | 38 |
@@ -24,15 +24,15 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Table Design | 8 | 8 | 0 | 0 |
 | Table Layout | 33 | 33 | 1 | 0 |
 | Equation | 22 | 21 | 0 | 0 |
-| Outlining | 13 | 13 | 0 | 0 |
+| Outlining | 13 | 13 | 0 | 6 |
 | Picture Format | 14 | 14 | 0 | 0 |
 | Shape Format | 13 | 13 | 0 | 0 |
 | SmartArt Design | 7 | 7 | 0 | 0 |
 | Chart Design | 5 | 5 | 0 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 |
-| Editing | 41 | 41 | 0 | 0 |
-| Tools | 7 | 7 | 0 | 0 |
-| **Total** | **522** | **510 (97.7%)** | **20 (3.8%)** | **52 (10.0%)** |
+| Editing | 41 | 41 | 0 | 25 |
+| Tools | 7 | 7 | 0 | 0.5 |
+| **Total** | **522** | **510 (97.7%)** | **20 (3.8%)** | **84.5 (16.2%)** |
 
 ## OOXML read and write (C2, C3)
 
@@ -60,29 +60,29 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 
 | section | rows | RangerDocx |
 |---|---:|---:|
-| Lists | 22 | 0 |
-| Undo | 4 | 0 |
+| Lists | 22 | 12.5 |
+| Undo | 4 | 2 |
 | Paste | 3 | 0 |
-| Track Changes | 13 | 0 |
-| Editing keys | 14 | 0 |
+| Track Changes | 13 | 0.5 |
+| Editing keys | 14 | 5 |
 | English spelling by dialect (SCOWL, CP2) | 6 | 0 |
 | Spelling as you type (#1552) | 8 | 0 |
-| Editing options (File › Options › Advanced) | 2 | 0 |
+| Editing options (File › Options › Advanced) | 2 | 0.5 |
 | Enter in a drop cap paragraph | 1 | 0 |
-| AutoCorrect and AutoFormat as you type | 24 | 0 |
+| AutoCorrect and AutoFormat as you type | 24 | 8 |
 | Text direction | 4 | 0 |
 | Complex scripts | 2 | 0 |
 | Input methods | 7 | 0 |
-| **Total** | **110** | **0 (0.0%)** |
+| **Total** | **110** | **28.5 (25.9%)** |
 
 ## All metrics
 
 | id | metric | unit | better | WordCraft | Ranger docx_viewer | RangerDocx | target |
 |---|---|---|---|---:|---:|---:|---:|
-| C1 | Ribbon/menu catalog features with a working command | count of 522 | higher | 510 | 20 | 52 | 300 |
+| C1 | Ribbon/menu catalog features with a working command | count of 522 | higher | 510 | 20 | 84.5 | 300 |
 | C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 13.5 | 40 |
 | C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 14 | 35 |
-| C4 | Typing-behaviour scenarios that pass | count of 110 | higher | 110 | 0 | 0 | 30 |
+| C4 | Typing-behaviour scenarios that pass | count of 110 | higher | 110 | 0 | 28.5 | 30 |
 | F1 | Corpus files that open without error | % of corpus | higher | unmeasured | unmeasured | 100 (19/19 fixtures) | 99 |
 | F2 | Semantic round trip: open, save, reopen gives the same semantic dump | % of corpus | higher | unmeasured | 0 | 100 (17/17, all blocks regenerated) | 90 |
 | F3 | Saved files open in LibreOffice without repair or error | % of corpus | higher | unmeasured | 0 | 100 (17/17) | 100 |

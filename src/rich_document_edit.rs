@@ -852,6 +852,9 @@ impl RichDocumentEdit {
                 if what == "highlight" {
                     s.borrow_mut().highlight = text.clone();
                 }
+                if what == "link" {
+                    s.borrow_mut().hyperlink = if on { text.clone() } else { String::new() };
+                }
             }
             i += 1;
         }

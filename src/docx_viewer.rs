@@ -120,6 +120,7 @@ impl DocxViewer {
         let mut _tmp_6978 = self.doc.clone();
         self.edit.clone().borrow_mut().bindDocument(_tmp_6978);
         self.edit.borrow_mut().numbering = self.numbering.clone();
+        self.edit.borrow_mut().resolver = self.parser.borrow().resolver.clone();
         // A different document: nothing the layout holds is about this one.
         self.view.borrow().layout.clone().borrow_mut().invalidate();
         self.currentPage = 0;
@@ -137,6 +138,7 @@ impl DocxViewer {
         let mut _tmp_6984 = self.doc.clone();
         self.edit.clone().borrow_mut().bindDocument(_tmp_6984);
         self.edit.borrow_mut().numbering = self.numbering.clone();
+        self.edit.borrow_mut().resolver = self.parser.borrow().resolver.clone();
         // A different document: nothing the layout holds is about this one.
         self.view.borrow().layout.clone().borrow_mut().invalidate();
         self.currentPage = 0;
@@ -179,6 +181,7 @@ impl DocxViewer {
         let mut _tmp_6998 = self.doc.clone();
         self.edit.clone().borrow_mut().bindDocument(_tmp_6998);
         self.edit.borrow_mut().numbering = self.numbering.clone();
+        self.edit.borrow_mut().resolver = self.parser.borrow().resolver.clone();
         // A different document: nothing the layout holds is about this one.
         self.view.borrow().layout.clone().borrow_mut().invalidate();
         self.currentPage = 0;
@@ -198,6 +201,7 @@ impl DocxViewer {
         let mut _tmp_7004 = self.doc.clone();
         self.edit.clone().borrow_mut().bindDocument(_tmp_7004);
         self.edit.borrow_mut().numbering = self.numbering.clone();
+        self.edit.borrow_mut().resolver = self.parser.borrow().resolver.clone();
         self.view.borrow().layout.clone().borrow_mut().invalidate();
         self.currentPage = 0;
     }
@@ -398,7 +402,12 @@ impl DocxViewer {
         if !self.edit.borrow().isEnabled() {
             return;
         }
-        self.edit.clone().borrow_mut().insertText(text.to_string());
+        self.edit.clone().borrow_mut().typeText(text.to_string());
+        self.renderPage(self.currentPage.clone());
+    }
+    /// Shift+Enter: a line break, not a new paragraph.
+    pub fn keyLineBreak(&mut self) {
+        self.edit.clone().borrow_mut().insertLineBreak();
         self.renderPage(self.currentPage.clone());
     }
     pub fn keyBackspace(&mut self) {
@@ -410,6 +419,7 @@ impl DocxViewer {
         self.renderPage(self.currentPage.clone());
     }
     pub fn keyEnter(&mut self) {
+        self.edit.clone().borrow_mut().autoCorrectAtCaret();
         self.edit.clone().borrow_mut().splitAtCaret();
         self.renderPage(self.currentPage.clone());
     }

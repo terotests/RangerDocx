@@ -412,6 +412,15 @@ export async function mountDocs(container, options = {}) {
   wrap.addEventListener("keydown", async (ev) => {
     if (options.onKey && options.onKey(ev, controller) === false) return;
     const ctrl = ev.ctrlKey || ev.metaKey;
+    // Alt+Shift+arrows and Alt+X are the document's (move, promote, Unicode).
+    if (ev.altKey && !ctrl && app.keyAlt) {
+      const altName = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+      if (app.keyAlt(altName, ev.shiftKey)) {
+        ev.preventDefault();
+        await after();
+        return;
+      }
+    }
     if (KEY_NAMES.has(ev.key)) {
       ev.preventDefault();
       app.key(ev.key, ev.shiftKey, ctrl);

@@ -1,5 +1,5 @@
 tab	group	feature	command	wordcraft	ranger_viewer	rangerdocx	test
-File	Backstage	New	file.new	live	no	no	-
+File	Backstage	New	file.new	live	no	yes	tests/TypingTest.rgr
 File	Backstage	Open	file.open	live	yes	yes	tests/DocxTest.rgr
 File	Backstage	Save	file.save	live	no	done	tests/DocxWriteTest.rgr
 File	Backstage	Save As	file.saveAs	live	no	done	tests/DocxWriteTest.rgr
@@ -416,13 +416,13 @@ Equation	Equation Options	Change to Inline / Display	equation.display	live	no	no
 Equation	Equation Options	Justification	equation.justify	live	no	no	-
 Equation	Equation Options	Equation Number (#)	equation.number	live	no	no	-
 Equation	Equation Options	Structure Commands	equation.structure	live	no	no	-
-Outlining	Outline Tools	Promote to Heading 1	outline.promoteToHeading1	live	no	no	-
-Outlining	Outline Tools	Promote	outline.promote	live	no	no	-
+Outlining	Outline Tools	Promote to Heading 1	outline.promoteToHeading1	live	no	yes	tests/TypingTest.rgr
+Outlining	Outline Tools	Promote	outline.promote	live	no	yes	tests/TypingTest.rgr
 Outlining	Outline Tools	Outline Level	outline.level	live	no	no	-
-Outlining	Outline Tools	Demote	outline.demote	live	no	no	-
-Outlining	Outline Tools	Demote to Body Text	outline.demoteToBody	live	no	no	-
-Outlining	Outline Tools	Move Up	outline.moveUp	live	no	no	-
-Outlining	Outline Tools	Move Down	outline.moveDown	live	no	no	-
+Outlining	Outline Tools	Demote	outline.demote	live	no	yes	tests/TypingTest.rgr
+Outlining	Outline Tools	Demote to Body Text	outline.demoteToBody	live	no	yes	tests/TypingTest.rgr
+Outlining	Outline Tools	Move Up	outline.moveUp	live	no	yes	tests/TypingTest.rgr
+Outlining	Outline Tools	Move Down	outline.moveDown	live	no	yes	tests/TypingTest.rgr
 Outlining	Outline Tools	Expand	outline.expand	live	no	no	-
 Outlining	Outline Tools	Collapse	outline.collapse	live	no	no	-
 Outlining	Outline Tools	Show Level	outline.showLevel	live	no	no	-
@@ -473,37 +473,37 @@ Header & Footer	Navigation	Go to Footer	insert.editFooter	live	no	no	-
 Header & Footer	Navigation	Previous Section	hf.previous	live	no	no	-
 Header & Footer	Navigation	Next Section	hf.next	live	no	no	-
 Header & Footer	Position	Header from Top	hf.position	live	no	no	-
-Editing	Keyboard	Type Text	text.insert	live	no	no	-
-Editing	Keyboard	New Paragraph	text.newParagraph	live	no	no	-
-Editing	Keyboard	Line Break	text.lineBreak	live	no	no	-
+Editing	Keyboard	Type Text	text.insert	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	New Paragraph	text.newParagraph	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Line Break	text.lineBreak	live	no	yes	tests/TypingTest.rgr
 Editing	Keyboard	Column Break	text.columnBreak	live	no	no	-
 Editing	Keyboard	Tab	text.tab	live	no	no	-
 Editing	Keyboard	Tab Character	text.insertTab	live	no	no	-
-Editing	Keyboard	Backspace	text.backspace	live	no	no	-
-Editing	Keyboard	Delete	text.delete	live	no	no	-
-Editing	Keyboard	Delete Previous Word	text.deleteWordBack	live	no	no	-
-Editing	Keyboard	Delete Next Word	text.deleteWordForward	live	no	no	-
-Editing	Keyboard	Move Paragraph Up	para.moveUp	live	no	no	-
-Editing	Keyboard	Move Paragraph Down	para.moveDown	live	no	no	-
-Editing	Keyboard	Promote	para.promote	live	no	no	-
-Editing	Keyboard	Demote	para.demote	live	no	no	-
-Editing	Keyboard	Toggle Unicode Character	text.toggleUnicode	live	no	no	-
+Editing	Keyboard	Backspace	text.backspace	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Delete	text.delete	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Delete Previous Word	text.deleteWordBack	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Delete Next Word	text.deleteWordForward	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Move Paragraph Up	para.moveUp	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Move Paragraph Down	para.moveDown	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Promote	para.promote	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Demote	para.demote	live	no	yes	tests/TypingTest.rgr
+Editing	Keyboard	Toggle Unicode Character	text.toggleUnicode	live	no	yes	tests/TypingTest.rgr
 Editing	Keyboard	Spike	edit.spike	live	no	no	-
 Editing	Keyboard	Insert Spike	edit.insertSpike	live	no	no	-
-Editing	Navigation	Word Left	caret.wordLeft	live	no	no	-
-Editing	Navigation	Word Right	caret.wordRight	live	no	no	-
-Editing	Navigation	Line Start	caret.home	live	no	no	-
-Editing	Navigation	Line End	caret.end	live	no	no	-
-Editing	Navigation	Paragraph Up	caret.paraUp	live	no	no	-
-Editing	Navigation	Paragraph Down	caret.paraDown	live	no	no	-
-Editing	Navigation	Document Start	caret.docStart	live	no	no	-
-Editing	Navigation	Document End	caret.docEnd	live	no	no	-
-Editing	Navigation	Page Up	caret.pageUp	live	no	no	-
-Editing	Navigation	Page Down	caret.pageDown	live	no	no	-
+Editing	Navigation	Word Left	caret.wordLeft	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Word Right	caret.wordRight	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Line Start	caret.home	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Line End	caret.end	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Paragraph Up	caret.paraUp	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Paragraph Down	caret.paraDown	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Document Start	caret.docStart	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Document End	caret.docEnd	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Page Up	caret.pageUp	live	no	yes	tests/TypingTest.rgr
+Editing	Navigation	Page Down	caret.pageDown	live	no	yes	tests/TypingTest.rgr
 Editing	Navigation	Go Back	edit.goBack	live	no	no	-
-Editing	Selection	Select Word	select.word	live	no	no	-
-Editing	Selection	Select Sentence	select.sentence	live	no	no	-
-Editing	Selection	Select Paragraph	select.paragraph	live	no	no	-
+Editing	Selection	Select Word	select.word	live	no	yes	tests/TypingTest.rgr
+Editing	Selection	Select Sentence	select.sentence	live	no	yes	tests/TypingTest.rgr
+Editing	Selection	Select Paragraph	select.paragraph	live	no	yes	tests/TypingTest.rgr
 Editing	Selection	Extend Selection (F8)	select.extend	live	no	no	-
 Editing	Selection	Column Selection	select.column	live	no	no	-
 Editing	Fields	Show Field Codes	view.fieldCodes	live	no	no	-
@@ -514,7 +514,7 @@ Editing	Fields	Lock Fields	fields.lock	live	no	no	-
 Editing	Fields	Unlock Fields	fields.unlock	live	no	no	-
 Editing	Fields	Next Field	fields.next	live	no	no	-
 Editing	Fields	Previous Field	fields.previous	live	no	no	-
-Tools	Proofing	AutoCorrect Options	tools.autocorrect	live	no	no	-
+Tools	Proofing	AutoCorrect Options	tools.autocorrect	live	no	partial	tests/TypingTest.rgr
 Tools	Proofing	Set Proofing Language	review.language	live	no	no	-
 Tools	Customize	Customize Ribbon	tools.customizeRibbon	live	no	no	-
 Tools	Customize	Customize Keyboard	tools.customizeKeyboard	live	no	no	-

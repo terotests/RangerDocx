@@ -1836,6 +1836,22 @@ class DocsApp {
         this.sync()
     }
 
+    ; Alt chords for the document (Alt+Shift+arrows, Alt+X). True when the
+    ; document took it.
+    fn keyAlt:boolean (name:string shift:boolean) {
+        if ((this.dialogOpen()) || (this.anyMenuOpen()) || (docFocused == false) || readOnly) {
+            return false
+        }
+        def k:string (DocsApp.coreKeyName(name))
+        if ((strlen k) == 0) {
+            k = name
+        }
+        def app:DocxApp web.app
+        def took:boolean (app.keyAlt(k shift))
+        this.sync()
+        return took
+    }
+
     sfn coreKeyName:string (name:string) {
         if (name == "Backspace") { return "backspace" }
         if (name == "Delete") { return "delete" }

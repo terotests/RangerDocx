@@ -1,0 +1,572 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; TypingTest - the typing-behaviour scenarios of parity/typing.tsv (C4).
+; ==============================================================================
+;
+; Each block below is one row of parity/typing.tsv (WordCraft's
+; typing-parity.md): keys go in the way a host sends them (DocxApp.text for
+; printable keys, DocxApp.key for named ones, DocxApp.keyAlt for Alt chords)
+; into a new, empty document, and the document is checked afterwards. The
+; row number is in each section's title.
+;
+;   npm run docx_viewer:typing:test
+; ==============================================================================
+
+Import "../src/DocxApp.rgr"
+
+class TypeCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class TypingTest {
+    sfn fresh:DocxApp () {
+        def app:DocxApp (new DocxApp)
+        app.init()
+        app.resize(900 700)
+        app.runCommand("file.new" "")
+        return app
+    }
+
+    ; One key at a time, as a keyboard sends them.
+    sfn keys:void (app:DocxApp s:string) {
+        def i:int 0
+        while (i < (strlen s)) {
+            app.text((substring s i (i + 1)))
+            i = (i + 1)
+        }
+    }
+
+    sfn key:void (app:DocxApp name:string) {
+        app.key(name false false)
+    }
+
+    sfn count:int (app:DocxApp) {
+        return (app.viewer.edit.adapter.bodyParagraphCount())
+    }
+
+    sfn para:Paragraph (app:DocxApp i:int) {
+        def ad:RichDocumentEdit app.viewer.edit.adapter
+        return (ad.findParagraph((ad.bodyParagraphIdAt(i))))
+    }
+
+    sfn text:string (app:DocxApp i:int) {
+        def p:Paragraph (TypingTest.para(app i))
+        return p.text
+    }
+
+    sfn caretPid:int (app:DocxApp) {
+        return app.viewer.edit.sel.focus.paragraphId
+    }
+
+    sfn caretOff:int (app:DocxApp) {
+        return app.viewer.edit.sel.focus.textOffset
+    }
+
+    sfn pid:int (app:DocxApp i:int) {
+        return (app.viewer.edit.adapter.bodyParagraphIdAt(i))
+    }
+
+    sfn look:string (app:DocxApp i:int) {
+        def p:Paragraph (TypingTest.para(app i))
+        return (app.viewer.numbering.styleOf(p.listNumId))
+    }
+
+    sfn level:int (app:DocxApp i:int) {
+        def p:Paragraph (TypingTest.para(app i))
+        return p.listLevel
+    }
+
+    sfn num:int (app:DocxApp i:int) {
+        def p:Paragraph (TypingTest.para(app i))
+        return p.listNumId
+    }
+
+    sfn style:string (app:DocxApp i:int) {
+        def p:Paragraph (TypingTest.para(app i))
+        return p.styleId
+    }
+
+    sfn indent:double (app:DocxApp i:int) {
+        def p:Paragraph (TypingTest.para(app i))
+        return p.indentLeftPt
+    }
+
+    sfn undo:void (app:DocxApp) {
+        app.key("z" false true)
+    }
+
+    sfn main:void () {
+        def c:TypeCheck (new TypeCheck)
+        print "== TypingTest =="
+
+        print "-- 1: `* item` Enter Enter `text` --"
+        def a1:DocxApp (TypingTest.fresh())
+        c.eqInt("a new document has one paragraph" (TypingTest.count(a1)) 1)
+        TypingTest.keys(a1 "* item")
+        def l1:Paragraph (TypingTest.para(a1 0))
+        c.ok("`* ` made a bulleted list" (l1.listNumId > 0))
+        c.eqStr("and the characters went" l1.text "item")
+        c.eqStr("a bullet" (TypingTest.look(a1 0)) "bullet:•")
+        TypingTest.key(a1 "enter")
+        def l1b:Paragraph (TypingTest.para(a1 1))
+        c.ok("Enter gives the next item" (l1b.listNumId == l1.listNumId))
+        TypingTest.key(a1 "enter")
+        TypingTest.keys(a1 "text")
+        c.eqInt("the second Enter added no paragraph" (TypingTest.count(a1)) 2)
+        def l1c:Paragraph (TypingTest.para(a1 1))
+        c.ok("it ended the list" (l1c.listNumId == 0))
+        c.ok("with no list indent left behind" (l1c.indentLeftPt < 0.5))
+        c.eqStr("`text` is a Normal paragraph" l1c.styleId "Normal")
+        c.eqStr("with the text (not capitalised until the word is finished)" l1c.text "text")
+
+        print "-- 2: Enter ×3, ×4 --"
+        TypingTest.key(a1 "enter")
+        TypingTest.key(a1 "enter")
+        TypingTest.key(a1 "enter")
+        c.eqInt("each Enter adds a blank paragraph" (TypingTest.count(a1)) 5)
+        TypingTest.key(a1 "enter")
+        c.eqInt("never swallowed" (TypingTest.count(a1)) 6)
+        def l2:Paragraph (TypingTest.para(a1 5))
+        c.ok("a Normal one" ((l2.listNumId == 0) && (l2.styleId == "Normal")))
+
+        print "-- 3: Enter on an empty nested item --"
+        def a3:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a3 "1. one")
+        TypingTest.key(a3 "enter")
+        a3.key("tab" false false)
+        def l3:Paragraph (TypingTest.para(a3 1))
+        c.eqInt("Tab nested the empty item" l3.listLevel 1)
+        TypingTest.key(a3 "enter")
+        def l3b:Paragraph (TypingTest.para(a3 1))
+        c.eqInt("Enter on it moves it up a level" l3b.listLevel 0)
+        c.ok("still in the list" (l3b.listNumId > 0))
+        c.eqInt("no paragraph added" (TypingTest.count(a3)) 2)
+        TypingTest.key(a3 "enter")
+        def l3c:Paragraph (TypingTest.para(a3 1))
+        c.ok("at the top level it leaves the list" (l3c.listNumId == 0))
+
+        print "-- 4: `* ` Enter (nothing typed) --"
+        def a4:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a4 "* ")
+        c.ok("a list item" ((TypingTest.num(a4 0)) > 0))
+        TypingTest.key(a4 "enter")
+        def l4:Paragraph (TypingTest.para(a4 0))
+        c.ok("the list is cancelled" (l4.listNumId == 0))
+        c.ok("a Normal paragraph, not indented" ((l4.styleId == "Normal") && (l4.indentLeftPt < 0.5)))
+        c.eqInt("one paragraph" (TypingTest.count(a4)) 1)
+
+        print "-- 5: Tab / Shift+Tab at the start of an item --"
+        def a5:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a5 "* a")
+        TypingTest.key(a5 "enter")
+        TypingTest.keys(a5 "b")
+        a5.key("home" false false)
+        a5.key("tab" false false)
+        c.eqInt("Tab demotes" (TypingTest.level(a5 1)) 1)
+        c.eqStr("the text stays" (TypingTest.text(a5 1)) "b")
+        a5.key("tab" true false)
+        c.eqInt("Shift+Tab promotes" (TypingTest.level(a5 1)) 0)
+
+        print "-- 7: Backspace at the start of an item --"
+        def a7:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a7 "1. a")
+        TypingTest.key(a7 "enter")
+        TypingTest.keys(a7 "b")
+        a7.key("home" false false)
+        def indent7:double (TypingTest.indent(a7 1))
+        TypingTest.key(a7 "backspace")
+        def l7:Paragraph (TypingTest.para(a7 1))
+        c.ok("1st: the number is removed" (l7.listNumId == 0))
+        c.ok("the indent kept" ((l7.indentLeftPt == indent7) && (indent7 > 0.0)))
+        TypingTest.key(a7 "backspace")
+        def l7b:Paragraph (TypingTest.para(a7 1))
+        c.ok("2nd: a Normal paragraph" (l7b.indentLeftPt < 0.5))
+        c.eqInt("not joined to the one above" (TypingTest.count(a7)) 2)
+        c.eqStr("its text" l7b.text "b")
+
+        print "-- 8: Enter mid-item / at item start --"
+        def a8:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a8 "* abcd")
+        a8.key("left" false false)
+        a8.key("left" false false)
+        TypingTest.key(a8 "enter")
+        c.eqInt("mid-item Enter splits it" (TypingTest.count(a8)) 2)
+        c.ok("into two items" (((TypingTest.num(a8 0)) > 0) && ((TypingTest.num(a8 1)) == (TypingTest.num(a8 0)))))
+        c.eqStr("ab | cd" ((TypingTest.text(a8 0)) + "|" + (TypingTest.text(a8 1))) "ab|cd")
+        a8.key("home" false false)
+        TypingTest.key(a8 "enter")
+        c.eqInt("at the start Enter inserts an item" (TypingTest.count(a8)) 3)
+        def l8:Paragraph (TypingTest.para(a8 1))
+        c.ok("an empty item above" ((l8.listNumId > 0) && ((strlen l8.text) == 0)))
+        c.eqStr("the text moved on with the caret" (TypingTest.text(a8 2)) "cd")
+
+        print "-- 9: Shift+Enter in an item --"
+        def a9:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a9 "* one")
+        a9.key("enter" true false)
+        TypingTest.keys(a9 "two")
+        c.eqInt("the same paragraph" (TypingTest.count(a9)) 1)
+        c.eqStr("with a line break" (TypingTest.text(a9 0)) "one\ntwo")
+        c.ok("in the same item" ((TypingTest.num(a9 0)) > 0))
+
+        print "-- 11: the AutoFormat list triggers --"
+        def triggers:[string] (strsplit "*|-|1.|1)|a.|a)|A.|i.|I." "|")
+        def looks:[string] (strsplit "bullet:•|bullet:–|decimal:%1.|decimal:%1)|lowerLetter:%1.|lowerLetter:%1)|upperLetter:%1.|lowerRoman:%1.|upperRoman:%1." "|")
+        def ti:int 0
+        while (ti < (array_length triggers)) {
+            def at:DocxApp (TypingTest.fresh())
+            TypingTest.keys(at ((itemAt triggers ti) + " text"))
+            c.eqStr(("`" + (itemAt triggers ti) + " ` makes a list") (TypingTest.look(at 0)) (itemAt looks ti))
+            c.eqStr("  and leaves the text" (TypingTest.text(at 0)) "text")
+            ti = (ti + 1)
+        }
+
+        print "-- 12: `- ` typed in front of existing text --"
+        def a12:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a12 "Hello world")
+        a12.key("home" false false)
+        TypingTest.keys(a12 "- ")
+        c.ok("still becomes a list item" ((TypingTest.num(a12 0)) > 0))
+        c.eqStr("the rest of the text is kept" (TypingTest.text(a12 0)) "Hello world")
+
+        print "-- 13: arrow bullets --"
+        def arrows:[string] (strsplit ">|->|=>" "|")
+        def arrowLooks:[string] (strsplit "bullet:➢|bullet:➔|bullet:⇨" "|")
+        def ai:int 0
+        while (ai < 3) {
+            def aa:DocxApp (TypingTest.fresh())
+            TypingTest.keys(aa ((itemAt arrows ai) + " go"))
+            c.eqStr(("`" + (itemAt arrows ai) + " ` is an arrow bullet") (TypingTest.look(aa 0)) (itemAt arrowLooks ai))
+            ai = (ai + 1)
+        }
+
+        print "-- 14: `1. ` after other text --"
+        def a14:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a14 "1. a")
+        TypingTest.key(a14 "enter")
+        TypingTest.key(a14 "enter")
+        TypingTest.keys(a14 "middle")
+        TypingTest.key(a14 "enter")
+        TypingTest.keys(a14 "1. b")
+        def first14:int (TypingTest.num(a14 0))
+        def second14:int (TypingTest.num(a14 2))
+        c.ok("a new list (restarts at 1)" ((second14 > 0) && (second14 != first14)))
+
+        print "-- 22: Undo right after an AutoFormat --"
+        def a22:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a22 "* ")
+        TypingTest.undo(a22)
+        c.eqStr("`* ` comes back as text" (TypingTest.text(a22 0)) "* ")
+        c.ok("and the list goes" ((TypingTest.num(a22 0)) == 0))
+        c.eqInt("the caret after it" (TypingTest.caretOff(a22)) 2)
+        TypingTest.undo(a22)
+        c.eqStr("the next undo takes the typing" (TypingTest.text(a22 0)) "")
+
+        print "-- 23: type, select some of it, type over it --"
+        def a23:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a23 "hello")
+        a23.key("left" true false)
+        a23.key("left" true false)
+        TypingTest.keys(a23 "p")
+        c.eqStr("typed over" (TypingTest.text(a23 0)) "help")
+        TypingTest.undo(a23)
+        c.eqStr("the first undo brings the selection back" (TypingTest.text(a23 0)) "hello")
+        c.ok("still selected" ((a23.viewer.edit.sel.isCollapsed()) == false))
+        TypingTest.undo(a23)
+        c.eqStr("the second removes the typing: one step" (TypingTest.text(a23 0)) "")
+
+        print "-- 25: Backspace at the start of the document --"
+        def a25:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a25 "ab")
+        TypingTest.undo(a25)
+        TypingTest.keys(a25 "")
+        a25.key("home" false true)
+        def rev25:int a25.viewer.doc.revision
+        TypingTest.key(a25 "backspace")
+        c.ok("the document is not marked edited" (a25.viewer.doc.revision == rev25))
+        a25.key("y" false true)
+        c.eqStr("and the redo stack survives" (TypingTest.text(a25 0)) "ab")
+
+        print "-- 36: Select All, then Delete --"
+        def a36:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a36 "one")
+        TypingTest.key(a36 "enter")
+        TypingTest.keys(a36 "two")
+        TypingTest.key(a36 "enter")
+        TypingTest.keys(a36 "three")
+        a36.runCommand("edit.selectAll" "")
+        TypingTest.key(a36 "delete")
+        c.eqInt("one paragraph is left" (TypingTest.count(a36)) 1)
+        c.eqStr("empty" (TypingTest.text(a36 0)) "")
+
+        print "-- 46: Alt+Shift+Up / Down --"
+        def a46:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a46 "Alpha")
+        TypingTest.key(a46 "enter")
+        TypingTest.keys(a46 "* Beta")
+        TypingTest.key(a46 "enter")
+        TypingTest.key(a46 "enter")
+        TypingTest.keys(a46 "Gamma")
+        a46.viewer.edit.setCaret((TypingTest.pid(a46 1)) 1)
+        c.ok("Alt+Shift+Up moves the paragraph" (a46.keyAlt("up" true)))
+        c.eqStr("Beta is first" ((TypingTest.text(a46 0)) + "," + (TypingTest.text(a46 1))) "Beta,Alpha")
+        c.ok("keeping its list" ((TypingTest.num(a46 0)) > 0))
+        c.eqInt("the caret went with it" (TypingTest.caretPid(a46)) (TypingTest.pid(a46 0)))
+        c.ok("refused at the top" ((a46.keyAlt("up" true)) == false))
+        a46.keyAlt("down" true)
+        a46.keyAlt("down" true)
+        c.eqStr("Alt+Shift+Down twice" ((TypingTest.text(a46 0)) + "," + (TypingTest.text(a46 1)) + "," + (TypingTest.text(a46 2))) "Alpha,Gamma,Beta")
+        TypingTest.undo(a46)
+        c.eqStr("one undo step each" ((TypingTest.text(a46 0)) + "," + (TypingTest.text(a46 1)) + "," + (TypingTest.text(a46 2))) "Alpha,Beta,Gamma")
+        ; Two paragraphs selected move together.
+        a46.viewer.edit.setCaret((TypingTest.pid(a46 0)) 1)
+        a46.viewer.edit.extendTo((TypingTest.pid(a46 1)) 1)
+        a46.keyAlt("down" true)
+        c.eqStr("a selection moves as a block" ((TypingTest.text(a46 0)) + "," + (TypingTest.text(a46 1)) + "," + (TypingTest.text(a46 2))) "Gamma,Alpha,Beta")
+
+        print "-- 47: Alt+Shift+Left / Right --"
+        def a47:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a47 "Title")
+        a47.runCommand("format.style" "Heading2")
+        TypingTest.key(a47 "enter")
+        TypingTest.keys(a47 "Body")
+        a47.runCommand("format.style" "Normal")
+        a47.keyAlt("left" true)
+        c.eqStr("promoted body text takes the heading level before it" (TypingTest.style(a47 1)) "Heading2")
+        a47.keyAlt("left" true)
+        c.eqStr("a heading goes up a level" (TypingTest.style(a47 1)) "Heading1")
+        a47.keyAlt("left" true)
+        c.eqStr("Heading 1 is the end" (TypingTest.style(a47 1)) "Heading1")
+        a47.keyAlt("right" true)
+        c.eqStr("and down again" (TypingTest.style(a47 1)) "Heading2")
+        TypingTest.key(a47 "enter")
+        a47.runCommand("format.style" "Normal")
+        TypingTest.keys(a47 "* item")
+        a47.keyAlt("right" true)
+        c.eqInt("a list item changes level" (TypingTest.level(a47 2)) 1)
+
+        print "-- 50: Ctrl+Left / Right, Home / End --"
+        def a50:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a50 "one two three")
+        a50.key("left" false true)
+        c.eqInt("Ctrl+Left: a word left" (TypingTest.caretOff(a50)) 8)
+        a50.key("left" false true)
+        c.eqInt("and another" (TypingTest.caretOff(a50)) 4)
+        a50.key("right" false true)
+        c.eqInt("Ctrl+Right: a word right" (TypingTest.caretOff(a50)) 8)
+        a50.key("home" false false)
+        c.eqInt("Home: the line start" (TypingTest.caretOff(a50)) 0)
+        a50.key("end" true false)
+        c.eqInt("Shift+End extends to the line end" (TypingTest.caretOff(a50)) 13)
+        c.ok("as a selection" ((a50.viewer.edit.sel.isCollapsed()) == false))
+
+        print "-- 52: Alt+X --"
+        def a52:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a52 "caf x00e9")
+        a52.keyAlt("x" false)
+        c.eqStr("the hex code becomes its character" (TypingTest.text(a52 0)) "Caf xé")
+        a52.keyAlt("x" false)
+        c.eqStr("and back to its code" (TypingTest.text(a52 0)) "Caf x00E9")
+        TypingTest.undo(a52)
+        c.eqStr("one undo step" (TypingTest.text(a52 0)) "Caf xé")
+        def a52b:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a52b "U+263A")
+        a52b.keyAlt("x" false)
+        c.eqStr("`U+` is optional and taken along" (TypingTest.text(a52b 0)) "☺")
+
+        print "-- 53: Shift+Backspace / Shift+Delete --"
+        def a53:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a53 "abc")
+        a53.key("backspace" true false)
+        c.eqStr("Shift+Backspace erases like Backspace" (TypingTest.text(a53 0)) "ab")
+        a53.key("delete" true false)
+        c.eqStr("Shift+Delete with nothing selected does nothing" (TypingTest.text(a53 0)) "ab")
+        a53.key("left" true false)
+        a53.key("delete" true false)
+        c.eqStr("with a selection it cuts" (TypingTest.text(a53 0)) "a")
+        c.eqStr("to the clipboard" a53.clipboardOut "b")
+
+        print "-- 71: typing over a selection --"
+        def a71:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a71 "red car")
+        a71.key("home" false false)
+        a71.key("right" true true)
+        TypingTest.keys(a71 "blue ")
+        c.eqStr("replaces it" (TypingTest.text(a71 0)) "Blue car")
+
+        print "-- 74: a capital at the start of a sentence --"
+        def a74:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a74 "hello there. how are you? fine, e.g. this. iPhone stays. J. r. r. ")
+        c.eqStr("first word, after . and ?, not after e.g. or initials, not iPhone" (TypingTest.text(a74 0)) "Hello there. How are you? Fine, e.g. this. iPhone stays. J. r. r. ")
+        TypingTest.key(a74 "enter")
+        TypingTest.keys(a74 "* item ")
+        c.eqStr("a list item start too" (TypingTest.text(a74 1)) "Item ")
+
+        print "-- 76: TWo INitial CApitals --"
+        def a76:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a76 "Say WOrd and TEh IDs ")
+        c.eqStr("WOrd, TEh fixed; IDs left" (TypingTest.text(a76 0)) "Say Word and The IDs ")
+
+        print "-- 78: cAPS LOCK --"
+        def a78:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a78 "Use wORD and iOS ")
+        c.eqStr("wORD → Word, iOS left" (TypingTest.text(a78 0)) "Use Word and iOS ")
+
+        print "-- 80: each fix is one undo step --"
+        def a80:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a80 "Say teh ")
+        c.eqStr("teh → the" (TypingTest.text(a80 0)) "Say the ")
+        TypingTest.undo(a80)
+        c.eqStr("one undo takes the fix back" (TypingTest.text(a80 0)) "Say teh ")
+        def a80b:DocxApp (TypingTest.fresh())
+        a80b.viewer.edit.autoCorrect = false
+        TypingTest.keys(a80b "say teh ")
+        c.eqStr("and AutoCorrect can be switched off" (TypingTest.text(a80b 0)) "say teh ")
+
+        print "-- 81: fractions and ordinals --"
+        def a81:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a81 "Add 1/2 and 3/4 on the 22nd and 13th ")
+        c.eqStr("fractions" (TypingTest.text(a81 0)) "Add ½ and ¾ on the 22nd and 13th ")
+        def t81:string (TypingTest.text(a81 0))
+        def nd:int ((indexOf t81 "22nd") + 2)
+        def th:int ((indexOf t81 "13th") + 2)
+        c.ok("`nd` is superscript" (a81.viewer.edit.adapter.rangeIsOn((TypingTest.pid(a81 0)) nd (nd + 2) "super")))
+        c.ok("`th` too" (a81.viewer.edit.adapter.rangeIsOn((TypingTest.pid(a81 0)) th (th + 2) "super")))
+        c.ok("the digits are not" ((a81.viewer.edit.adapter.rangeIsOn((TypingTest.pid(a81 0)) (nd - 2) nd "super")) == false))
+
+        print "-- 83, 84: web addresses become links --"
+        def a83:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a83 "See www.example.com now")
+        def p83:Paragraph (TypingTest.para(a83 0))
+        def t83:string p83.text
+        def w83:int (indexOf t83 "www")
+        c.eqStr("the address is a link" (a83.viewer.edit.linkAt(p83.id (w83 + 2))) "http://www.example.com")
+        c.eqStr("the text after it is not" (a83.viewer.edit.linkAt(p83.id ((strlen t83) - 1))) "")
+        a83.viewer.edit.setCaret(p83.id (w83 + 3))
+        TypingTest.keys(a83 "X")
+        c.eqStr("typing inside it is linked" (a83.viewer.edit.linkAt(p83.id (w83 + 3))) "http://www.example.com")
+        a83.viewer.edit.setCaret(p83.id w83)
+        TypingTest.keys(a83 "Y")
+        c.eqStr("typing at its start is not" (a83.viewer.edit.linkAt(p83.id w83)) "")
+
+        print "-- 93: smileys --"
+        def a93:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a93 "Fine :) bad :-( ok:)")
+        c.eqStr(":) :-( and ok:)" (TypingTest.text(a93 0)) "Fine ☺ bad ☹ ok☺")
+
+        print "-- 95: names of days --"
+        def a95:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a95 "See you monday or friday.")
+        c.eqStr("monday, friday" (TypingTest.text(a95 0)) "See you Monday or Friday.")
+
+        print "-- 96: the replacement list --"
+        def a96:DocxApp (TypingTest.fresh())
+        TypingTest.keys(a96 "Then i said dont, it was teh end ")
+        c.eqStr("i, dont, teh" (TypingTest.text(a96 0)) "Then I said don't, it was the end ")
+
+        print "-- the keyboard commands by name (catalog: Editing, Outlining, File) --"
+        def k:DocxApp (TypingTest.fresh())
+        c.ok("file.new gives an empty document in editing mode" (((TypingTest.count(k)) == 1) && (k.viewer.editMode())))
+        k.viewer.edit.autoCorrect = false
+        c.ok("text.insert" (k.runCommand("text.insert" "one two three")))
+        c.eqStr("  types" (TypingTest.text(k 0)) "one two three")
+        k.runCommand("text.deleteWordBack" "")
+        c.eqStr("text.deleteWordBack" (TypingTest.text(k 0)) "one two ")
+        k.runCommand("caret.home" "")
+        c.eqInt("caret.home" (TypingTest.caretOff(k)) 0)
+        k.runCommand("text.deleteWordForward" "")
+        c.eqStr("text.deleteWordForward" (TypingTest.text(k 0)) "two ")
+        k.runCommand("caret.end" "")
+        c.eqInt("caret.end" (TypingTest.caretOff(k)) 4)
+        k.runCommand("caret.wordLeft" "")
+        c.eqInt("caret.wordLeft" (TypingTest.caretOff(k)) 0)
+        k.runCommand("caret.wordRight" "")
+        c.eqInt("caret.wordRight" (TypingTest.caretOff(k)) 4)
+        k.runCommand("text.backspace" "")
+        c.eqStr("text.backspace" (TypingTest.text(k 0)) "two")
+        k.runCommand("caret.home" "")
+        k.runCommand("text.delete" "")
+        c.eqStr("text.delete" (TypingTest.text(k 0)) "wo")
+        k.runCommand("caret.end" "")
+        k.runCommand("text.lineBreak" "")
+        k.runCommand("text.insert" "x")
+        c.eqStr("text.lineBreak" (TypingTest.text(k 0)) "wo\nx")
+        k.runCommand("text.newParagraph" "")
+        k.runCommand("text.insert" "Second. Third one.")
+        c.eqInt("text.newParagraph" (TypingTest.count(k)) 2)
+        k.runCommand("caret.docStart" "")
+        c.ok("caret.docStart" (((TypingTest.caretPid(k)) == (TypingTest.pid(k 0))) && ((TypingTest.caretOff(k)) == 0)))
+        k.runCommand("caret.docEnd" "")
+        c.ok("caret.docEnd" (((TypingTest.caretPid(k)) == (TypingTest.pid(k 1))) && ((TypingTest.caretOff(k)) == 18)))
+        k.runCommand("caret.paraUp" "")
+        c.ok("caret.paraUp: the paragraph start" (((TypingTest.caretPid(k)) == (TypingTest.pid(k 1))) && ((TypingTest.caretOff(k)) == 0)))
+        k.runCommand("caret.paraUp" "")
+        c.eqInt("  then the paragraph before" (TypingTest.caretPid(k)) (TypingTest.pid(k 0)))
+        k.runCommand("caret.paraDown" "")
+        c.eqInt("caret.paraDown" (TypingTest.caretPid(k)) (TypingTest.pid(k 1)))
+        c.ok("caret.pageDown runs" (k.runCommand("caret.pageDown" "")))
+        c.ok("caret.pageUp runs" (k.runCommand("caret.pageUp" "")))
+        k.viewer.edit.setCaret((TypingTest.pid(k 1)) 10)
+        k.runCommand("select.word" "")
+        c.eqStr("select.word" (k.viewer.copySelection()) "Third")
+        k.runCommand("select.sentence" "")
+        c.eqStr("select.sentence" (k.viewer.copySelection()) "Third one.")
+        k.viewer.edit.setCaret((TypingTest.pid(k 1)) 2)
+        k.runCommand("select.sentence" "")
+        c.eqStr("  with the space after it" (k.viewer.copySelection()) "Second. ")
+        k.runCommand("select.paragraph" "")
+        c.eqStr("select.paragraph" (k.viewer.copySelection()) "Second. Third one.")
+        k.runCommand("para.moveUp" "")
+        c.eqStr("para.moveUp" (TypingTest.text(k 0)) "Second. Third one.")
+        k.runCommand("para.moveDown" "")
+        c.eqStr("para.moveDown" (TypingTest.text(k 1)) "Second. Third one.")
+        k.runCommand("outline.moveUp" "")
+        c.eqStr("outline.moveUp" (TypingTest.text(k 0)) "Second. Third one.")
+        k.runCommand("outline.moveDown" "")
+        c.eqStr("outline.moveDown" (TypingTest.text(k 1)) "Second. Third one.")
+        k.runCommand("outline.promoteToHeading1" "")
+        c.eqStr("outline.promoteToHeading1" (TypingTest.style(k 1)) "Heading1")
+        k.runCommand("para.demote" "")
+        c.eqStr("para.demote" (TypingTest.style(k 1)) "Heading2")
+        k.runCommand("outline.demote" "")
+        c.eqStr("outline.demote" (TypingTest.style(k 1)) "Heading3")
+        k.runCommand("para.promote" "")
+        c.eqStr("para.promote" (TypingTest.style(k 1)) "Heading2")
+        k.runCommand("outline.promote" "")
+        c.eqStr("outline.promote" (TypingTest.style(k 1)) "Heading1")
+        k.runCommand("outline.demoteToBody" "")
+        c.eqStr("outline.demoteToBody" (TypingTest.style(k 1)) "Normal")
+        k.runCommand("caret.end" "")
+        k.runCommand("text.insert" " 2192")
+        k.runCommand("text.toggleUnicode" "")
+        c.eqStr("text.toggleUnicode" (TypingTest.text(k 1)) "Second. Third one. →")
+
+        print ""
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        } {
+            print "FAILURES"
+        }
+    }
+}

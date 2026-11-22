@@ -14,6 +14,7 @@ use crate::docx_layout::LaidLineKind;
 use crate::docx_layout::LaidPage;
 use crate::docx_para_format::DocxParaFormat;
 use crate::docx_text_metrics::DocxTextMetrics;
+use crate::docx_typing::DocxTyping;
 use crate::rgr::DxNative;
 use crate::rich_document_edit::RichDocumentEdit;
 use crate::word_numbering::WordNumbering;
@@ -76,6 +77,18 @@ pub struct DocxEditController {
     painterPara: Rc<RefCell<Paragraph>>,
     /// The document's lists, for the list buttons to put paragraphs in.
     pub numbering: Rc<RefCell<WordNumbering>>,
+    /// The document's styles, for the paragraph changes typing makes (a list
+    /// AutoFormat, leaving a list).
+    pub resolver: Rc<RefCell<WordStyleResolver>>,
+    /// AutoCorrect and AutoFormat as you type (Word's defaults: on).
+    pub autoCorrect: bool,
+    pub autoFormat: bool,
+    /// The paragraph whose list number the last Backspace took off: the next
+    /// Backspace at its start makes it a plain paragraph instead of joining.
+    pub numberRemovedPid: i64,
+    /// Set while keys are typing, so typed text and only typed text joins the
+    /// undo step before it.
+    pub typingNow: bool,
 }
 
 impl DocxEditController {
@@ -108,6 +121,11 @@ impl DocxEditController {
             painterSpan: Rc::new(RefCell::new(TextSpan::new())),
             painterPara: Rc::new(RefCell::new(Paragraph::new())),
             numbering: Rc::new(RefCell::new(WordNumbering::new())),
+            resolver: Rc::new(RefCell::new(WordStyleResolver::new())),
+            autoCorrect: true,
+            autoFormat: true,
+            numberRemovedPid: 0,
+            typingNow: false,
         }
     }
     pub fn intOr(s: &str, fallback: i64) -> i64 {
@@ -462,18 +480,41 @@ impl DocxEditController {
         if !DocumentRange::sameParagraph(&self.sel) {
             return;
         }
+        self.numberRemovedPid = 0;
+        // Typing over a selection is ONE step: the first undo brings the
+        // selected text back, still selected.
+        let mut typed_over: bool = false;
         if !DocumentRange::isCollapsed(&self.sel) {
+            self.beginAction();
+            typed_over = true;
             self.deleteSelection();
         }
         let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
         let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        let n_text: i64 = DxNative::str_len(&text);
+        // Uninterrupted typing is one undo step: a keystroke that follows the
+        // last typed text exactly grows that op instead of adding one.
+        let mut merged: bool = false;
+        if self.typingNow && !typed_over && !self.suppressUndo && self.history.borrow().canUndo() && !self.history.borrow().canRedo() {
+            let mut top: Rc<RefCell<DocEditOp>> = self.history.borrow().peekUndo();
+            let top_end: i64 = top.borrow().start + (DxNative::str_len(&top.borrow().newText));
+            if top.borrow().kind == 0 && top.borrow().secondId == -7 && top.borrow().paragraphId == pid && top.borrow().oldText.is_empty() && top_end == off {
+                let grown: String = format!("{}{}", top.borrow().newText, text);
+                top.borrow_mut().newText = grown;
+                top.borrow_mut().end = off + n_text;
+                merged = true;
+            }
+        }
         let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
         op.borrow_mut().kind = 0;
         op.borrow_mut().paragraphId = pid;
         op.borrow_mut().start = off;
-        op.borrow_mut().end = off + (DxNative::str_len(&text));
+        op.borrow_mut().end = off + n_text;
         op.borrow_mut().oldText = String::new();
         op.borrow_mut().newText = text.clone();
+        if self.typingNow {
+            op.borrow_mut().secondId = -7;
+        }
         self.adapter.clone().borrow().replaceRange(pid, off, off, &text);
         let up_to: i64 = off + (DxNative::str_len(&text));
         if self.typingBold {
@@ -498,8 +539,21 @@ impl DocxEditController {
             let mut _tmp_3091 = self.typingHighlight.clone();
             self.adapter.clone().borrow().applyRun(pid, off, up_to, "highlight", true, 0.0, _tmp_3091);
         }
-        self.pushUndo(op.clone());
-        self.setCaret(pid, off + (DxNative::str_len(&text)));
+        // A link covers only its own text: typing at either end of it is
+        // not linked, typing inside it is.
+        let link_in: String = self.linkAt(pid, off);
+        if !link_in.is_empty() {
+            if self.linkAt(pid, off - 1) != link_in || self.linkAt(pid, up_to) != link_in {
+                self.adapter.clone().borrow().applyRun(pid, off, up_to, "link", false, 0.0, String::new());
+            }
+        }
+        if !merged {
+            self.pushUndo(op.clone());
+        }
+        if typed_over {
+            self.endAction();
+        }
+        self.setCaret(pid, off + n_text);
     }
     pub fn backspace(&mut self) {
         if !self.isActive() {
@@ -526,6 +580,37 @@ impl DocxEditController {
             self.adapter.clone().borrow().replaceRange(pid, off - 1, off, "");
             self.pushUndo(op.clone());
             self.setCaret(pid, off - 1);
+            return;
+        }
+        // At the start of a list item: the first Backspace takes the number
+        // off and keeps the indent, the second makes it a plain paragraph.
+        // Neither joins it to the paragraph above.
+        if self.adapter.borrow().paragraphExists(pid) {
+            let mut lp: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+            if lp.borrow().listNumId > 0 {
+                let before: String = DocxParaFormat::snapshot(&lp);
+                lp.borrow_mut().listNumId = 0;
+                lp.borrow_mut().listKind = 0;
+                lp.borrow_mut().listLevel = 0;
+                lp.borrow_mut().listFmt = String::new();
+                lp.borrow_mut().listText = String::new();
+                self.paraOp(pid, before);
+                RichDocument::touch(&self.adapter.borrow().doc.clone());
+                self.numberRemovedPid = pid;
+                return;
+            }
+            if self.numberRemovedPid == pid {
+                let before2: String = DocxParaFormat::snapshot(&lp);
+                self.toBodyText(&lp);
+                self.paraOp(pid, before2);
+                RichDocument::touch(&self.adapter.borrow().doc.clone());
+                self.numberRemovedPid = 0;
+                return;
+            }
+        }
+        // At the very start of the document there is nothing to join: no
+        // edit, no undo step, the redo stack kept.
+        if self.adapter.borrow().bodyOrderOf(pid) == 0 {
             return;
         }
         let mut dest: Rc<RefCell<DocumentPosition>> = self.adapter.borrow_mut().mergePrevious(pid);
@@ -577,22 +662,20 @@ impl DocxEditController {
         // Word: Enter on an empty list item ends the list instead of adding
         // another empty bullet, so there is a way out of a list from the keyboard.
         let mut cur: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        self.numberRemovedPid = 0;
         if cur.borrow().listNumId > 0 {
             if cur.borrow().text.is_empty() {
-                let mut op0: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
-                op0.borrow_mut().kind = DocEditKind::listEnd();
-                op0.borrow_mut().paragraphId = pid;
-                op0.borrow_mut().start = cur.borrow().listNumId;
-                op0.borrow_mut().end = cur.borrow().listLevel;
-                op0.borrow_mut().newText = cur.borrow().listFmt.clone();
-                op0.borrow_mut().oldText = cur.borrow().listText.clone();
-                op0.borrow_mut().secondId = cur.borrow().listKind;
-                self.pushUndo(op0.clone());
-                cur.borrow_mut().listNumId = 0;
-                cur.borrow_mut().listKind = 0;
-                cur.borrow_mut().listLevel = 0;
-                cur.borrow_mut().listFmt = String::new();
-                cur.borrow_mut().listText = String::new();
+                // A nested item moves up a level first; only a top-level one
+                // leaves the list, and it leaves no list indent behind.
+                let before: String = DocxParaFormat::snapshot(&cur);
+                if cur.borrow().listLevel > 0 {
+                    let lv: i64 = cur.borrow().listLevel - 1;
+                    cur.borrow_mut().listLevel = lv;
+                    self.numbering.clone().borrow().applyToParagraph(&cur);
+                } else {
+                    self.toBodyText(&cur);
+                }
+                self.paraOp(pid, before);
                 RichDocument::touch(&self.adapter.borrow().doc.clone());
                 return;
             }
@@ -2503,6 +2586,550 @@ impl DocxEditController {
         let mut p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
         return p.borrow().align;
     }
+    /// --- typing: AutoFormat, AutoCorrect, the Alt keys ----------------------
+    /// The link on the character at `off`, or "".
+    pub fn linkAt(&self, pid: i64, off: i64) -> String {
+        if off < 0 || !self.adapter.borrow().paragraphExists(pid) {
+            return String::new();
+        }
+        let p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        let mut i: i64 = 0;
+        while i < (p.borrow().spans.len() as i64) {
+            let sp: Rc<RefCell<TextSpan>> = p.borrow().spans[i as usize].clone();
+            if off >= sp.borrow().start && off < sp.borrow().end {
+                return sp.borrow().hyperlink.clone();
+            }
+            i += 1;
+        }
+        String::new()
+    }
+    /// A paragraph format change as one undo op, from the snapshot taken
+    /// before it.
+    fn paraOp(&self, pid: i64, before: String) {
+        if !self.adapter.borrow().paragraphExists(pid) {
+            return;
+        }
+        let mut p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        let after: String = DocxParaFormat::snapshot(&p);
+        if after == before {
+            return;
+        }
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = DocxParaFormat::opKind();
+        op.borrow_mut().paragraphId = pid;
+        op.borrow_mut().oldText = before.clone();
+        op.borrow_mut().newText = after.clone();
+        self.pushUndo(op.clone());
+    }
+    /// Out of a list and back to body text: List Paragraph becomes Normal,
+    /// and the indent is the style's again.
+    fn toBodyText(&self, p: &Rc<RefCell<Paragraph>>) {
+        if p.borrow().styleId == "ListParagraph" {
+            DocxParaFormat::applyStyle(p, "Normal".to_string(), &self.resolver.clone());
+        }
+        DocxParaFormat::leaveList(p, &self.resolver.clone());
+    }
+    /// Text replaced inside one paragraph as its own undo step, the caret
+    /// kept where it was relative to the text after the change.
+    fn replaceAsFix(&mut self, pid: i64, a: i64, b: i64, nw: &str) {
+        let text: String = self.adapter.borrow().getText(pid);
+        let old: String = DxNative::substr(&text, a, b);
+        if old == nw {
+            return;
+        }
+        let caret_off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = 0;
+        op.borrow_mut().paragraphId = pid;
+        op.borrow_mut().start = a;
+        op.borrow_mut().end = a + (DxNative::str_len(&nw));
+        op.borrow_mut().oldText = old.clone();
+        op.borrow_mut().newText = nw.to_string();
+        self.adapter.clone().borrow().replaceRange(pid, a, b, nw);
+        self.pushUndo(op.clone());
+        let mut c: i64 = caret_off;
+        if caret_off >= b {
+            c = caret_off + (DxNative::str_len(&nw)) - (b - a);
+        }
+        self.setCaret(pid, c);
+    }
+    /// Keys typed rather than pasted: the text goes in, joins the typing
+    /// before it in one undo step, and AutoFormat / AutoCorrect look at it.
+    pub fn typeText(&mut self, text: String) {
+        self.typingNow = true;
+        self.insertText(text.clone());
+        self.typingNow = false;
+        self.afterTyping(&text);
+    }
+    pub fn afterTyping(&mut self, text: &str) {
+        if !self.isActive() || !DocumentRange::isCollapsed(&self.sel) {
+            return;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        if !self.adapter.borrow().paragraphExists(pid) {
+            return;
+        }
+        let ptext: String = self.adapter.borrow().getText(pid);
+        if text == " " && self.autoFormat {
+            if self.listAutoFormat(pid, off, &ptext) {
+                return;
+            }
+        }
+        if !self.autoCorrect {
+            return;
+        }
+        if text == ")" || text == "(" || text == "|" {
+            let before: String = DxNative::substr(&ptext, 0, off);
+            let k: i64 = DocxTyping::smileyLength(&before);
+            if k > 0 {
+                let face: String = DocxTyping::smiley(&DxNative::substr(&before, off - k, off));
+                self.replaceAsFix(pid, off - k, off, &face);
+            }
+            return;
+        }
+        if DocxTyping::isTrigger(text) {
+            // `a.` or `i)` at the start of a paragraph may be a list about to
+            // start: not a sentence to capitalise yet.
+            let mut list_start: bool = false;
+            if off <= 3 && (text == "." || text == ")") {
+                let lp: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+                if lp.borrow().listNumId <= 0 && !DocxTyping::listLook(&DxNative::substr(&ptext, 0, off)).is_empty() {
+                    list_start = true;
+                }
+            }
+            if !list_start {
+                self.autoCorrectBefore(pid, off - (DxNative::str_len(&text)));
+            }
+        }
+    }
+    /// Enter finishes a word too.
+    pub fn autoCorrectAtCaret(&mut self) {
+        if !self.autoCorrect || !self.isActive() || !DocumentRange::isCollapsed(&self.sel) {
+            return;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        if self.adapter.borrow().paragraphExists(pid) {
+            // Only a word the caret is at the end of is finished by Enter.
+            let t: String = self.adapter.borrow().getText(pid);
+            if off < (DxNative::str_len(&t)) && !DocxTyping::isSpace(DxNative::char_at(&t, off)) {
+                return;
+            }
+            self.autoCorrectBefore(pid, off);
+        }
+    }
+    /// The word that ends at `end` in paragraph `pid` has just been finished.
+    fn autoCorrectBefore(&mut self, pid: i64, end: i64) {
+        if end <= 0 {
+            return;
+        }
+        let ptext: String = self.adapter.borrow().getText(pid);
+        let before: String = DxNative::substr(&ptext, 0, end);
+        let ws: i64 = DocxTyping::wordStart(&before);
+        let token_end: i64 = DxNative::str_len(&before);
+        if ws >= token_end {
+            return;
+        }
+        let token: String = DxNative::substr(&before, ws, token_end);
+        let we: i64 = DocxTyping::wordEnd(&before, ws);
+        // A web address becomes a link: the whole token but its closing
+        // punctuation, and nothing typed after it.
+        let url: String = DxNative::substr(&before, ws, we);
+        if DocxTyping::isWebAddress(&url) {
+            let mut target: String = url.clone();
+            if DxNative::index_of(&url, "www.") == 0 {
+                target = format!("http://{}", url);
+            }
+            let mut lp: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+            let snap: String = DocxParaFormat::snapshot(&lp);
+            self.adapter.clone().borrow().applyRun(pid, ws, we, "link", true, 0.0, target);
+            self.paraOp(pid, snap);
+            return;
+        }
+        // `(c)` keeps its brackets in the token; other words lose them.
+        let whole: String = DocxTyping::replacement(&token);
+        if !whole.is_empty() && DxNative::index_of(&token, "(") == 0 {
+            self.replaceAsFix(pid, ws, token_end, &whole);
+            return;
+        }
+        if we <= ws {
+            return;
+        }
+        let word: String = DxNative::substr(&before, ws, we);
+        let sentence: bool = DocxTyping::startsSentence(&ptext, ws);
+        let fixed: String = DocxTyping::fixWord(&word, sentence);
+        if !fixed.is_empty() {
+            self.replaceAsFix(pid, ws, we, &fixed);
+            return;
+        }
+        let suf: i64 = DocxTyping::ordinalSuffix(&word);
+        if suf > 0 {
+            let mut op_p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+            let snap2: String = DocxParaFormat::snapshot(&op_p);
+            self.adapter.clone().borrow().applyRun(pid, we - suf, we, "super", true, 0.0, String::new());
+            self.paraOp(pid, snap2);
+        }
+    }
+    /// `* ` `1. ` `a) ` … at the start of a paragraph: the paragraph becomes
+    /// a list item, a new list each time, and the characters go. Undo right
+    /// after it brings the characters back as text.
+    fn listAutoFormat(&mut self, pid: i64, off: i64, ptext: &str) -> bool {
+        if off < 2 || off > 3 {
+            return false;
+        }
+        if DxNative::char_at(&ptext, off - 1) != 32 {
+            return false;
+        }
+        let mut p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        if p.borrow().listNumId > 0 {
+            return false;
+        }
+        let prefix: String = DxNative::substr(&ptext, 0, off - 1);
+        let look: String = DocxTyping::listLook(&prefix);
+        if look.is_empty() {
+            return false;
+        }
+        self.beginAction();
+        let old: String = DxNative::substr(&ptext, 0, off);
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = 0;
+        op.borrow_mut().paragraphId = pid;
+        op.borrow_mut().start = 0;
+        op.borrow_mut().end = 0;
+        op.borrow_mut().oldText = old.clone();
+        op.borrow_mut().newText = String::new();
+        self.adapter.clone().borrow().replaceRange(pid, 0, off, "");
+        self.pushUndo(op.clone());
+        let before: String = DocxParaFormat::snapshot(&p);
+        let num: i64 = self.numbering.borrow_mut().newList(&look);
+        p.borrow_mut().listNumId = num;
+        p.borrow_mut().listLevel = 0;
+        self.numbering.clone().borrow().applyToParagraph(&p);
+        let st: String = p.borrow().styleId.clone();
+        if st.is_empty() || st == "Normal" {
+            if DocxParaFormat::hasStyle(&self.resolver.clone(), "ListParagraph") {
+                DocxParaFormat::applyStyle(&p, "ListParagraph".to_string(), &self.resolver.clone());
+                self.numbering.clone().borrow().applyToParagraph(&p);
+            }
+        }
+        self.paraOp(pid, before);
+        self.endAction();
+        RichDocument::touch(&self.adapter.borrow().doc.clone());
+        self.setCaret(pid, 0);
+        true
+    }
+    /// Shift+Enter: a line break inside the paragraph.
+    pub fn insertLineBreak(&mut self) {
+        self.insertText("\n".to_string());
+    }
+    /// Alt+X: the hex code before the caret (or selected) becomes its
+    /// character; otherwise the character before the caret becomes its code.
+    pub fn toggleUnicode(&mut self) -> bool {
+        if !self.isActive() || !DocumentRange::sameParagraph(&self.sel) {
+            return false;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let a: i64 = DocumentRange::startOffset(&self.sel);
+        let b: i64 = DocumentRange::endOffset(&self.sel);
+        let text: String = self.adapter.borrow().getText(pid);
+        let before: String = DxNative::substr(&text, 0, b);
+        let hx: Vec<i64> = DocxTyping::hexBefore(&before);
+        if hx[0] > 0 && (a == b || b - a == hx[0]) {
+            let ch: String = DocxTyping::charOf(hx[1]);
+            self.setCaret(pid, b);
+            self.replaceAsFix(pid, b - hx[0], b, &ch);
+            return true;
+        }
+        if b <= 0 {
+            return false;
+        }
+        let code: i64 = DxNative::char_at(&text, b - 1);
+        let mut take: i64 = 1;
+        let mut cp: i64 = code;
+        // A pair of UTF-16 halves is one character (JavaScript strings).
+        if code >= 56320 && code <= 57343 && b >= 2 {
+            let hi: i64 = DxNative::char_at(&text, b - 2);
+            if hi >= 55296 && hi <= 56319 {
+                cp = 65536 + (hi - 55296) * 1024 + (code - 56320);
+                take = 2;
+            }
+        }
+        let hex: String = DocxTyping::hexOf(cp);
+        self.setCaret(pid, b);
+        self.replaceAsFix(pid, b - take, b, &hex);
+        true
+    }
+    /// The block range [first, last] of the body paragraphs the selection
+    /// touches, or [-1, -1]. A selection ending at the start of a paragraph
+    /// does not take that paragraph along.
+    fn selectedBlockRange(&self) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::new();
+        let mut s_out: Vec<i64> = Vec::new();
+        let mut e_out: Vec<i64> = Vec::new();
+        self.orderedEnds(&mut s_out, &mut e_out);
+        let mut f: i64 = self.adapter.borrow().blockIndexOfParagraph(s_out[0]);
+        let mut l: i64 = self.adapter.borrow().blockIndexOfParagraph(e_out[0]);
+        if l > f && e_out[1] == 0 {
+            l = self.adapter.borrow().blockIndexOfParagraph(self.adapter.borrow().bodyParagraphIdAt(self.adapter.borrow().bodyOrderOf(e_out[0]) - 1));
+        }
+        if f < 0 || l < 0 {
+            f = -1;
+            l = -1;
+        }
+        out.push(f);
+        out.push(l);
+        out
+    }
+    fn swapBlocks(&self, i: i64, j: i64) {
+        let x: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&self.adapter.borrow().doc, i);
+        let y: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&self.adapter.borrow().doc, j);
+        self.adapter.borrow().doc.borrow_mut().blocks[i as usize] = y;
+        self.adapter.borrow().doc.borrow_mut().blocks[j as usize] = x;
+    }
+    /// The block at `from` moves to `to`, the ones between shifting by one.
+    fn rotateBlock(&self, from: i64, to: i64) {
+        let mut i: i64 = from;
+        while i < to {
+            self.swapBlocks(i, i + 1);
+            i += 1;
+        }
+        while i > to {
+            self.swapBlocks(i, i - 1);
+            i -= 1;
+        }
+        RichDocument::touch(&self.adapter.borrow().doc.clone());
+    }
+    fn isParaBlock(&self, bi: i64) -> bool {
+        if bi < 0 || bi >= RichDocument::blockCount(&self.adapter.borrow().doc) {
+            return false;
+        }
+        let b: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&self.adapter.borrow().doc, bi);
+        let k: i64 = b.borrow().kind;
+        let syn: bool = b.borrow().synthetic;
+        k == 0 && !syn
+    }
+    /// Paragraphs moved (Alt+Shift+Up / Down). 40 and 41 are DocxParaFormat's.
+    pub fn moveKind() -> i64 {
+        42
+    }
+    /// Alt+Shift+Up / Down: the paragraphs the selection touches swap with
+    /// the paragraph above / below, as one undo step. Refused at the ends of
+    /// the body, next to a table or a break.
+    pub fn moveParagraphs(&mut self, up: bool) -> bool {
+        if !self.isActive() {
+            return false;
+        }
+        let r: Vec<i64> = self.selectedBlockRange();
+        let f: i64 = r[0];
+        let l: i64 = r[1];
+        if f < 0 {
+            return false;
+        }
+        let mut k: i64 = f;
+        while k <= l {
+            if !self.isParaBlock(k) {
+                return false;
+            }
+            k += 1;
+        }
+        let nb: i64 = if up { f - 1 } else { l + 1 };
+        if !self.isParaBlock(nb) {
+            return false;
+        }
+        if up {
+            self.rotateBlock(f - 1, l);
+        } else {
+            self.rotateBlock(l + 1, f);
+        }
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = DocxEditController::moveKind();
+        op.borrow_mut().start = f;
+        op.borrow_mut().end = l;
+        op.borrow_mut().secondId = if up { -1 } else { 1 };
+        self.pushUndo(op.clone());
+        true
+    }
+    /// Alt+Shift+Left / Right: Promote / Demote. A heading goes up or down a
+    /// level (Heading 1 and Heading 9 are the ends); body text promoted takes
+    /// the level of the heading before it; a list item changes level.
+    pub fn promote(&mut self, up: bool) -> bool {
+        if !self.isActive() {
+            return false;
+        }
+        let mut ids: Vec<i64> = Vec::new();
+        self.selectedParagraphIds(&mut ids);
+        if ids.is_empty() {
+            return false;
+        }
+        self.beginAction();
+        let mut i: i64 = 0;
+        while i < (ids.len() as i64) {
+            let pid: i64 = ids[i as usize];
+            let mut p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+            let before: String = DocxParaFormat::snapshot(&p);
+            let lvl: i64 = DocxEditController::headingLevel(&p.borrow().styleId.clone());
+            if p.borrow().listNumId > 0 && lvl == 0 {
+                let mut nl: i64 = p.borrow().listLevel + if up { -1 } else { 1 };
+                if nl < 0 {
+                    nl = 0;
+                }
+                if nl > 8 {
+                    nl = 8;
+                }
+                p.borrow_mut().listLevel = nl;
+                self.numbering.clone().borrow().applyToParagraph(&p);
+            } else {
+                if lvl > 0 {
+                    let mut nl2: i64 = lvl + if up { -1 } else { 1 };
+                    if nl2 < 1 {
+                        nl2 = 1;
+                    }
+                    if nl2 > 9 {
+                        nl2 = 9;
+                    }
+                    DocxParaFormat::applyStyle(&p, format!("Heading{}", nl2), &self.resolver.clone());
+                } else {
+                    if up {
+                        let at: i64 = self.headingLevelBefore(pid);
+                        DocxParaFormat::applyStyle(&p, format!("Heading{}", if at > 0 { at } else { 1 }), &self.resolver.clone());
+                    }
+                }
+            }
+            self.paraOp(pid, before);
+            i += 1;
+        }
+        self.endAction();
+        RichDocument::touch(&self.adapter.borrow().doc.clone());
+        true
+    }
+    pub fn headingLevel(style_id: &str) -> i64 {
+        let s: String = style_id.to_lowercase();
+        if DxNative::index_of(&s, "heading") != 0 || (DxNative::str_len(&s)) != 8 {
+            return 0;
+        }
+        let c: i64 = DxNative::char_at(&s, 7) - 48;
+        if c >= 1 && c <= 9 {
+            return c;
+        }
+        0
+    }
+    fn headingLevelBefore(&self, pid: i64) -> i64 {
+        let mut o: i64 = self.adapter.borrow().bodyOrderOf(pid) - 1;
+        while o >= 0 {
+            let q: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(self.adapter.borrow().bodyParagraphIdAt(o));
+            let l: i64 = DocxEditController::headingLevel(&q.borrow().styleId.clone());
+            if l > 0 {
+                return l;
+            }
+            o -= 1;
+        }
+        0
+    }
+    /// Ctrl+Backspace / Ctrl+Delete: the word before / after the caret.
+    pub fn deleteWord(&mut self, forward: bool) {
+        if !self.isActive() {
+            return;
+        }
+        if !DocumentRange::isCollapsed(&self.sel) {
+            self.deleteSelection();
+            return;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        let text: String = self.adapter.borrow().getText(pid);
+        let n: i64 = DxNative::str_len(&text);
+        if forward {
+            if off >= n {
+                self.deleteForward();
+                return;
+            }
+            let at: i64 = OfficeCaretMotion::wordRight(&text, off);
+            if at > off {
+                self.setRange(pid, off, at);
+                self.deleteSelection();
+            }
+            return;
+        }
+        if off <= 0 {
+            self.backspace();
+            return;
+        }
+        let at2: i64 = OfficeCaretMotion::wordLeft(&text, off);
+        if at2 < off {
+            self.setRange(pid, at2, off);
+            self.deleteSelection();
+        }
+    }
+    /// Ctrl+Up / Ctrl+Down: the start of this paragraph (or the one before
+    /// when the caret is at its start) / the start of the next one.
+    pub fn moveParagraphEdge(&mut self, down: bool, extend: bool) {
+        if !self.isActive() {
+            return;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        let o: i64 = self.adapter.borrow().bodyOrderOf(pid);
+        if o < 0 {
+            return;
+        }
+        let count: i64 = self.adapter.borrow().bodyParagraphCount();
+        if down {
+            if o + 1 < count {
+                self.placeCaret(self.adapter.borrow().bodyParagraphIdAt(o + 1), 0, extend);
+            } else {
+                self.placeCaret(pid, self.adapter.borrow().textLength(pid), extend);
+            }
+            return;
+        }
+        if off > 0 || o == 0 {
+            self.placeCaret(pid, 0, extend);
+            return;
+        }
+        self.placeCaret(self.adapter.borrow().bodyParagraphIdAt(o - 1), 0, extend);
+    }
+    pub fn selectParagraph(&mut self) {
+        if !self.isActive() {
+            return;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        self.setRange(pid, 0, self.adapter.borrow().textLength(pid));
+    }
+    /// The sentence around the caret, with the spaces after it.
+    pub fn selectSentence(&mut self) {
+        if !self.isActive() {
+            return;
+        }
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        let text: String = self.adapter.borrow().getText(pid);
+        let n: i64 = DxNative::str_len(&text);
+        let mut a: i64 = off;
+        while a > 0 {
+            let c: i64 = DxNative::char_at(&text, a - 1);
+            if DocxTyping::isSpace(c) && a >= 2 {
+                let p: i64 = DxNative::char_at(&text, a - 2);
+                if (p == 46 || p == 33 || p == 63) && DocxTyping::startsSentence(&text, a) {
+                    break;
+                }
+            }
+            a -= 1;
+        }
+        let mut b: i64 = off;
+        while b < n {
+            let c2: i64 = DxNative::char_at(&text, b);
+            b += 1;
+            if c2 == 46 || c2 == 33 || c2 == 63 {
+                if b >= n || DocxTyping::isSpace(DxNative::char_at(&text, b)) {
+                    break;
+                }
+            }
+        }
+        while b < n && DocxTyping::isSpace(DxNative::char_at(&text, b)) {
+            b += 1;
+        }
+        self.setRange(pid, a, b);
+    }
     /// --- undo and redo, which are ONE function with a direction ---------------
     ///
     /// They used to be two switches over `op.kind`, and they drifted: `undo`
@@ -2512,6 +3139,17 @@ impl DocxEditController {
     /// there. Written as one function that cannot happen: a kind is handled in
     /// both directions or in neither.
     fn applyOp(&mut self, op: &Rc<RefCell<DocEditOp>>, forward: bool) -> bool {
+        if op.borrow().kind == DocxEditController::moveKind() {
+            let f: i64 = op.borrow().start;
+            let l: i64 = op.borrow().end;
+            let up: bool = op.borrow().secondId < 0;
+            if up {
+                if forward { self.rotateBlock(f - 1, l); } else { self.rotateBlock(l, f - 1); }
+            } else {
+                if forward { self.rotateBlock(l + 1, f); } else { self.rotateBlock(f, l + 1); }
+            }
+            return true;
+        }
         if op.borrow().kind == DocxParaFormat::caseKind() {
             if self.adapter.borrow().paragraphExists(op.borrow().paragraphId.clone()) {
                 let mut cp: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(op.borrow().paragraphId.clone());
@@ -2556,7 +3194,12 @@ impl DocxEditController {
                 let arg_0 = op.borrow().start + (DxNative::str_len(&op.borrow().newText));
                 self.adapter.clone().borrow().replaceRange(_tmp_3457, _tmp_3458, arg_0, &_tmp_3459);
                 let mut _tmp_3461 = op.borrow().paragraphId.clone();
-                self.setCaret(_tmp_3461, op.borrow().start + (DxNative::str_len(&op.borrow().oldText)));
+                if op.borrow().newText.is_empty() && !op.borrow().oldText.is_empty() && op.borrow().secondId != -7 {
+                    // Undoing a deletion brings the text back selected, as Word does.
+                    self.setRange(_tmp_3461, op.borrow().start, op.borrow().start + (DxNative::str_len(&op.borrow().oldText)));
+                } else {
+                    self.setCaret(_tmp_3461, op.borrow().start + (DxNative::str_len(&op.borrow().oldText)));
+                }
             }
             return true;
         }

@@ -585,6 +585,38 @@ class DocxApp {
         commands.addArg("para.spacing" "Line spacing" "Format" "")
         commands.add("para.spaceBefore" "Space before paragraph" "Format" "")
         commands.add("para.spaceAfter" "Space after paragraph" "Format" "")
+        commands.add("file.new" "New document" "File" "Ctrl+N")
+        commands.addArg("text.insert" "Type text" "Edit" "")
+        commands.add("text.newParagraph" "New paragraph" "Edit" "Enter")
+        commands.add("text.lineBreak" "Line break" "Edit" "Shift+Enter")
+        commands.add("text.backspace" "Backspace" "Edit" "Backspace")
+        commands.add("text.delete" "Delete" "Edit" "Delete")
+        commands.add("text.deleteWordBack" "Delete previous word" "Edit" "Ctrl+Backspace")
+        commands.add("text.deleteWordForward" "Delete next word" "Edit" "Ctrl+Delete")
+        commands.add("text.toggleUnicode" "Toggle Unicode character" "Edit" "Alt+X")
+        commands.add("para.moveUp" "Move paragraph up" "Format" "Alt+Shift+Up")
+        commands.add("para.moveDown" "Move paragraph down" "Format" "Alt+Shift+Down")
+        commands.add("para.promote" "Promote" "Format" "Alt+Shift+Left")
+        commands.add("para.demote" "Demote" "Format" "Alt+Shift+Right")
+        commands.add("outline.moveUp" "Move up" "Format" "")
+        commands.add("outline.moveDown" "Move down" "Format" "")
+        commands.add("outline.promote" "Promote" "Format" "")
+        commands.add("outline.demote" "Demote" "Format" "")
+        commands.add("outline.promoteToHeading1" "Promote to Heading 1" "Format" "")
+        commands.add("outline.demoteToBody" "Demote to body text" "Format" "")
+        commands.add("caret.wordLeft" "Word left" "Edit" "Ctrl+Left")
+        commands.add("caret.wordRight" "Word right" "Edit" "Ctrl+Right")
+        commands.add("caret.home" "Line start" "Edit" "Home")
+        commands.add("caret.end" "Line end" "Edit" "End")
+        commands.add("caret.docStart" "Document start" "Edit" "Ctrl+Home")
+        commands.add("caret.docEnd" "Document end" "Edit" "Ctrl+End")
+        commands.add("caret.pageUp" "Page up" "Edit" "PageUp")
+        commands.add("caret.pageDown" "Page down" "Edit" "PageDown")
+        commands.add("caret.paraUp" "Paragraph up" "Edit" "Ctrl+Up")
+        commands.add("caret.paraDown" "Paragraph down" "Edit" "Ctrl+Down")
+        commands.add("select.word" "Select word" "Edit" "")
+        commands.add("select.sentence" "Select sentence" "Edit" "")
+        commands.add("select.paragraph" "Select paragraph" "Edit" "")
     }
 
     ; --- geometry -------------------------------------------------------------
@@ -706,6 +738,69 @@ class DocxApp {
         return false
     }
 
+    ; The keyboard's editing commands, by name: 1 = handled, 0 = not one of
+    ; them. Each does what its key does.
+    fn runEditing:int (id:string arg:string) {
+        def ed:DocxEditController viewer.edit
+        if (id == "text.insert") { viewer.typeText(arg) }
+        if (id == "text.newParagraph") { viewer.keyEnter() }
+        if (id == "text.lineBreak") { viewer.keyLineBreak() }
+        if (id == "text.backspace") { viewer.keyBackspace() }
+        if (id == "text.delete") { viewer.keyDelete() }
+        if (id == "text.deleteWordBack") { ed.deleteWord(false) }
+        if (id == "text.deleteWordForward") { ed.deleteWord(true) }
+        if (id == "text.toggleUnicode") { ed.toggleUnicode() }
+        if ((id == "para.moveUp") || (id == "outline.moveUp")) { ed.moveParagraphs(true) }
+        if ((id == "para.moveDown") || (id == "outline.moveDown")) { ed.moveParagraphs(false) }
+        if ((id == "para.promote") || (id == "outline.promote")) { ed.promote(true) }
+        if ((id == "para.demote") || (id == "outline.demote")) { ed.promote(false) }
+        if (id == "outline.promoteToHeading1") { ed.formatParagraphs("style" "Heading1" viewer.parser.resolver) }
+        if (id == "outline.demoteToBody") { ed.formatParagraphs("style" "Normal" viewer.parser.resolver) }
+        if (id == "caret.wordLeft") { viewer.keyWordLeft(false) }
+        if (id == "caret.wordRight") { viewer.keyWordRight(false) }
+        if (id == "caret.home") { viewer.keyHome(false false) }
+        if (id == "caret.end") { viewer.keyEnd(false false) }
+        if (id == "caret.docStart") { viewer.keyHome(false true) }
+        if (id == "caret.docEnd") { viewer.keyEnd(false true) }
+        if (id == "caret.pageUp") { viewer.keyPageUp(false) }
+        if (id == "caret.pageDown") { viewer.keyPageDown(false) }
+        if (id == "caret.paraUp") { ed.moveParagraphEdge(false false) }
+        if (id == "caret.paraDown") { ed.moveParagraphEdge(true false) }
+        if (id == "select.word") { ed.selectWord() }
+        if (id == "select.sentence") { ed.selectSentence() }
+        if (id == "select.paragraph") { ed.selectParagraph() }
+        def known:[string] (strsplit "text.insert text.newParagraph text.lineBreak text.backspace text.delete caret.wordLeft caret.wordRight caret.home caret.end caret.docStart caret.docEnd caret.pageUp caret.pageDown text.deleteWordBack text.deleteWordForward text.toggleUnicode para.moveUp para.moveDown para.promote para.demote outline.moveUp outline.moveDown outline.promote outline.demote outline.promoteToHeading1 outline.demoteToBody caret.paraUp caret.paraDown select.word select.sentence select.paragraph" " ")
+        def k:int 0
+        while (k < (array_length known)) {
+            if ((itemAt known k) == id) {
+                viewer.followCaret()
+                return 1
+            }
+            k = (k + 1)
+        }
+        return 0
+    }
+
+    ; Alt chords: Alt+Shift+arrows move, promote and demote paragraphs; Alt+X
+    ; toggles a Unicode character. The hosts that see Alt call this.
+    fn keyAlt:boolean (name:string shift:boolean) {
+        def ed:DocxEditController viewer.edit
+        def took:boolean false
+        if (name == "x") {
+            took = (ed.toggleUnicode())
+        }
+        if shift {
+            if (name == "up") { took = (ed.moveParagraphs(true)) }
+            if (name == "down") { took = (ed.moveParagraphs(false)) }
+            if (name == "left") { took = (ed.promote(true)) }
+            if (name == "right") { took = (ed.promote(false)) }
+        }
+        if took {
+            viewer.followCaret()
+        }
+        return took
+    }
+
     fn runCommand:boolean (id:string arg:string) {
         if (id == "file.save") {
             fileRequest = "saveAs"
@@ -723,6 +818,23 @@ class DocxApp {
         if (id == "file.open") {
             fileRequest = "open"
             return true
+        }
+        if (id == "file.new") {
+            def nd:RichDocument (RichDocument.new_())
+            def np:Paragraph (nd.addParagraph())
+            np.styleId = "Normal"
+            nd.title = "Document"
+            viewer.attachDocument(nd)
+            viewer.setEditMode(true)
+            viewer.edit.setCaret(np.id 0)
+            viewer.renderPage(0)
+            status = "edit"
+            return true
+        }
+        if ((strlen id) > 5) {
+            if ((this.runEditing(id arg)) == 1) {
+                return true
+            }
         }
         if (id == "edit.copy") {
             clipboardOut = (viewer.copySelection())
@@ -1731,24 +1843,87 @@ class DocxApp {
             viewer.edit.painterOff()
             return true
         }
-        if (name == "left")     {
-            if ctrl { viewer.keyWordLeft(shift) return true }
-            viewer.keyLeft(shift)   return true
+        if (name == "left") {
+            if ctrl {
+                viewer.keyWordLeft(shift)
+            } {
+                viewer.keyLeft(shift)
+            }
+            return true
         }
-        if (name == "right")    {
-            if ctrl { viewer.keyWordRight(shift) return true }
-            viewer.keyRight(shift)  return true
+        if (name == "right") {
+            if ctrl {
+                viewer.keyWordRight(shift)
+            } {
+                viewer.keyRight(shift)
+            }
+            return true
         }
-        if (name == "up")       { viewer.keyUp(shift)     return true }
-        if (name == "down")     { viewer.keyDown(shift)   return true }
-        if (name == "pageUp")   { viewer.keyPageUp(shift) return true }
-        if (name == "pageDown") { viewer.keyPageDown(shift) return true }
-        if (name == "home")     { viewer.keyHome(shift ctrl) return true }
-        if (name == "end")      { viewer.keyEnd(shift ctrl)  return true }
-        if (name == "backspace") { viewer.keyBackspace() return true }
-        if (name == "delete")    { viewer.keyDelete()    return true }
-        if (name == "enter")     { viewer.keyEnter()     return true }
-        if (name == "tab")       { viewer.keyTab(shift)  return true }
+        if (name == "up") {
+            if ctrl {
+                viewer.edit.moveParagraphEdge(false shift)
+                viewer.followCaret()
+            } {
+                viewer.keyUp(shift)
+            }
+            return true
+        }
+        if (name == "down") {
+            if ctrl {
+                viewer.edit.moveParagraphEdge(true shift)
+                viewer.followCaret()
+            } {
+                viewer.keyDown(shift)
+            }
+            return true
+        }
+        if (name == "pageUp") {
+            viewer.keyPageUp(shift)
+            return true
+        }
+        if (name == "pageDown") {
+            viewer.keyPageDown(shift)
+            return true
+        }
+        if (name == "home") {
+            viewer.keyHome(shift ctrl)
+            return true
+        }
+        if (name == "end") {
+            viewer.keyEnd(shift ctrl)
+            return true
+        }
+        if (name == "backspace") {
+            if ctrl {
+                return ((this.runEditing("text.deleteWordBack" "")) == 1)
+            }
+            viewer.keyBackspace()
+            return true
+        }
+        if (name == "delete")    {
+            if ctrl { return ((this.runEditing("text.deleteWordForward" "")) == 1) }
+            ; Shift+Delete cuts the selection, and does nothing without one.
+            if shift {
+                if ((strlen (viewer.copySelection())) > 0) {
+                    return (this.runCommand("edit.cut" ""))
+                }
+                return true
+            }
+            viewer.keyDelete()
+            return true
+        }
+        if (name == "enter") {
+            if shift {
+                viewer.keyLineBreak()
+            } {
+                viewer.keyEnter()
+            }
+            return true
+        }
+        if (name == "tab") {
+            viewer.keyTab(shift)
+            return true
+        }
         return false
     }
 
