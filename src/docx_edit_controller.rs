@@ -312,8 +312,8 @@ impl DocxEditController {
                 swap = true;
             }
         } else {
-            let ao: i64 = self.adapter.borrow().bodyOrderOf(a_pid);
-            let bo: i64 = self.adapter.borrow().bodyOrderOf(b_pid);
+            let ao: i64 = self.adapter.borrow().flowOrderOf(a_pid);
+            let bo: i64 = self.adapter.borrow().flowOrderOf(b_pid);
             if ao > bo {
                 swap = true;
             }
@@ -374,15 +374,15 @@ impl DocxEditController {
             }
             return DxNative::substr(&t, x0, x1);
         }
-        let s_order: i64 = self.adapter.borrow().bodyOrderOf(s_pid);
-        let e_order: i64 = self.adapter.borrow().bodyOrderOf(e_pid);
+        let s_order: i64 = self.adapter.borrow().flowOrderOf(s_pid);
+        let e_order: i64 = self.adapter.borrow().flowOrderOf(e_pid);
         if s_order < 0 || e_order < 0 {
             return String::new();
         }
         let mut out: String = String::new();
         let mut o: i64 = s_order;
         while o <= e_order {
-            let pid: i64 = self.adapter.borrow().bodyParagraphIdAt(o);
+            let pid: i64 = self.adapter.borrow().flowParagraphIdAt(o);
             let txt: String = self.adapter.borrow().getText(pid);
             let mut piece: String = txt.clone();
             if o == s_order {
@@ -424,8 +424,8 @@ impl DocxEditController {
         let s_off: i64 = a[1];
         let e_pid: i64 = b[0];
         let e_off: i64 = b[1];
-        let s_order: i64 = self.adapter.borrow().bodyOrderOf(s_pid);
-        let e_order: i64 = self.adapter.borrow().bodyOrderOf(e_pid);
+        let s_order: i64 = self.adapter.borrow().flowOrderOf(s_pid);
+        let e_order: i64 = self.adapter.borrow().flowOrderOf(e_pid);
         if s_order < 0 || e_order < 0 {
             return;
         }
@@ -443,7 +443,7 @@ impl DocxEditController {
         // whole paragraphs in between
         let mut o: i64 = s_order + 1;
         while o < e_order {
-            let mid_pid: i64 = self.adapter.borrow().bodyParagraphIdAt(o);
+            let mid_pid: i64 = self.adapter.borrow().flowParagraphIdAt(o);
             let _tmp_3058 = self.adapter.borrow().textLength(mid_pid);
             self.adapter.clone().borrow().replaceRange(mid_pid, 0, _tmp_3058, "");
             o += 1;
@@ -458,11 +458,18 @@ impl DocxEditController {
         let merges: i64 = e_order - s_order;
         let mut m: i64 = 0;
         while m < merges {
-            let next_pid: i64 = self.adapter.borrow().bodyParagraphIdAt(s_order + 1);
+            let next_pid: i64 = self.adapter.borrow().flowParagraphIdAt(s_order + 1);
             if next_pid <= 0 {
                 m = merges;
             } else {
-                self.adapter.clone().borrow_mut().mergePrevious(next_pid);
+                // a selection that runs out of a table cell (or into one)
+                // leaves the paragraphs of the other side emptied, not joined
+                let same: bool = self.adapter.borrow().containerOf(next_pid) == self.adapter.borrow().containerOf(s_pid);
+                if same {
+                    self.adapter.clone().borrow_mut().mergePrevious(next_pid);
+                } else {
+                    m = merges;
+                }
                 m += 1;
             }
         }
@@ -1173,14 +1180,14 @@ impl DocxEditController {
         let mut a: Vec<i64> = Vec::new();
         let mut b: Vec<i64> = Vec::new();
         self.orderedEnds(&mut a, &mut b);
-        let s_order: i64 = self.adapter.borrow().bodyOrderOf(a[0]);
-        let e_order: i64 = self.adapter.borrow().bodyOrderOf(b[0]);
+        let s_order: i64 = self.adapter.borrow().flowOrderOf(a[0]);
+        let e_order: i64 = self.adapter.borrow().flowOrderOf(b[0]);
         if s_order < 0 || e_order < 0 {
             return;
         }
         let mut o: i64 = s_order;
         while o <= e_order {
-            let pid: i64 = self.adapter.borrow().bodyParagraphIdAt(o);
+            let pid: i64 = self.adapter.borrow().flowParagraphIdAt(o);
             let __len: i64 = self.adapter.borrow().textLength(pid);
             let mut x0: i64 = 0;
             let mut x1: i64 = __len;
@@ -1213,15 +1220,15 @@ impl DocxEditController {
         let s_off: i64 = a[1];
         let e_pid: i64 = b[0];
         let e_off: i64 = b[1];
-        let s_order: i64 = self.adapter.borrow().bodyOrderOf(s_pid);
-        let e_order: i64 = self.adapter.borrow().bodyOrderOf(e_pid);
+        let s_order: i64 = self.adapter.borrow().flowOrderOf(s_pid);
+        let e_order: i64 = self.adapter.borrow().flowOrderOf(e_pid);
         if s_order < 0 || e_order < 0 {
             return;
         }
         let mut all_on: bool = true;
         let mut o: i64 = s_order;
         while o <= e_order {
-            let pid: i64 = self.adapter.borrow().bodyParagraphIdAt(o);
+            let pid: i64 = self.adapter.borrow().flowParagraphIdAt(o);
             let __len: i64 = self.adapter.borrow().textLength(pid);
             let mut x0: i64 = 0;
             let mut x1: i64 = __len;
@@ -1247,7 +1254,7 @@ impl DocxEditController {
         }
         let mut o2: i64 = s_order;
         while o2 <= e_order {
-            let pid2: i64 = self.adapter.borrow().bodyParagraphIdAt(o2);
+            let pid2: i64 = self.adapter.borrow().flowParagraphIdAt(o2);
             let len2: i64 = self.adapter.borrow().textLength(pid2);
             let mut y0: i64 = 0;
             let mut y1: i64 = len2;
