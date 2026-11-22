@@ -340,7 +340,28 @@ impl RichDocumentEdit {
             bi += 1;
         }
         if !found {
-            self.doc.borrow_mut().blocks.push(DocBlock::para(np.clone()));
+            // A paragraph in a table cell: the new one goes after it in the
+            // same cell. It used to be appended to the end of the document,
+            // so Enter in a cell sent the caret to the last page.
+            let at: Vec<i64> = self.tableCellOf(paragraph_id);
+            if at[0] >= 0 {
+                let t: Rc<RefCell<DocumentTable>> = self.tableAtBlock(at[0]);
+                let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
+                let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[at[2] as usize].clone();
+                let mut paras: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+                let mut ci: i64 = 0;
+                while ci < (cell.borrow().paragraphs.len() as i64) {
+                    let cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[ci as usize].clone();
+                    paras.push(cp.clone());
+                    if ci == at[3] {
+                        paras.push(np.clone());
+                    }
+                    ci += 1;
+                }
+                cell.borrow_mut().paragraphs = paras;
+            } else {
+                self.doc.borrow_mut().blocks.push(DocBlock::para(np.clone()));
+            }
         }
         return np.borrow().id;
     }
@@ -389,6 +410,69 @@ impl RichDocumentEdit {
             bi += 1;
         }
         0
+    }
+    /// --- flow order -----------------------------------------------------------
+    /// Every paragraph a reader passes, in reading order: the body's, and a
+    /// table's cell by cell, row by row. The body order above leaves cells out
+    /// (the caret's own flow), so a selection made inside a table had no order
+    /// to compare its ends by and was neither painted nor copied.
+    fn flowIds(&self) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::new();
+        let mut bi: i64 = 0;
+        while bi < RichDocument::blockCount(&self.doc) {
+            let b: Rc<RefCell<DocBlock>> = RichDocument::blockAt(&self.doc, bi);
+            if b.borrow().kind == DocBlockKind::para() {
+                out.push(b.borrow().paragraph.borrow().id);
+            }
+            if b.borrow().kind == DocBlockKind::table() {
+                let t: Rc<RefCell<DocumentTable>> = b.borrow().table.clone();
+                let mut ri: i64 = 0;
+                while ri < (t.borrow().rows.len() as i64) {
+                    let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[ri as usize].clone();
+                    let mut ci: i64 = 0;
+                    while ci < (row.borrow().cells.len() as i64) {
+                        let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[ci as usize].clone();
+                        let mut pi: i64 = 0;
+                        while pi < (cell.borrow().paragraphs.len() as i64) {
+                            let cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
+                            out.push(cp.borrow().id);
+                            pi += 1;
+                        }
+                        ci += 1;
+                    }
+                    ri += 1;
+                }
+            }
+            bi += 1;
+        }
+        out
+    }
+    pub fn flowOrderOf(&self, paragraph_id: i64) -> i64 {
+        let ids: Vec<i64> = self.flowIds();
+        let mut i: i64 = 0;
+        while i < (ids.len() as i64) {
+            if ids[i as usize] == paragraph_id {
+                return i;
+            }
+            i += 1;
+        }
+        -1
+    }
+    pub fn flowParagraphIdAt(&self, order: i64) -> i64 {
+        let ids: Vec<i64> = self.flowIds();
+        if order < 0 || order >= (ids.len() as i64) {
+            return 0;
+        }
+        ids[order as usize]
+    }
+    /// "body", or the cell "block,row,cell" a paragraph is in: two paragraphs
+    /// can be joined only when they are in the same one
+    pub fn containerOf(&self, paragraph_id: i64) -> String {
+        let at: Vec<i64> = self.tableCellOf(paragraph_id);
+        if at[0] < 0 {
+            return "body".to_string();
+        }
+        format!("{},{},{}", at[0], at[1], at[2])
     }
     /// --- table cells ----------------------------------------------------------
     /// Cell paragraphs are created with addParagraphOnly, so they are NOT body
@@ -755,10 +839,25 @@ impl RichDocumentEdit {
         if idx <= 0 {
             return fail;
         }
-        // Find previous paragraph that appears as a body block before this one
+        // A paragraph in a table cell joins the one before it in the same
+        // cell; the cell's first paragraph has nothing to join.
+        let at: Vec<i64> = self.tableCellOf(paragraph_id);
         let mut prev_id: i64 = 0;
         let mut bi: i64 = 0;
         let mut saw: bool = false;
+        if at[0] >= 0 {
+            if at[3] <= 0 {
+                return fail;
+            }
+            let t: Rc<RefCell<DocumentTable>> = self.tableAtBlock(at[0]);
+            let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
+            let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[at[2] as usize].clone();
+            let pp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[(at[3] - 1) as usize].clone();
+            prev_id = pp.borrow().id;
+            saw = true;
+            bi = RichDocument::blockCount(&self.doc);
+        }
+        // Find previous paragraph that appears as a body block before this one
         while bi < RichDocument::blockCount(&self.doc) {
             let mut b: Rc<RefCell<DocBlock>> = RichDocument::blockAt(&self.doc, bi);
             if b.borrow().kind == DocBlockKind::para() {
@@ -796,6 +895,21 @@ impl RichDocumentEdit {
             let a: i64 = join_at;
             let b_1: i64 = join_at + (DxNative::str_len(&joined));
             self.applyBold(prev_id, a, b_1, fmt.borrow().bold.clone());
+        }
+        if at[0] >= 0 {
+            let t: Rc<RefCell<DocumentTable>> = self.tableAtBlock(at[0]);
+            let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
+            let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[at[2] as usize].clone();
+            let mut kept: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+            let mut ci: i64 = 0;
+            while ci < (cell.borrow().paragraphs.len() as i64) {
+                let cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[ci as usize].clone();
+                if cp.borrow().id != paragraph_id {
+                    kept.push(cp.clone());
+                }
+                ci += 1;
+            }
+            cell.borrow_mut().paragraphs = kept;
         }
         // Remove cur from blocks + paragraphs
         let mut nb: Vec<Rc<RefCell<DocBlock>>> = Vec::new();
