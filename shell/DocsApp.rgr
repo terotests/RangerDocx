@@ -577,6 +577,19 @@ class DocsApp {
             this.item(tableMenu ("tb-" + (itemAt tsz ti)) ((itemAt d 0) + " rows × " + (itemAt d 1) + " columns") "insert.table" (itemAt tsz ti) "")
             ti = (ti + 1)
         }
+        ; Table Layout's commands, for the table the caret is in.
+        tableMenu.addSeparator()
+        def tl:[string] ([] _:string ("table.insertRowAbove|Insert row above|-" "table.insertRowBelow|Insert row below|-" "table.insertColumnLeft|Insert column left|-" "table.insertColumnRight|Insert column right|-" "table.deleteRow|Delete rows|-" "table.deleteColumn|Delete columns|-" "table.deleteTable|Delete table|-" "table.selectRow|Select row|-" "table.selectColumn|Select column|-" "table.selectTable|Select table|-" "table.merge|Merge cells|-" "table.split|Split cell in two|2" "table.splitTable|Split table|-" "table.distributeColumns|Distribute columns|-" "table.distributeRows|Distribute rows|-" "table.autofit|AutoFit to window|window" "table.cellAlign|Align centre|middle-center" "table.repeatHeader|Repeat header rows|-" "table.sort|Sort ascending|-" "table.toText|Convert to text|-" "table.fromText|Convert text to table|-"))
+        def tli:int 0
+        while (tli < (array_length tl)) {
+            def tp:[string] (strsplit (itemAt tl tli) "|")
+            def targ:string (itemAt tp 2)
+            if (targ == "-") {
+                targ = ""
+            }
+            this.item(tableMenu ("tl-" + (itemAt tp 0)) (itemAt tp 1) (itemAt tp 0) targ "")
+            tli = (tli + 1)
+        }
         this.ribbon(illusRb "dx-rb-illus" "Illustrations")
         this.missing(illusRb "picture" "Pictures" "picture")
         this.missing(illusRb "shapes" "Shapes" "shapes")

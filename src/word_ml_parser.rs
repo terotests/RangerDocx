@@ -473,6 +473,22 @@ impl WordMlParser {
                 row_base = base + tr;
                 row.borrow().source.borrow_mut().set("main".to_string(), row_base, row_base + (DxNative::str_len(&tr_el)));
             }
+            let tr_pr: i64 = WordXml::findNext(&tr_el, "w:trPr", 0);
+            let first_tc: i64 = WordXml::findNext(&tr_el, "w:tc", 0);
+            if tr_pr >= 0 && (first_tc < 0 || tr_pr < first_tc) {
+                let pr: String = WordXml::sliceElement(&tr_el, "w:trPr", tr_pr);
+                let th: i64 = WordXml::findNext(&pr, "w:trHeight", 0);
+                if th >= 0 {
+                    let th_el: String = WordXml::sliceElement(&pr, "w:trHeight", th);
+                    row.borrow_mut().heightTwips = WordXml::twipsAttr(&WordXml::openTag(&th_el), "w:val", 0);
+                }
+                let hd: i64 = WordXml::findNext(&pr, "w:tblHeader", 0);
+                if hd >= 0 {
+                    let hd_el: String = WordXml::sliceElement(&pr, "w:tblHeader", hd);
+                    let hv: String = WordXml::attr(&WordXml::openTag(&hd_el), "w:val");
+                    row.borrow_mut().header = hv != "0" && hv != "false";
+                }
+            }
             let mut ci: i64 = 0;
             let trn: i64 = DxNative::str_len(&tr_el);
             while ci < trn {
@@ -549,6 +565,17 @@ impl WordMlParser {
                 let fill: String = WordXml::attr(&WordXml::openTag(&shd_el), "w:fill");
                 if (DxNative::str_len(&fill)) == 6 {
                     cell.borrow_mut().fillHex = fill.clone();
+                }
+            }
+            let va: i64 = WordXml::findNext(&pr, "w:vAlign", 0);
+            if va >= 0 {
+                let va_el: String = WordXml::sliceElement(&pr, "w:vAlign", va);
+                let vv: String = WordXml::attr(&WordXml::openTag(&va_el), "w:val");
+                if vv == "center" {
+                    cell.borrow_mut().vAlign = 1;
+                }
+                if vv == "bottom" {
+                    cell.borrow_mut().vAlign = 2;
                 }
             }
             self.parseBorders(&pr, &cell);

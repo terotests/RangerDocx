@@ -635,6 +635,32 @@ class DocxApp {
         commands.add("edit.findNext" "Find next" "Edit" "")
         commands.add("edit.findPrevious" "Find previous" "Edit" "")
         commands.addArg("edit.goto" "Go to page" "Edit" "Ctrl+G")
+        commands.add("table.selectTable" "Select table" "Table" "")
+        commands.add("table.selectRow" "Select row" "Table" "")
+        commands.add("table.selectColumn" "Select column" "Table" "")
+        commands.add("table.selectCell" "Select cell" "Table" "")
+        commands.add("table.insertRowAbove" "Insert row above" "Table" "")
+        commands.add("table.insertRowBelow" "Insert row below" "Table" "")
+        commands.add("table.insertColumnLeft" "Insert column left" "Table" "")
+        commands.add("table.insertColumnRight" "Insert column right" "Table" "")
+        commands.add("table.deleteRow" "Delete rows" "Table" "")
+        commands.add("table.deleteColumn" "Delete columns" "Table" "")
+        commands.add("table.deleteTable" "Delete table" "Table" "")
+        commands.addArg("table.deleteCells" "Delete cells" "Table" "")
+        commands.add("table.merge" "Merge cells" "Table" "")
+        commands.addArg("table.split" "Split cells" "Table" "")
+        commands.add("table.splitTable" "Split table" "Table" "")
+        commands.add("table.distributeColumns" "Distribute columns" "Table" "")
+        commands.add("table.distributeRows" "Distribute rows" "Table" "")
+        commands.addArg("table.rowHeight" "Row height" "Table" "")
+        commands.addArg("table.columnWidth" "Column width" "Table" "")
+        commands.addArg("table.autofit" "AutoFit" "Table" "")
+        commands.addArg("table.cellAlign" "Cell alignment" "Table" "")
+        commands.addArg("table.shading" "Shading" "Table" "")
+        commands.add("table.repeatHeader" "Repeat header rows" "Table" "")
+        commands.addArg("table.sort" "Sort table" "Table" "")
+        commands.add("table.toText" "Convert to text" "Table" "")
+        commands.add("table.fromText" "Convert text to table" "Table" "")
     }
 
     ; --- geometry -------------------------------------------------------------
@@ -847,6 +873,68 @@ class DocxApp {
         return 0
     }
 
+    ; Table Layout and Table Design commands: 1 done, 0 refused (no table at
+    ; the caret, nothing to merge), -1 not a table command.
+    fn runTable:int (id:string arg:string) {
+        def ed:DocxEditController viewer.edit
+        def known:boolean true
+        def ok:boolean false
+        if (id == "table.selectTable") { ok = (ed.tableSelect("table")) }
+        if (id == "table.selectRow") { ok = (ed.tableSelect("row")) }
+        if (id == "table.selectColumn") { ok = (ed.tableSelect("column")) }
+        if (id == "table.selectCell") { ok = (ed.tableSelect("cell")) }
+        if (id == "table.insertRowAbove") { ok = (ed.tableInsertRows(false)) }
+        if (id == "table.insertRowBelow") { ok = (ed.tableInsertRows(true)) }
+        if (id == "table.insertColumnLeft") { ok = (ed.tableInsertColumns(false)) }
+        if (id == "table.insertColumnRight") { ok = (ed.tableInsertColumns(true)) }
+        if (id == "table.deleteRow") { ok = (ed.tableDeleteRows()) }
+        if (id == "table.deleteColumn") { ok = (ed.tableDeleteColumns()) }
+        if (id == "table.deleteTable") { ok = (ed.tableDelete()) }
+        if (id == "table.deleteCells") { ok = (ed.tableDeleteCells(arg)) }
+        if (id == "table.merge") { ok = (ed.tableMerge()) }
+        if (id == "table.split") {
+            def n:int 2
+            def want@(optional):int (to_int arg)
+            if (!null? want) {
+                n = (unwrap want)
+            }
+            ok = (ed.tableSplitCell(n))
+        }
+        if (id == "table.splitTable") { ok = (ed.tableSplitTable()) }
+        if (id == "table.distributeColumns") { ok = (ed.tableFormat("distributeColumns" arg)) }
+        if (id == "table.distributeRows") { ok = (ed.tableFormat("distributeRows" arg)) }
+        if (id == "table.rowHeight") { ok = (ed.tableFormat("rowHeight" arg)) }
+        if (id == "table.columnWidth") { ok = (ed.tableFormat("columnWidth" arg)) }
+        if (id == "table.autofit") {
+            if ((arg == "window") || (arg == "")) {
+                ok = (ed.tableFormat("autofitWindow" arg))
+            }
+        }
+        if (id == "table.cellAlign") { ok = (ed.tableFormat("cellAlign" arg)) }
+        if (id == "table.shading") { ok = (ed.tableFormat("shading" arg)) }
+        if (id == "table.repeatHeader") { ok = (ed.tableFormat("repeatHeader" arg)) }
+        if (id == "table.sort") { ok = (ed.tableFormat("sort" arg)) }
+        if (id == "table.toText") { ok = (ed.tableToText()) }
+        if (id == "table.fromText") { ok = (ed.tableFromText()) }
+        def all:[string] (strsplit "table.selectTable table.selectRow table.selectColumn table.selectCell table.insertRowAbove table.insertRowBelow table.insertColumnLeft table.insertColumnRight table.deleteRow table.deleteColumn table.deleteTable table.deleteCells table.merge table.split table.splitTable table.distributeColumns table.distributeRows table.rowHeight table.columnWidth table.autofit table.cellAlign table.shading table.repeatHeader table.sort table.toText table.fromText" " ")
+        def k:int 0
+        known = false
+        while (k < (array_length all)) {
+            if ((itemAt all k) == id) {
+                known = true
+            }
+            k = (k + 1)
+        }
+        if (known == false) {
+            return -1
+        }
+        if ok {
+            viewer.renderPage(viewer.currentPage)
+            return 1
+        }
+        return 0
+    }
+
     ; Alt chords: Alt+Shift+arrows move, promote and demote paragraphs; Alt+X
     ; toggles a Unicode character. The hosts that see Alt call this.
     fn keyAlt:boolean (name:string shift:boolean) {
@@ -900,6 +988,15 @@ class DocxApp {
         if ((strlen id) > 5) {
             if ((this.runEditing(id arg)) == 1) {
                 return true
+            }
+        }
+        if ((indexOf id "table.") == 0) {
+            def tres:int (this.runTable(id arg))
+            if (tres == 1) {
+                return true
+            }
+            if (tres == 0) {
+                return false
             }
         }
         if (id == "edit.copy") {

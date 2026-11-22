@@ -13,6 +13,8 @@ use crate::docx_layout::LaidLine;
 use crate::docx_layout::LaidLineKind;
 use crate::docx_layout::LaidPage;
 use crate::docx_para_format::DocxParaFormat;
+use crate::docx_table_edit::DocxTableEdit;
+use crate::docx_table_edit::DocxTableSnap;
 use crate::docx_text_metrics::DocxTextMetrics;
 use crate::docx_typing::DocxTyping;
 use crate::rgr::DxNative;
@@ -91,6 +93,15 @@ pub struct DocxEditController {
     pub typingNow: bool,
     /// Copy Formatting has picked up a look for Paste Formatting.
     pub formatCopied: bool,
+    /// Selected table cells (Select Row / Column / Table): the table's block,
+    /// rows R0..R1, grid columns G0..G1. Block -1 when none.
+    pub cellSelBlock: i64,
+    pub cellSelR0: i64,
+    pub cellSelR1: i64,
+    pub cellSelG0: i64,
+    pub cellSelG1: i64,
+    /// Table shapes before and after each table command, for undo.
+    pub tableSnaps: Vec<Rc<RefCell<DocxTableSnap>>>,
 }
 
 impl DocxEditController {
@@ -129,6 +140,12 @@ impl DocxEditController {
             numberRemovedPid: 0,
             typingNow: false,
             formatCopied: false,
+            cellSelBlock: -1,
+            cellSelR0: 0,
+            cellSelR1: 0,
+            cellSelG0: 0,
+            cellSelG1: 0,
+            tableSnaps: Vec::new(),
         }
     }
     pub fn intOr(s: &str, fallback: i64) -> i64 {
@@ -206,6 +223,7 @@ impl DocxEditController {
             offset = __len;
         }
         let mut p: Rc<RefCell<DocumentPosition>> = DocumentPosition::create(paragraph_id, offset);
+        self.cellSelBlock = -1;
         self.sel.borrow_mut().anchor = DocumentPosition::copy(&p);
         self.sel.borrow_mut().focus = DocumentPosition::copy(&p);
         self.active = true;
@@ -224,6 +242,7 @@ impl DocxEditController {
         if b > __len {
             b = __len;
         }
+        self.cellSelBlock = -1;
         self.sel.borrow_mut().anchor = DocumentPosition::create(paragraph_id, a);
         self.sel.borrow_mut().focus = DocumentPosition::create(paragraph_id, b);
         self.active = true;
@@ -1273,6 +1292,7 @@ impl DocxEditController {
         // the column back immediately afterwards, which is why it is safe to
         // forget it here and nowhere else.
         OfficeCaretColumn::forget(&self.column.clone());
+        self.cellSelBlock = -1;
         if pid <= 0 {
             return;
         }
@@ -2239,6 +2259,573 @@ impl DocxEditController {
         let done: bool = self.pasteTable(&t);
         self.endAction();
         done
+    }
+    // --- Table Layout ----------------------------------------------------------
+    /// [block, row, cell, paragraph] of the caret; block -1 outside a table.
+    pub fn caretCell(&self) -> Vec<i64> {
+        if !self.isActive() {
+            return vec![-1, -1, -1, -1];
+        }
+        self.adapter.borrow().tableCellOf(self.sel.borrow().focus.borrow().paragraphId)
+    }
+    pub fn tableAt(&self, blk: i64) -> Rc<RefCell<DocumentTable>> {
+        let b: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&self.adapter.borrow().doc, blk);
+        return b.borrow().table.clone();
+    }
+    /// What a table command acts on: [block, firstRow, lastRow, firstGridColumn,
+    /// lastGridColumn]. The selected cells when there are any around the caret,
+    /// else the caret's own cell. Block -1 outside a table.
+    pub fn tableTarget(&self) -> Vec<i64> {
+        let at: Vec<i64> = self.caretCell();
+        if at[0] < 0 {
+            return vec![-1, 0, 0, 0, 0];
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(at[0]);
+        let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
+        let g: i64 = DocxTableEdit::gridStart(&row, at[2]);
+        let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[at[2] as usize].clone();
+        let ge: i64 = g + DocxTableEdit::spanOf(&cell) - 1;
+        if self.cellSelBlock == at[0] {
+            let rows: i64 = t.borrow().rows.len() as i64;
+            let cols: i64 = t.borrow().colWidthsTwips.len() as i64;
+            let inside: bool = at[1] >= self.cellSelR0 && at[1] <= self.cellSelR1 && g <= self.cellSelG1 && ge >= self.cellSelG0;
+            if inside && self.cellSelR1 < rows && self.cellSelG1 < cols {
+                return vec![at[0], self.cellSelR0, self.cellSelR1, self.cellSelG0, self.cellSelG1];
+            }
+        }
+        vec![at[0], at[1], at[1], g, ge]
+    }
+    pub fn clearCellSelection(&mut self) {
+        self.cellSelBlock = -1;
+    }
+    /// Is this cell paragraph inside the selected cells? For painting.
+    pub fn cellSelected(&self, pid: i64) -> bool {
+        if self.cellSelBlock < 0 {
+            return false;
+        }
+        let at: Vec<i64> = self.adapter.borrow().tableCellOf(pid);
+        if at[0] != self.cellSelBlock || at[1] < self.cellSelR0 || at[1] > self.cellSelR1 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(at[0]);
+        let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
+        let g: i64 = DocxTableEdit::gridStart(&row, at[2]);
+        let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[at[2] as usize].clone();
+        let ge: i64 = g + DocxTableEdit::spanOf(&cell) - 1;
+        g <= self.cellSelG1 && ge >= self.cellSelG0
+    }
+    /// First paragraph of the cell covering grid column g in row r.
+    pub fn cellParaAt(&self, blk: i64, r: i64, g: i64) -> i64 {
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(blk);
+        let n: i64 = t.borrow().rows.len() as i64;
+        if n == 0 {
+            return 0;
+        }
+        let mut rr: i64 = r;
+        if rr >= n {
+            rr = n - 1;
+        }
+        if rr < 0 {
+            rr = 0;
+        }
+        let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[rr as usize].clone();
+        let mut ci: i64 = DocxTableEdit::cellAtGrid(&row, g);
+        if ci < 0 {
+            ci = (row.borrow().cells.len() as i64) - 1;
+        }
+        self.adapter.borrow().cellParagraphId(blk, rr, ci)
+    }
+    pub fn tableSelect(&mut self, what: &str) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        let blk: i64 = tg[0];
+        if blk < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(blk);
+        let rows: i64 = t.borrow().rows.len() as i64;
+        let cols: i64 = t.borrow().colWidthsTwips.len() as i64;
+        let mut r0: i64 = tg[1];
+        let mut r1: i64 = tg[2];
+        let mut g0: i64 = tg[3];
+        let mut g1: i64 = tg[4];
+        if what == "cell" {
+            let at: Vec<i64> = self.caretCell();
+            let pid: i64 = self.adapter.borrow().cellParagraphId(blk, at[1], at[2]);
+            self.selectCellContents(pid);
+            return true;
+        }
+        if what == "row" || what == "table" {
+            g0 = 0;
+            g1 = cols - 1;
+        }
+        if what == "column" || what == "table" {
+            r0 = 0;
+            r1 = rows - 1;
+        }
+        let first: i64 = self.cellParaAt(blk, r0, g0);
+        self.setCaret(first, 0);
+        self.cellSelBlock = blk;
+        self.cellSelR0 = r0;
+        self.cellSelR1 = r1;
+        self.cellSelG0 = g0;
+        self.cellSelG1 = g1;
+        true
+    }
+    fn tableBegin(&self, t: &Rc<RefCell<DocumentTable>>) -> Rc<RefCell<DocxTableSnap>> {
+        let mut ts: Vec<Rc<RefCell<DocumentTable>>> = Vec::new();
+        ts.push(t.clone());
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        DocxTableEdit::capture(&doc, &ts, self.sel.borrow().focus.borrow().paragraphId)
+    }
+    /// The edit is done: put the caret at `caret` and record the before and
+    /// after shapes as one undo step.
+    fn tableEnd(&mut self, before: &Rc<RefCell<DocxTableSnap>>, tables: &Vec<Rc<RefCell<DocumentTable>>>, caret: i64) {
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        RichDocument::touch(&doc);
+        if caret > 0 {
+            self.setCaret(caret, 0);
+        }
+        let after: Rc<RefCell<DocxTableSnap>> = DocxTableEdit::capture(&doc, tables, caret);
+        self.tableSnaps.push(before.clone());
+        let a: i64 = (self.tableSnaps.len() as i64) - 1;
+        self.tableSnaps.push(after.clone());
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = DocxTableEdit::opKind();
+        op.borrow_mut().paragraphId = before.borrow().caretPid;
+        op.borrow_mut().start = a;
+        op.borrow_mut().end = a + 1;
+        self.pushUndo(op.clone());
+    }
+    fn tableEnd1(&mut self, before: &Rc<RefCell<DocxTableSnap>>, t: &Rc<RefCell<DocumentTable>>, caret: i64) {
+        let mut ts: Vec<Rc<RefCell<DocumentTable>>> = Vec::new();
+        ts.push(t.clone());
+        self.tableEnd(before, &ts, caret);
+    }
+    /// Replace `remove` blocks from index `at` with `add`.
+    fn spliceBlocks(&self, at: i64, remove: i64, add: &Vec<Rc<RefCell<crate::rich_document::DocBlock>>>) {
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let mut out: Vec<Rc<RefCell<crate::rich_document::DocBlock>>> = Vec::new();
+        let n: i64 = RichDocument::blockCount(&doc);
+        let mut i: i64 = 0;
+        while i < n {
+            if i == at {
+                let mut k: i64 = 0;
+                while k < (add.len() as i64) {
+                    out.push(add[k as usize].clone());
+                    k += 1;
+                }
+            }
+            if i < at || i >= at + remove {
+                out.push(RichDocument::blockAt(&doc, i));
+            }
+            i += 1;
+        }
+        if at >= n {
+            let mut k2: i64 = 0;
+            while k2 < (add.len() as i64) {
+                out.push(add[k2 as usize].clone());
+                k2 += 1;
+            }
+        }
+        doc.borrow_mut().blocks = out;
+    }
+    pub fn tableInsertRows(&mut self, below: bool) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let count: i64 = tg[2] - tg[1] + 1;
+        let like: i64 = if below { tg[2] } else { tg[1] };
+        let at: i64 = if below { tg[2] + 1 } else { tg[1] };
+        let mut k: i64 = 0;
+        while k < count {
+            DocxTableEdit::insertRow(&doc, &t, if below { like } else { like + k }, at);
+            k += 1;
+        }
+        let caret: i64 = self.cellParaAt(tg[0], at, tg[3]);
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    pub fn tableInsertColumns(&mut self, right: bool) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let at: Vec<i64> = self.caretCell();
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let count: i64 = tg[4] - tg[3] + 1;
+        let g: i64 = if right { tg[4] } else { tg[3] };
+        let mut k: i64 = 0;
+        while k < count {
+            DocxTableEdit::insertColumn(&doc, &t, g, right);
+            k += 1;
+        }
+        let caret: i64 = self.cellParaAt(tg[0], at[1], if right { tg[4] + 1 } else { tg[3] });
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    pub fn tableDelete(&mut self) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        let blk: i64 = tg[0];
+        if blk < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(blk);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let mut caret: i64 = self.adapter.borrow().bodyParagraphAfterBlock(blk);
+        if caret <= 0 {
+            caret = self.adapter.borrow().bodyParagraphBeforeBlock(blk);
+        }
+        let none: Vec<Rc<RefCell<crate::rich_document::DocBlock>>> = Vec::new();
+        self.spliceBlocks(blk, 1, &none);
+        self.clearCellSelection();
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    pub fn tableDeleteRows(&mut self) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        if !DocxTableEdit::deleteRows(&t, tg[1], tg[2]) {
+            return self.tableDelete();
+        }
+        self.clearCellSelection();
+        let caret: i64 = self.cellParaAt(tg[0], tg[1], tg[3]);
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    pub fn tableDeleteColumns(&mut self) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let at: Vec<i64> = self.caretCell();
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        if !DocxTableEdit::deleteColumns(&t, tg[3], tg[4]) {
+            return self.tableDelete();
+        }
+        self.clearCellSelection();
+        let mut g: i64 = tg[3];
+        let cols: i64 = t.borrow().colWidthsTwips.len() as i64;
+        if g >= cols {
+            g = cols - 1;
+        }
+        let caret: i64 = self.cellParaAt(tg[0], at[1], g);
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    /// Word's Delete Cells: "row", "column", or shift the cells left.
+    pub fn tableDeleteCells(&mut self, how: &str) -> bool {
+        if how == "row" {
+            return self.tableDeleteRows();
+        }
+        if how == "column" {
+            return self.tableDeleteColumns();
+        }
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        if !DocxTableEdit::deleteCellsLeft(&t, tg[1], tg[2], tg[3], tg[4]) {
+            return self.tableDelete();
+        }
+        self.clearCellSelection();
+        let caret: i64 = self.cellParaAt(tg[0], tg[1], tg[3]);
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    pub fn tableMerge(&mut self) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let merged: i64 = DocxTableEdit::mergeCells(&t, tg[1], tg[2], tg[3], tg[4]);
+        if merged == 0 {
+            return false;
+        }
+        self.clearCellSelection();
+        let caret: i64 = self.cellParaAt(tg[0], tg[1], tg[3]);
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    pub fn tableSplitCell(&mut self, n: i64) -> bool {
+        let at: Vec<i64> = self.caretCell();
+        if at[0] < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(at[0]);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        if !DocxTableEdit::splitCell(&doc, &t, at[1], at[2], n) {
+            return false;
+        }
+        let caret: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    /// The caret's row and those below it become a table of their own, an
+    /// empty paragraph between the two.
+    pub fn tableSplitTable(&mut self) -> bool {
+        let at: Vec<i64> = self.caretCell();
+        if at[0] < 0 || at[1] < 1 {
+            return false;
+        }
+        let blk: i64 = at[0];
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(blk);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let nt: Rc<RefCell<DocumentTable>> = DocxTableEdit::splitOff(&doc, &t, at[1]);
+        let mut p: Rc<RefCell<Paragraph>> = RichDocument::addParagraphOnly(&doc);
+        p.borrow_mut().styleId = "Normal".to_string();
+        p.borrow_mut().spans.push(TextSpan::create(0, 0));
+        let tb: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&doc, blk);
+        let sec: i64 = tb.borrow().sectionIndex;
+        let pb: Rc<RefCell<crate::rich_document::DocBlock>> = crate::rich_document::DocBlock::para(p.clone());
+        pb.borrow_mut().sectionIndex = sec;
+        let nb: Rc<RefCell<crate::rich_document::DocBlock>> = crate::rich_document::DocBlock::tbl(nt.clone());
+        nb.borrow_mut().sectionIndex = sec;
+        let mut add: Vec<Rc<RefCell<crate::rich_document::DocBlock>>> = Vec::new();
+        add.push(pb.clone());
+        add.push(nb.clone());
+        self.spliceBlocks(blk + 1, 0, &add);
+        self.clearCellSelection();
+        let mut ts: Vec<Rc<RefCell<DocumentTable>>> = Vec::new();
+        ts.push(t.clone());
+        ts.push(nt.clone());
+        let pid: i64 = p.borrow().id;
+        self.tableEnd(&before, &ts, pid);
+        true
+    }
+    /// Column widths, row heights, alignment, shading, header rows: the
+    /// commands that change sizes and looks, one function per `what`.
+    pub fn tableFormat(&mut self, what: &str, arg: &str) -> bool {
+        let tg: Vec<i64> = self.tableTarget();
+        if tg[0] < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
+        let rows: i64 = t.borrow().rows.len() as i64;
+        let cols: i64 = t.borrow().colWidthsTwips.len() as i64;
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let caret: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let mut r0: i64 = tg[1];
+        let mut r1: i64 = tg[2];
+        let mut g0: i64 = tg[3];
+        let mut g1: i64 = tg[4];
+        let num: f64 = DocxParaFormat::num(arg);
+        if what == "distributeColumns" {
+            if g0 == g1 {
+                g0 = 0;
+                g1 = cols - 1;
+            }
+            DocxTableEdit::distributeColumns(&t, g0, g1);
+        }
+        if what == "columnWidth" {
+            if num <= 0.0 {
+                return false;
+            }
+            let mut g: i64 = g0;
+            while g <= g1 {
+                t.borrow_mut().colWidthsTwips[g as usize] = (num * 20.0).floor() as i64;
+                g += 1;
+            }
+        }
+        if what == "autofitWindow" {
+            let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+            let width_px: i64 = DocSection::contentWidthPx(&doc.borrow().section);
+            let total: i64 = (((width_px as f64) * 1440.0) / 96.0).floor() as i64;
+            DocxTableEdit::rescale(&t, total);
+        }
+        if what == "distributeRows" || what == "rowHeight" || what == "repeatHeader" {
+            if what == "distributeRows" && r0 == r1 {
+                r0 = 0;
+                r1 = rows - 1;
+            }
+            if what == "repeatHeader" {
+                r0 = 0;
+            }
+            let mut h: i64 = 0;
+            let mut ri: i64 = r0;
+            while ri <= r1 {
+                let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[ri as usize].clone();
+                if row.borrow().heightTwips > h {
+                    h = row.borrow().heightTwips;
+                }
+                ri += 1;
+            }
+            if h < 360 {
+                h = 360;
+            }
+            if what == "rowHeight" {
+                if num <= 0.0 {
+                    return false;
+                }
+                h = (num * 20.0).floor() as i64;
+            }
+            let first: Rc<RefCell<DocTableRow>> = t.borrow().rows[r0 as usize].clone();
+            let head: bool = !first.borrow().header;
+            let mut rj: i64 = r0;
+            while rj <= r1 {
+                let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[rj as usize].clone();
+                if what == "repeatHeader" {
+                    row.borrow_mut().header = head;
+                } else {
+                    row.borrow_mut().heightTwips = h;
+                }
+                row.borrow_mut().fresh = true;
+                rj += 1;
+            }
+        }
+        if what == "cellAlign" || what == "shading" {
+            // "top-left" .. "bottom-right"; "center" alone is the middle.
+            let mut v: i64 = 0;
+            if DxNative::index_of(arg, "middle") >= 0 || arg == "center" {
+                v = 1;
+            }
+            if DxNative::index_of(arg, "bottom") >= 0 {
+                v = 2;
+            }
+            let mut h2: i64 = 0;
+            if DxNative::index_of(arg, "-center") >= 0 || arg == "center" {
+                h2 = 1;
+            }
+            if DxNative::index_of(arg, "right") >= 0 {
+                h2 = 2;
+            }
+            let mut fill: String = arg.to_uppercase();
+            if DxNative::index_of(&fill, "#") == 0 {
+                fill = DxNative::substr(&fill, 1, DxNative::str_len(&fill));
+            }
+            if (DxNative::str_len(&fill)) != 6 {
+                fill = String::new();
+            }
+            let mut ri2: i64 = r0;
+            while ri2 <= r1 {
+                let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[ri2 as usize].clone();
+                let mut gs: i64 = 0;
+                let mut ci: i64 = 0;
+                while ci < (row.borrow().cells.len() as i64) {
+                    let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[ci as usize].clone();
+                    let s: i64 = DocxTableEdit::spanOf(&cell);
+                    if gs <= g1 && gs + s - 1 >= g0 {
+                        if what == "shading" {
+                            cell.borrow_mut().fillHex = fill.clone();
+                        } else {
+                            cell.borrow_mut().vAlign = v;
+                            let mut pi: i64 = 0;
+                            while pi < (cell.borrow().paragraphs.len() as i64) {
+                                let p: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
+                                p.borrow_mut().align = h2;
+                                pi += 1;
+                            }
+                        }
+                        cell.borrow_mut().fresh = true;
+                    }
+                    gs += s;
+                    ci += 1;
+                }
+                ri2 += 1;
+            }
+        }
+        if what == "sort" {
+            let first_row: i64 = if DxNative::index_of(arg, "header") >= 0 { 1 } else { 0 };
+            let at: Vec<i64> = self.caretCell();
+            let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
+            let g: i64 = DocxTableEdit::gridStart(&row, at[2]);
+            DocxTableEdit::sortRows(&t, g, DxNative::index_of(arg, "desc") >= 0, first_row);
+        }
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    /// The table as text: a paragraph per row, the cells separated by tabs.
+    pub fn tableToText(&mut self) -> bool {
+        let at: Vec<i64> = self.caretCell();
+        let blk: i64 = at[0];
+        if blk < 0 {
+            return false;
+        }
+        let t: Rc<RefCell<DocumentTable>> = self.tableAt(blk);
+        let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let paras: Vec<Rc<RefCell<Paragraph>>> = DocxTableEdit::rowsToText(&doc, &t);
+        let tb: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&doc, blk);
+        let sec: i64 = tb.borrow().sectionIndex;
+        let mut add: Vec<Rc<RefCell<crate::rich_document::DocBlock>>> = Vec::new();
+        let mut i: i64 = 0;
+        while i < (paras.len() as i64) {
+            let b: Rc<RefCell<crate::rich_document::DocBlock>> = crate::rich_document::DocBlock::para(paras[i as usize].clone());
+            b.borrow_mut().sectionIndex = sec;
+            add.push(b.clone());
+            i += 1;
+        }
+        self.spliceBlocks(blk, 1, &add);
+        self.clearCellSelection();
+        let mut caret: i64 = 0;
+        if !paras.is_empty() {
+            caret = paras[0].borrow().id;
+        }
+        self.tableEnd1(&before, &t, caret);
+        true
+    }
+    /// The selected paragraphs into a table, split at their tabs.
+    pub fn tableFromText(&mut self) -> bool {
+        if !self.isActive() || self.inTable() {
+            return false;
+        }
+        let r: Vec<i64> = self.selectedBlockRange();
+        let f: i64 = r[0];
+        let l: i64 = r[1];
+        if f < 0 || l < f {
+            return false;
+        }
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let mut paras: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        let mut i: i64 = f;
+        while i <= l {
+            if !self.isParaBlock(i) {
+                return false;
+            }
+            let b: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&doc, i);
+            paras.push(b.borrow().paragraph.clone());
+            i += 1;
+        }
+        let width_px: i64 = DocSection::contentWidthPx(&doc.borrow().section);
+        let total: i64 = (((width_px as f64) * 1440.0) / 96.0).floor() as i64;
+        let none: Vec<Rc<RefCell<DocumentTable>>> = Vec::new();
+        let before: Rc<RefCell<DocxTableSnap>> = DocxTableEdit::capture(&doc, &none, self.sel.borrow().focus.borrow().paragraphId);
+        let t: Rc<RefCell<DocumentTable>> = DocxTableEdit::textToTable(&doc, &paras, total);
+        let fb: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&doc, f);
+        let sec: i64 = fb.borrow().sectionIndex;
+        let tb: Rc<RefCell<crate::rich_document::DocBlock>> = crate::rich_document::DocBlock::tbl(t.clone());
+        tb.borrow_mut().sectionIndex = sec;
+        let mut add: Vec<Rc<RefCell<crate::rich_document::DocBlock>>> = Vec::new();
+        add.push(tb.clone());
+        // A table is followed by a paragraph, so the caret can leave it.
+        if !self.isParaBlock(l + 1) {
+            let mut p: Rc<RefCell<Paragraph>> = RichDocument::addParagraphOnly(&doc);
+            p.borrow_mut().styleId = "Normal".to_string();
+            p.borrow_mut().spans.push(TextSpan::create(0, 0));
+            let pb: Rc<RefCell<crate::rich_document::DocBlock>> = crate::rich_document::DocBlock::para(p.clone());
+            pb.borrow_mut().sectionIndex = sec;
+            add.push(pb.clone());
+        }
+        self.spliceBlocks(f, l - f + 1, &add);
+        let caret: i64 = self.adapter.borrow().cellParagraphId(f, 0, 0);
+        self.tableEnd1(&before, &t, caret);
+        true
     }
     /// Where the query next occurs in `text` at or after `from`, or -1.
     pub fn matchIn(&self, text: &str, from: i64) -> i64 {
@@ -3381,6 +3968,20 @@ impl DocxEditController {
     /// there. Written as one function that cannot happen: a kind is handled in
     /// both directions or in neither.
     fn applyOp(&mut self, op: &Rc<RefCell<DocEditOp>>, forward: bool) -> bool {
+        if op.borrow().kind == DocxTableEdit::opKind() {
+            let idx: i64 = if forward { op.borrow().end } else { op.borrow().start };
+            if idx < 0 || idx >= (self.tableSnaps.len() as i64) {
+                return false;
+            }
+            let snap: Rc<RefCell<DocxTableSnap>> = self.tableSnaps[idx as usize].clone();
+            let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+            DocxTableEdit::restore(&doc, &snap);
+            let pid: i64 = snap.borrow().caretPid;
+            if pid > 0 {
+                self.setCaret(pid, 0);
+            }
+            return true;
+        }
         if op.borrow().kind == DocxEditController::sortKind() {
             let ids: String = if forward { op.borrow().newText.clone() } else { op.borrow().oldText.clone() };
             self.orderBlocks(op.borrow().start, op.borrow().end, &ids);

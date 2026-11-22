@@ -363,6 +363,29 @@ impl DocxView {
         self.ink.clone().borrow().rect(cx, cy, 2, ch, &_tmp_6868);
     }
     pub fn paintSelection(&self, edit: &Rc<RefCell<DocxEditController>>) {
+        if edit.borrow().cellSelBlock >= 0 {
+            // Selected table cells: every line of text in them.
+            let mut cpg: Rc<RefCell<LaidPage>> = self.layout.borrow().pageAt(self.pageIndex.clone());
+            let mut ci: i64 = 0;
+            while ci < (cpg.borrow().lines.len() as i64) {
+                let mut cl: Rc<RefCell<LaidLine>> = cpg.borrow().lines[ci as usize].clone();
+                if cl.borrow().kind == LaidLineKind::text() && cl.borrow().paraIndex > 0 {
+                    if edit.borrow().cellSelected(cl.borrow().paraIndex.clone()) {
+                        let mut cw: i64 = cl.borrow().width;
+                        if cw < 6 {
+                            cw = 6;
+                        }
+                        let mut _cx = cl.borrow().x.clone();
+                        let mut _cy = cl.borrow().y.clone();
+                        let mut _ch = cl.borrow().height.clone();
+                        let mut _cc = self.selColor.clone();
+                        self.ink.clone().borrow().rect(_cx, _cy, cw, _ch, &_cc);
+                    }
+                }
+                ci += 1;
+            }
+            return;
+        }
         let mut sel: Rc<RefCell<DocumentRange>> = edit.borrow().selection();
         if DocumentRange::isCollapsed(&sel) {
             return;

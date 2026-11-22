@@ -130,3 +130,19 @@ case for an edited document.
    on top of the existing table insert.
 4. Read gaps (C2): footnotes, comments, track changes, fields, bookmarks.
 5. Layout and performance metrics (L1–L3, P1–P3) on the shared corpus.
+
+### Progress 2026-11-22
+
+| Step | Commit | Result |
+|---|---|---|
+| 1. Typing runner | bcc914b | tests/TypingTest (156 checks). C4 0 → 28.5 of 110 (25 yes, 7 partial) |
+| 2. Home tab | 0d18146 | tests/HomeTest (43 checks): keeps, outline level, hanging indent, direction, Heading 3, Sort, copy/paste formatting, Find Previous, Go To. C1 52 → 96 |
+| 3. Table Layout | (this commit) | tests/TableTest (78 checks): insert/delete rows, columns, cells and table; select cell/row/column/table; merge, split cell, split table; column width, row height, distribute, AutoFit to window; cell alignment, shading, header rows; sort; convert to text and back. All undoable, saved and read back. C1 96 → 119.5, C2 14 → 14.5, C3 15 → 15.5 |
+
+Left partial in step 3: merging across rows merges each row on its own
+(vertical merge, `w:vMerge`, is not in the model); header rows are read,
+written and toggled but not repeated on the next page (tables do not break
+across pages in the layout yet); Distribute Rows uses the tallest set height,
+not the laid-out one; AutoFit to contents and fixed width are not done.
+Not started in step 3: Draw Table, Eraser, Quick Tables, table styles and
+borders, cell margins, text direction, table direction, formula, properties.

@@ -1,0 +1,421 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; TableTest - Insert Table and the Table Layout commands (parity/catalog.tsv
+; rows marked with this file).
+; ==============================================================================
+;
+; Each command runs through DocxApp.runCommand, as its ribbon button does. The
+; shape after each one is checked, then undo, then a save and read back.
+;
+;   npm run docx_viewer:table:test
+; ==============================================================================
+
+Import "../src/DocxApp.rgr"
+
+class TableCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class TableTest {
+    sfn fresh:DocxApp () {
+        def app:DocxApp (new DocxApp)
+        app.init()
+        app.resize(900 700)
+        app.runCommand("file.new" "")
+        app.viewer.edit.autoCorrect = false
+        return app
+    }
+
+    ; The first table in the document.
+    sfn tbl:DocumentTable (app:DocxApp) {
+        def doc:RichDocument app.viewer.edit.adapter.doc
+        def i:int 0
+        while (i < (array_length doc.blocks)) {
+            def b:DocBlock (itemAt doc.blocks i)
+            if (b.kind == 1) {
+                return b.table
+            }
+            i = (i + 1)
+        }
+        return (new DocumentTable)
+    }
+
+    sfn tableCount:int (app:DocxApp) {
+        def doc:RichDocument app.viewer.edit.adapter.doc
+        def n:int 0
+        def i:int 0
+        while (i < (array_length doc.blocks)) {
+            def b:DocBlock (itemAt doc.blocks i)
+            if (b.kind == 1) {
+                n = (n + 1)
+            }
+            i = (i + 1)
+        }
+        return n
+    }
+
+    sfn tableBlock:int (app:DocxApp) {
+        def doc:RichDocument app.viewer.edit.adapter.doc
+        def i:int 0
+        while (i < (array_length doc.blocks)) {
+            def b:DocBlock (itemAt doc.blocks i)
+            if (b.kind == 1) {
+                return i
+            }
+            i = (i + 1)
+        }
+        return -1
+    }
+
+    sfn rows:int (app:DocxApp) {
+        def t:DocumentTable (TableTest.tbl(app))
+        return (array_length t.rows)
+    }
+
+    sfn cols:int (app:DocxApp) {
+        def t:DocumentTable (TableTest.tbl(app))
+        return (array_length t.colWidthsTwips)
+    }
+
+    sfn cellsIn:int (app:DocxApp r:int) {
+        def t:DocumentTable (TableTest.tbl(app))
+        def row:DocTableRow (itemAt t.rows r)
+        return (array_length row.cells)
+    }
+
+    sfn cell:DocTableCell (app:DocxApp r:int c:int) {
+        def t:DocumentTable (TableTest.tbl(app))
+        def row:DocTableRow (itemAt t.rows r)
+        return (itemAt row.cells c)
+    }
+
+    sfn cellText:string (app:DocxApp r:int c:int) {
+        def cl:DocTableCell (TableTest.cell(app r c))
+        def s:string ""
+        def i:int 0
+        while (i < (array_length cl.paragraphs)) {
+            def p:Paragraph (itemAt cl.paragraphs i)
+            if (i > 0) {
+                s = (s + "/")
+            }
+            s = (s + p.text)
+            i = (i + 1)
+        }
+        return s
+    }
+
+    ; Row texts, cells separated by "|", rows by ",".
+    sfn grid:string (app:DocxApp) {
+        def s:string ""
+        def r:int 0
+        while (r < (TableTest.rows(app))) {
+            if (r > 0) {
+                s = (s + ",")
+            }
+            def c:int 0
+            while (c < (TableTest.cellsIn(app r))) {
+                if (c > 0) {
+                    s = (s + "|")
+                }
+                s = (s + (TableTest.cellText(app r c)))
+                c = (c + 1)
+            }
+            r = (r + 1)
+        }
+        return s
+    }
+
+    sfn to:void (app:DocxApp r:int c:int) {
+        def blk:int (TableTest.tableBlock(app))
+        def pid:int (app.viewer.edit.adapter.cellParagraphId(blk r c))
+        app.viewer.edit.setCaret(pid 0)
+    }
+
+    ; A 3x3 table filled a1..c3, caret in a1.
+    sfn filled:DocxApp () {
+        def app:DocxApp (TableTest.fresh())
+        app.runCommand("insert.table" "3x3")
+        def names:[string] (strsplit "a1 b1 c1 a2 b2 c2 a3 b3 c3" " ")
+        def r:int 0
+        while (r < 3) {
+            def c:int 0
+            while (c < 3) {
+                TableTest.to(app r c)
+                app.runCommand("text.insert" (itemAt names ((r * 3) + c)))
+                c = (c + 1)
+            }
+            r = (r + 1)
+        }
+        TableTest.to(app 0 0)
+        return app
+    }
+
+    sfn reopen:DocxApp (app:DocxApp) {
+        def b:buffer (app.viewer.saveBytes())
+        def back:DocxApp (new DocxApp)
+        back.init()
+        back.resize(900 700)
+        back.viewer.openBytes(b "table.docx")
+        return back
+    }
+
+    sfn main:void () {
+        def c:TableCheck (new TableCheck)
+        print "== TableTest =="
+
+        print "-- Insert Table --"
+        def a:DocxApp (TableTest.filled())
+        c.eqInt("insert.table 3x3: rows" (TableTest.rows(a)) 3)
+        c.eqInt("columns" (TableTest.cols(a)) 3)
+        c.eqStr("typed into each cell" (TableTest.grid(a)) "a1|b1|c1,a2|b2|c2,a3|b3|c3")
+
+        print "-- Insert rows and columns --"
+        TableTest.to(a 1 1)
+        c.ok("table.insertRowAbove runs" (a.runCommand("table.insertRowAbove" "")))
+        c.eqStr("an empty row above the second" (TableTest.grid(a)) "a1|b1|c1,||,a2|b2|c2,a3|b3|c3")
+        a.runCommand("edit.undo" "")
+        c.eqStr("undo takes it out" (TableTest.grid(a)) "a1|b1|c1,a2|b2|c2,a3|b3|c3")
+        a.runCommand("edit.redo" "")
+        c.eqInt("redo puts it back" (TableTest.rows(a)) 4)
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 2 0)
+        a.runCommand("table.insertRowBelow" "")
+        c.eqStr("table.insertRowBelow: after the last" (TableTest.grid(a)) "a1|b1|c1,a2|b2|c2,a3|b3|c3,||")
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 0 0)
+        a.runCommand("table.insertColumnLeft" "")
+        c.eqStr("table.insertColumnLeft" (TableTest.grid(a)) "|a1|b1|c1,|a2|b2|c2,|a3|b3|c3")
+        c.eqInt("four grid columns" (TableTest.cols(a)) 4)
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 0 2)
+        a.runCommand("table.insertColumnRight" "")
+        c.eqStr("table.insertColumnRight" (TableTest.grid(a)) "a1|b1|c1|,a2|b2|c2|,a3|b3|c3|")
+        def t0:DocumentTable (TableTest.tbl(a))
+        def w0:int ((itemAt t0.colWidthsTwips 0) + (itemAt t0.colWidthsTwips 1) + (itemAt t0.colWidthsTwips 2) + (itemAt t0.colWidthsTwips 3))
+        a.runCommand("edit.undo" "")
+        def t1:DocumentTable (TableTest.tbl(a))
+        def w1:int ((itemAt t1.colWidthsTwips 0) + (itemAt t1.colWidthsTwips 1) + (itemAt t1.colWidthsTwips 2))
+        c.eqInt("the table keeps its width" w0 w1)
+
+        print "-- Delete --"
+        TableTest.to(a 1 0)
+        c.ok("table.deleteRow runs" (a.runCommand("table.deleteRow" "")))
+        c.eqStr("the second row is gone" (TableTest.grid(a)) "a1|b1|c1,a3|b3|c3")
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 0 1)
+        a.runCommand("table.deleteColumn" "")
+        c.eqStr("table.deleteColumn" (TableTest.grid(a)) "a1|c1,a2|c2,a3|c3")
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 1 1)
+        a.runCommand("table.deleteCells" "")
+        c.eqStr("table.deleteCells shifts the row left" (TableTest.grid(a)) "a1|b1|c1,a2|c2,a3|b3|c3")
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 1 1)
+        a.runCommand("table.deleteCells" "row")
+        c.eqInt("table.deleteCells row" (TableTest.rows(a)) 2)
+        a.runCommand("edit.undo" "")
+        c.eqStr("undone" (TableTest.grid(a)) "a1|b1|c1,a2|b2|c2,a3|b3|c3")
+        a.runCommand("table.deleteTable" "")
+        c.eqInt("table.deleteTable" (TableTest.tableCount(a)) 0)
+        c.ok("the caret is in a body paragraph" ((a.viewer.edit.adapter.bodyOrderOf(a.viewer.edit.sel.focus.paragraphId)) >= 0))
+        a.runCommand("edit.undo" "")
+        c.eqStr("undo brings the table back" (TableTest.grid(a)) "a1|b1|c1,a2|b2|c2,a3|b3|c3")
+        TableTest.to(a 0 0)
+        a.runCommand("table.selectTable" "")
+        a.runCommand("table.deleteRow" "")
+        c.eqInt("deleting every row deletes the table" (TableTest.tableCount(a)) 0)
+        a.runCommand("edit.undo" "")
+
+        print "-- Select --"
+        TableTest.to(a 1 1)
+        c.ok("table.selectRow runs" (a.runCommand("table.selectRow" "")))
+        c.ok("the row's cells are selected" ((a.viewer.edit.cellSelected((a.viewer.edit.adapter.cellParagraphId((TableTest.tableBlock(a)) 1 2)))) && ((a.viewer.edit.cellSelected((a.viewer.edit.adapter.cellParagraphId((TableTest.tableBlock(a)) 0 0)))) == false)))
+        TableTest.to(a 1 1)
+        a.runCommand("table.selectColumn" "")
+        c.ok("table.selectColumn: the column, not its neighbours" ((a.viewer.edit.cellSelected((a.viewer.edit.adapter.cellParagraphId((TableTest.tableBlock(a)) 2 1)))) && ((a.viewer.edit.cellSelected((a.viewer.edit.adapter.cellParagraphId((TableTest.tableBlock(a)) 2 2)))) == false)))
+        a.runCommand("table.deleteColumn" "")
+        c.eqStr("and a command acts on it" (TableTest.grid(a)) "a1|c1,a2|c2,a3|c3")
+        a.runCommand("edit.undo" "")
+        TableTest.to(a 2 2)
+        a.runCommand("table.selectTable" "")
+        c.ok("table.selectTable: every cell" ((a.viewer.edit.cellSelected((a.viewer.edit.adapter.cellParagraphId((TableTest.tableBlock(a)) 0 0)))) && (a.viewer.edit.cellSelected((a.viewer.edit.adapter.cellParagraphId((TableTest.tableBlock(a)) 2 2))))))
+        TableTest.to(a 1 0)
+        c.ok("moving the caret ends it" (a.viewer.edit.cellSelBlock < 0))
+        a.runCommand("table.selectCell" "")
+        c.eqStr("table.selectCell selects its text" (a.viewer.copySelection()) "a2")
+
+        print "-- Merge and split --"
+        TableTest.to(a 0 0)
+        a.runCommand("table.selectRow" "")
+        c.ok("table.merge runs" (a.runCommand("table.merge" "")))
+        c.eqInt("one cell in the first row" (TableTest.cellsIn(a 0)) 1)
+        def mc:DocTableCell (TableTest.cell(a 0 0))
+        c.eqInt("spanning three columns" mc.gridSpan 3)
+        c.eqStr("holding all their text" (TableTest.cellText(a 0 0)) "a1/b1/c1")
+        c.ok("merging one cell is refused" ((a.runCommand("table.merge" "")) == false))
+        c.ok("table.split 3 runs" (a.runCommand("table.split" "3")))
+        c.eqInt("three cells again" (TableTest.cellsIn(a 0)) 3)
+        c.eqInt("the grid did not change" (TableTest.cols(a)) 3)
+        a.runCommand("edit.undo" "")
+        a.runCommand("edit.undo" "")
+        c.eqStr("two undos: as before" (TableTest.grid(a)) "a1|b1|c1,a2|b2|c2,a3|b3|c3")
+        TableTest.to(a 1 1)
+        a.runCommand("table.split" "2")
+        c.eqInt("splitting a one-column cell adds a grid column" (TableTest.cols(a)) 4)
+        c.eqInt("its row has four cells" (TableTest.cellsIn(a 1)) 4)
+        def above:DocTableCell (TableTest.cell(a 0 1))
+        c.eqInt("the cell above widens over both" above.gridSpan 2)
+        def back1:DocxApp (TableTest.reopen(a))
+        def ab:DocTableCell (TableTest.cell(back1 0 1))
+        c.eqInt("saved: the merged span reads back" ab.gridSpan 2)
+        c.eqInt("and the four cells" (TableTest.cellsIn(back1 1)) 4)
+        a.runCommand("edit.undo" "")
+
+        print "-- Split table --"
+        TableTest.to(a 2 0)
+        c.ok("table.splitTable runs" (a.runCommand("table.splitTable" "")))
+        c.eqInt("two tables" (TableTest.tableCount(a)) 2)
+        c.eqInt("the first keeps two rows" (TableTest.rows(a)) 2)
+        c.ok("the caret is in the paragraph between them" ((a.viewer.edit.adapter.bodyOrderOf(a.viewer.edit.sel.focus.paragraphId)) >= 0))
+        TableTest.to(a 0 0)
+        c.ok("the first row cannot split off" ((a.runCommand("table.splitTable" "")) == false))
+        a.runCommand("edit.undo" "")
+        c.eqInt("undo joins them" (TableTest.tableCount(a)) 1)
+        c.eqInt("three rows" (TableTest.rows(a)) 3)
+
+        print "-- Sizes --"
+        TableTest.to(a 0 0)
+        a.runCommand("table.columnWidth" "72")
+        def tw:DocumentTable (TableTest.tbl(a))
+        c.eqInt("table.columnWidth 72pt = 1440 twips" (itemAt tw.colWidthsTwips 0) 1440)
+        a.runCommand("table.distributeColumns" "")
+        def td:DocumentTable (TableTest.tbl(a))
+        c.ok("table.distributeColumns: equal" (((itemAt td.colWidthsTwips 0) == (itemAt td.colWidthsTwips 1)) || (((itemAt td.colWidthsTwips 0) - (itemAt td.colWidthsTwips 1)) < 3)))
+        a.runCommand("table.rowHeight" "36")
+        def r0:DocTableRow (itemAt td.rows 0)
+        c.eqInt("table.rowHeight 36pt" r0.heightTwips 720)
+        a.runCommand("table.selectTable" "")
+        a.runCommand("table.distributeRows" "")
+        def r2:DocTableRow (itemAt td.rows 2)
+        c.eqInt("table.distributeRows: every row as tall as the tallest" r2.heightTwips 720)
+        a.runCommand("table.autofit" "window")
+        c.ok("table.autofit window runs" true)
+        def back2:DocxApp (TableTest.reopen(a))
+        def bt2:DocumentTable (TableTest.tbl(back2))
+        def br:DocTableRow (itemAt bt2.rows 2)
+        c.eqInt("saved: row height" br.heightTwips 720)
+
+        print "-- Alignment, shading, header rows --"
+        TableTest.to(a 1 1)
+        a.runCommand("table.cellAlign" "middle-center")
+        def ca:DocTableCell (TableTest.cell(a 1 1))
+        def cp:Paragraph (itemAt ca.paragraphs 0)
+        c.ok("table.cellAlign middle-center" ((ca.vAlign == 1) && (cp.align == 1)))
+        a.runCommand("table.shading" "FFEE00")
+        def cs:DocTableCell (TableTest.cell(a 1 1))
+        c.eqStr("table.shading" cs.fillHex "FFEE00")
+        TableTest.to(a 0 0)
+        a.runCommand("table.repeatHeader" "")
+        def ht:DocumentTable (TableTest.tbl(a))
+        def hr:DocTableRow (itemAt ht.rows 0)
+        c.ok("table.repeatHeader marks the first row" hr.header)
+        def back3:DocxApp (TableTest.reopen(a))
+        def bc:DocTableCell (TableTest.cell(back3 1 1))
+        c.ok("saved: alignment" (bc.vAlign == 1))
+        c.eqStr("shading" bc.fillHex "FFEE00")
+        def bt3:DocumentTable (TableTest.tbl(back3))
+        def bh:DocTableRow (itemAt bt3.rows 0)
+        c.ok("header row" bh.header)
+        ; A table read from a file: its cells carry their own tcPr, which the
+        ; writer copies unless an edit changed what it says.
+        back3.viewer.setEditMode(true)
+        TableTest.to(back3 2 0)
+        back3.runCommand("table.selectRow" "")
+        back3.runCommand("table.merge" "")
+        back3.runCommand("table.insertRowBelow" "")
+        def back5:DocxApp (TableTest.reopen(back3))
+        def m5:DocTableCell (TableTest.cell(back5 2 0))
+        c.eqInt("a read table, merged and saved: the new span" m5.gridSpan 3)
+        c.eqInt("the inserted row" (TableTest.rows(back5)) 4)
+        def s5:DocTableCell (TableTest.cell(back5 1 1))
+        c.eqStr("an untouched cell keeps its shading" s5.fillHex "FFEE00")
+
+        print "-- Sort --"
+        def s:DocxApp (TableTest.fresh())
+        s.runCommand("insert.table" "4x2")
+        def words:[string] (strsplit "Name Qty pear 10 Apple 9 fig 100" " ")
+        def k:int 0
+        def kr:int 0
+        while (kr < 4) {
+            def kc:int 0
+            while (kc < 2) {
+                TableTest.to(s kr kc)
+                s.runCommand("text.insert" (itemAt words k))
+                k = (k + 1)
+                kc = (kc + 1)
+            }
+            kr = (kr + 1)
+        }
+        TableTest.to(s 1 0)
+        c.ok("table.sort header runs" (s.runCommand("table.sort" "header")))
+        c.eqStr("by name, the header stays" (TableTest.grid(s)) "Name|Qty,Apple|9,fig|100,pear|10")
+        TableTest.to(s 1 1)
+        s.runCommand("table.sort" "header desc")
+        c.eqStr("by quantity, as numbers, descending" (TableTest.grid(s)) "Name|Qty,fig|100,pear|10,Apple|9")
+        s.runCommand("edit.undo" "")
+        s.runCommand("edit.undo" "")
+        c.eqStr("undo" (TableTest.grid(s)) "Name|Qty,pear|10,Apple|9,fig|100")
+
+        print "-- Convert to text and back --"
+        TableTest.to(s 0 0)
+        c.ok("table.toText runs" (s.runCommand("table.toText" "")))
+        c.eqInt("no table" (TableTest.tableCount(s)) 0)
+        def ad:RichDocumentEdit s.viewer.edit.adapter
+        ; Body paragraph 0 is the empty one Insert Table split off above it.
+        def p0:Paragraph (ad.findParagraph((ad.bodyParagraphIdAt(1))))
+        c.eqStr("a row is a line, tab separated" p0.text "Name\tQty")
+        def lastPid:int (ad.bodyParagraphIdAt(4))
+        s.viewer.edit.setCaret((ad.bodyParagraphIdAt(1)) 0)
+        s.viewer.edit.extendTo(lastPid 2)
+        c.ok("table.fromText runs" (s.runCommand("table.fromText" "")))
+        c.eqStr("and it is a table again" (TableTest.grid(s)) "Name|Qty,pear|10,Apple|9,fig|100")
+        s.runCommand("edit.undo" "")
+        c.eqInt("undo: text" (TableTest.tableCount(s)) 0)
+        s.runCommand("edit.undo" "")
+        c.eqStr("undo: the table" (TableTest.grid(s)) "Name|Qty,pear|10,Apple|9,fig|100")
+        def back4:DocxApp (TableTest.reopen(s))
+        c.eqStr("saved and read back" (TableTest.grid(back4)) "Name|Qty,pear|10,Apple|9,fig|100")
+
+        print "-- Outside a table --"
+        def o:DocxApp (TableTest.fresh())
+        c.ok("a table command with no table is refused" ((o.runCommand("table.insertRowBelow" "")) == false))
+
+        print ""
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        } {
+            print "FAILURES"
+        }
+    }
+}

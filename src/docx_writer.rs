@@ -476,12 +476,19 @@ impl DocxWriter {
         for ri in 0..__n_ri {
             let mut row = t.borrow().rows[ri as usize].clone();
             let mut tr_pr: String = String::new();
-            if row.borrow().source.borrow().known {
+            if row.borrow().source.borrow().known && !row.borrow().fresh {
                 tr_pr = DocxWriter::firstChild(&SourceRef::slice(&row.borrow().source, &self.src), "w:trPr");
             }
             if tr_pr.is_empty() {
+                let mut inner: String = String::new();
                 if row.borrow().heightTwips > 0 {
-                    tr_pr = format!("<w:trPr><w:trHeight w:val=\"{}\"/></w:trPr>", row.borrow().heightTwips);
+                    inner = format!("<w:trHeight w:val=\"{}\"/>", row.borrow().heightTwips);
+                }
+                if row.borrow().header {
+                    inner = format!("{}<w:tblHeader/>", inner);
+                }
+                if !inner.is_empty() {
+                    tr_pr = format!("<w:trPr>{}</w:trPr>", inner);
                 }
             }
             r = format!("{}<w:tr>{}", r, tr_pr);
@@ -489,7 +496,7 @@ impl DocxWriter {
             let __it_cell = row.borrow().cells.clone();
             for cell in __it_cell.iter().cloned() {
                 let mut tc_pr: String = String::new();
-                if cell.borrow().source.borrow().known {
+                if cell.borrow().source.borrow().known && !cell.borrow().fresh {
                     tc_pr = DocxWriter::firstChild(&SourceRef::slice(&cell.borrow().source, &self.src), "w:tcPr");
                 }
                 if tc_pr.is_empty() {
@@ -508,6 +515,12 @@ impl DocxWriter {
                     }
                     if (DxNative::str_len(&cell.borrow().fillHex)) == 6 {
                         tc_pr = format!("{}<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{}\"/>", tc_pr, cell.borrow().fillHex);
+                    }
+                    if cell.borrow().vAlign == 1 {
+                        tc_pr = format!("{}<w:vAlign w:val=\"center\"/>", tc_pr);
+                    }
+                    if cell.borrow().vAlign == 2 {
+                        tc_pr = format!("{}<w:vAlign w:val=\"bottom\"/>", tc_pr);
                     }
                     tc_pr = format!("{}</w:tcPr>", tc_pr);
                 }

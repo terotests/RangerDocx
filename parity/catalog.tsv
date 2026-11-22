@@ -137,9 +137,9 @@ Home	Editor	Editor	review.editor	live	no	no	-
 Insert	Pages	Cover Page	insert.coverPage	live	no	no	-
 Insert	Pages	Blank Page	insert.blankPage	live	no	no	-
 Insert	Pages	Page Break	insert.pageBreak	live	no	done	tests/DocxChromeTest.rgr
-Insert	Tables	Insert Table	insert.table	live	partial	done	tests/DocxChromeTest.rgr
+Insert	Tables	Insert Table	insert.table	live	partial	yes	tests/TableTest.rgr
 Insert	Tables	Draw Table	table.draw	live	no	no	-
-Insert	Tables	Convert Text to Table	table.fromText	live	no	no	-
+Insert	Tables	Convert Text to Table	table.fromText	live	no	yes	tests/TableTest.rgr
 Insert	Tables	Excel Spreadsheet	insert.spreadsheet	live	no	no	-
 Insert	Tables	Quick Tables	table.quick	live	no	no	-
 Insert	Illustrations	Pictures	insert.picture	live	no	no	-
@@ -358,41 +358,41 @@ Table Design	Table Styles	Table Styles	table.style	live	no	no	-
 Table Design	Table Styles	New Table Style	table.newStyle	live	no	no	-
 Table Design	Table Styles	Modify Table Style	table.modifyStyle	live	no	no	-
 Table Design	Table Styles	Delete Table Style	table.deleteStyle	live	no	no	-
-Table Design	Table Styles	Shading	table.shading	live	no	no	-
+Table Design	Table Styles	Shading	table.shading	live	no	yes	tests/TableTest.rgr
 Table Design	Borders	Borders	table.borders	live	no	no	-
 Table Design	Borders	Border Painter	table.borderPainter	live	no	no	-
-Table Layout	Table	Select Table	table.selectTable	live	no	no	-
-Table Layout	Table	Select Row	table.selectRow	live	no	no	-
-Table Layout	Table	Select Column	table.selectColumn	live	no	no	-
-Table Layout	Table	Select Cell	table.selectCell	live	no	no	-
+Table Layout	Table	Select Table	table.selectTable	live	no	yes	tests/TableTest.rgr
+Table Layout	Table	Select Row	table.selectRow	live	no	yes	tests/TableTest.rgr
+Table Layout	Table	Select Column	table.selectColumn	live	no	yes	tests/TableTest.rgr
+Table Layout	Table	Select Cell	table.selectCell	live	no	yes	tests/TableTest.rgr
 Table Layout	Table	View Gridlines	table.viewGridlines	live	no	no	-
 Table Layout	Table	Properties	table.properties	live	no	no	-
 Table Layout	Table	Alt Text	table.altText	live	no	no	-
 Table Layout	Table	Table Direction	table.rtl	live	no	no	-
 Table Layout	Draw	Draw Table	table.draw	live	no	no	-
 Table Layout	Draw	Eraser	table.eraser	live	no	no	-
-Table Layout	Rows & Columns	Delete Cells	table.deleteCells	live	no	no	-
-Table Layout	Rows & Columns	Delete Rows	table.deleteRow	live	partial	impl	-
-Table Layout	Rows & Columns	Delete Columns	table.deleteColumn	live	no	no	-
-Table Layout	Rows & Columns	Delete Table	table.deleteTable	live	no	no	-
-Table Layout	Rows & Columns	Insert Above	table.insertRowAbove	live	no	no	-
-Table Layout	Rows & Columns	Insert Below	table.insertRowBelow	live	partial	impl	-
-Table Layout	Rows & Columns	Insert Left	table.insertColumnLeft	live	no	no	-
-Table Layout	Rows & Columns	Insert Right	table.insertColumnRight	live	no	no	-
-Table Layout	Merge	Merge Cells	table.merge	live	no	no	-
-Table Layout	Merge	Split Cells	table.split	live	no	no	-
-Table Layout	Merge	Split Table	table.splitTable	live	no	no	-
-Table Layout	Cell Size	AutoFit	table.autofit	live	no	no	-
-Table Layout	Cell Size	Row Height	table.rowHeight	live	no	no	-
-Table Layout	Cell Size	Column Width	table.columnWidth	live	no	no	-
-Table Layout	Cell Size	Distribute Rows	table.distributeRows	live	no	no	-
-Table Layout	Cell Size	Distribute Columns	table.distributeColumns	live	no	no	-
-Table Layout	Alignment	Alignment	table.cellAlign	live	no	no	-
+Table Layout	Rows & Columns	Delete Cells	table.deleteCells	live	no	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Delete Rows	table.deleteRow	live	partial	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Delete Columns	table.deleteColumn	live	no	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Delete Table	table.deleteTable	live	no	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Insert Above	table.insertRowAbove	live	no	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Insert Below	table.insertRowBelow	live	partial	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Insert Left	table.insertColumnLeft	live	no	yes	tests/TableTest.rgr
+Table Layout	Rows & Columns	Insert Right	table.insertColumnRight	live	no	yes	tests/TableTest.rgr
+Table Layout	Merge	Merge Cells	table.merge	live	no	partial	tests/TableTest.rgr
+Table Layout	Merge	Split Cells	table.split	live	no	yes	tests/TableTest.rgr
+Table Layout	Merge	Split Table	table.splitTable	live	no	yes	tests/TableTest.rgr
+Table Layout	Cell Size	AutoFit	table.autofit	live	no	partial	tests/TableTest.rgr
+Table Layout	Cell Size	Row Height	table.rowHeight	live	no	yes	tests/TableTest.rgr
+Table Layout	Cell Size	Column Width	table.columnWidth	live	no	yes	tests/TableTest.rgr
+Table Layout	Cell Size	Distribute Rows	table.distributeRows	live	no	partial	tests/TableTest.rgr
+Table Layout	Cell Size	Distribute Columns	table.distributeColumns	live	no	yes	tests/TableTest.rgr
+Table Layout	Alignment	Alignment	table.cellAlign	live	no	partial	tests/TableTest.rgr
 Table Layout	Alignment	Text Direction	table.textDirection	live	no	no	-
 Table Layout	Alignment	Cell Margins	table.cellMargins	live	no	no	-
-Table Layout	Data	Sort	table.sort	live	no	no	-
-Table Layout	Data	Repeat Header Rows	table.repeatHeader	live	no	no	-
-Table Layout	Data	Convert to Text	table.toText	live	no	no	-
+Table Layout	Data	Sort	table.sort	live	no	yes	tests/TableTest.rgr
+Table Layout	Data	Repeat Header Rows	table.repeatHeader	live	no	partial	tests/TableTest.rgr
+Table Layout	Data	Convert to Text	table.toText	live	no	yes	tests/TableTest.rgr
 Table Layout	Data	Formula	table.formula	live	no	no	-
 Equation	Tools	Equation	insert.equation	live	no	no	-
 Equation	Tools	Ink Equation	insert.inkEquation	missing	no	no	-

@@ -18,7 +18,7 @@ Numbering	Overrides, restarts, picture bullets	w:lvlOverride w:startOverride w:l
 Tables	Grid, rows, cells, spans	w:tbl w:tblGrid w:tr w:tc w:gridSpan	yes	yes	yes	no	yes	yes	tests/DocxTest.rgr
 Tables	Vertical merge, nested tables	w:vMerge (nested w:tbl)	yes	yes	no	no	no	no	-
 Tables	Borders, shading, widths, margins	w:tblBorders w:tcBorders w:shd w:tcW w:tblCellMar	yes	yes	partial	no	partial	yes	tests/DocxTest.rgr
-Tables	Header rows, row height, cantSplit	w:tblHeader w:trHeight w:cantSplit	yes	yes	no	no	no	no	-
+Tables	Header rows, row height, cantSplit	w:tblHeader w:trHeight w:cantSplit	yes	yes	no	no	partial	partial	tests/TableTest.rgr
 Tables	Floating and RTL tables	w:tblpPr w:bidiVisual	yes	yes	no	no	no	no	-
 Sections	Page size, margins, orientation, section breaks	w:sectPr w:pgSz w:pgMar w:type	yes	yes	yes	no	yes	yes	tests/DocxTest.rgr
 Sections	Columns, line numbers, page borders, vAlign, docGrid	w:cols w:lnNumType w:pgBorders w:vAlign w:docGrid	yes	yes	no	no	no	no	-

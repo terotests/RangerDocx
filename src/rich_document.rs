@@ -576,6 +576,9 @@ pub struct DocTableCell {
     pub padRightPx: i64,
     pub padBottomPx: i64,
     pub padLeftPx: i64,
+    /// Changed by an edit that its read tcPr no longer describes (span,
+    /// shading, alignment): the writer builds the tcPr again.
+    pub fresh: bool,
 }
 
 impl DocTableCell {
@@ -594,6 +597,7 @@ impl DocTableCell {
             padRightPx: 6,
             padBottomPx: 4,
             padLeftPx: 6,
+            fresh: false,
         }
     }
 }
@@ -602,6 +606,10 @@ pub struct DocTableRow {
     source: Rc<RefCell<SourceRef>>,
     pub cells: Vec<Rc<RefCell<DocTableCell>>>,
     pub heightTwips: i64,
+    /// w:tblHeader: repeated at the top of each page the table runs onto.
+    pub header: bool,
+    /// Height or header changed by an edit: the writer builds the trPr again.
+    pub fresh: bool,
 }
 
 impl DocTableRow {
@@ -610,6 +618,8 @@ impl DocTableRow {
             source: Rc::new(RefCell::new(SourceRef::new())),
             cells: Vec::new(),
             heightTwips: 0,
+            header: false,
+            fresh: false,
         }
     }
 }

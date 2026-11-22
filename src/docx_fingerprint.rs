@@ -68,7 +68,7 @@ impl DocxFingerprint {
         }
         let __it_row = t.borrow().rows.clone();
         for row in __it_row.iter().cloned() {
-            s = format!("{}{}{}", s, "{R".to_string(), row.borrow().heightTwips);
+            s = format!("{}{}{}:{}", s, "{R".to_string(), row.borrow().heightTwips, row.borrow().header);
             let __it_cell = row.borrow().cells.clone();
             for cell in __it_cell.iter().cloned() {
                 s = format!("{}{}{}:{}:{}", s, "{C".to_string(), cell.borrow().gridSpan, cell.borrow().fillHex, cell.borrow().vAlign);

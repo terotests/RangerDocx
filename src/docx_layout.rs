@@ -1062,6 +1062,10 @@ impl DocxLayout {
                 grid_col += span;
                 c += 1;
             }
+            let min_h: i64 = (((row.borrow().heightTwips as f64) * 96.0) / 1440.0).floor() as i64;
+            if min_h > row_h {
+                row_h = min_h;
+            }
             // Draw cells
             let mut x: i64 = ml;
             grid_col = 0;
@@ -1144,6 +1148,17 @@ impl DocxLayout {
                 }
                 // cell paragraphs
                 let mut cy: i64 = y + cell2.borrow().padTopPx;
+                // Centred or bottom: the room the row has over this cell's own
+                // height goes above the text.
+                if c < (cell_heights.len() as i64) {
+                    let room: i64 = row_h - cell_heights[c as usize];
+                    if cell2.borrow().vAlign == 1 && room > 0 {
+                        cy += room / 2;
+                    }
+                    if cell2.borrow().vAlign == 2 && room > 0 {
+                        cy += room;
+                    }
+                }
                 let mut inner_w2: i64 = (cw2 - cell2.borrow().padLeftPx) - cell2.borrow().padRightPx;
                 if inner_w2 < 20 {
                     inner_w2 = 20;

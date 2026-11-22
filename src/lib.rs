@@ -11,6 +11,7 @@ mod docx_ink;
 mod docx_layout;
 mod docx_package;
 mod docx_para_format;
+mod docx_table_edit;
 mod docx_png;
 mod docx_text_metrics;
 mod docx_typing;
