@@ -617,6 +617,24 @@ class DocxApp {
         commands.add("select.word" "Select word" "Edit" "")
         commands.add("select.sentence" "Select sentence" "Edit" "")
         commands.add("select.paragraph" "Select paragraph" "Edit" "")
+        commands.add("para.keepNext" "Keep with next" "Format" "")
+        commands.add("para.keepLines" "Keep lines together" "Format" "")
+        commands.add("para.pageBreakBefore" "Page break before" "Format" "")
+        commands.add("para.widowControl" "Widow/Orphan control" "Format" "")
+        commands.addArg("para.outlineLevel" "Outline level" "Format" "")
+        commands.add("para.hangingIndent" "Hanging indent" "Format" "Ctrl+T")
+        commands.add("para.justify" "Justify" "Format" "Ctrl+J")
+        commands.add("para.rtl" "Right-to-left text direction" "Format" "")
+        commands.add("para.ltr" "Left-to-right text direction" "Format" "")
+        commands.add("para.heading1" "Heading 1" "Format" "Ctrl+Alt+1")
+        commands.add("para.heading2" "Heading 2" "Format" "Ctrl+Alt+2")
+        commands.add("para.heading3" "Heading 3" "Format" "Ctrl+Alt+3")
+        commands.addArg("para.sort" "Sort" "Format" "")
+        commands.add("edit.copyFormat" "Copy formatting" "Edit" "Ctrl+Shift+C")
+        commands.add("edit.pasteFormat" "Paste formatting" "Edit" "Ctrl+Shift+V")
+        commands.add("edit.findNext" "Find next" "Edit" "")
+        commands.add("edit.findPrevious" "Find previous" "Edit" "")
+        commands.addArg("edit.goto" "Go to page" "Edit" "Ctrl+G")
     }
 
     ; --- geometry -------------------------------------------------------------
@@ -769,7 +787,55 @@ class DocxApp {
         if (id == "select.word") { ed.selectWord() }
         if (id == "select.sentence") { ed.selectSentence() }
         if (id == "select.paragraph") { ed.selectParagraph() }
-        def known:[string] (strsplit "text.insert text.newParagraph text.lineBreak text.backspace text.delete caret.wordLeft caret.wordRight caret.home caret.end caret.docStart caret.docEnd caret.pageUp caret.pageDown text.deleteWordBack text.deleteWordForward text.toggleUnicode para.moveUp para.moveDown para.promote para.demote outline.moveUp outline.moveDown outline.promote outline.demote outline.promoteToHeading1 outline.demoteToBody caret.paraUp caret.paraDown select.word select.sentence select.paragraph" " ")
+        def pf:string ""
+        if (id == "para.keepNext") { pf = "keepNext" }
+        if (id == "para.keepLines") { pf = "keepLines" }
+        if (id == "para.pageBreakBefore") { pf = "pageBreakBefore" }
+        if (id == "para.widowControl") { pf = "widowControl" }
+        if (id == "para.outlineLevel") { pf = "outline" }
+        if (id == "para.hangingIndent") { pf = "hanging" }
+        if ((strlen pf) > 0) {
+            ed.formatParagraphs(pf arg viewer.parser.resolver)
+            viewer.renderPage(viewer.currentPage)
+            return 1
+        }
+        if (id == "para.justify") { ed.formatParagraphs("align" "3" viewer.parser.resolver) }
+        if (id == "para.rtl") { ed.formatParagraphs("dir" "rtl" viewer.parser.resolver) }
+        if (id == "para.ltr") { ed.formatParagraphs("dir" "ltr" viewer.parser.resolver) }
+        if (id == "para.heading1") { ed.formatParagraphs("style" "Heading1" viewer.parser.resolver) }
+        if (id == "para.heading2") { ed.formatParagraphs("style" "Heading2" viewer.parser.resolver) }
+        if (id == "para.heading3") { ed.formatParagraphs("style" "Heading3" viewer.parser.resolver) }
+        if (id == "para.sort") { ed.sortParagraphs((arg == "desc")) }
+        if (id == "edit.copyFormat") { ed.copyFormat() }
+        if (id == "edit.pasteFormat") {
+            if ed.formatCopied {
+                ed.formatRuns("paint" "" viewer.parser.resolver)
+            }
+        }
+        if (id == "edit.findNext") {
+            ed.findNext()
+            status = ed.findStatus
+        }
+        if (id == "edit.findPrevious") {
+            ed.findPrevious()
+            status = ed.findStatus
+        }
+        if (id == "edit.goto") {
+            def want@(optional):int (to_int arg)
+            if (!null? want) {
+                def pg:int ((unwrap want) - 1)
+                viewer.view.layout.layoutIfNeeded(viewer.doc viewer.view.ctx.tr viewer.numbering)
+                if (ed.caretToPage(viewer.view.layout pg)) {
+                    def gpid:int ed.sel.focus.paragraphId
+                    def goff:int ed.sel.focus.textOffset
+                    this.navigateTo(gpid pg)
+                    ed.setCaret(gpid goff)
+                    return 1
+                }
+            }
+            return 0
+        }
+        def known:[string] (strsplit "para.justify para.rtl para.ltr para.heading1 para.heading2 para.heading3 para.sort edit.copyFormat edit.pasteFormat edit.findNext edit.findPrevious text.insert text.newParagraph text.lineBreak text.backspace text.delete caret.wordLeft caret.wordRight caret.home caret.end caret.docStart caret.docEnd caret.pageUp caret.pageDown text.deleteWordBack text.deleteWordForward text.toggleUnicode para.moveUp para.moveDown para.promote para.demote outline.moveUp outline.moveDown outline.promote outline.demote outline.promoteToHeading1 outline.demoteToBody caret.paraUp caret.paraDown select.word select.sentence select.paragraph" " ")
         def k:int 0
         while (k < (array_length known)) {
             if ((itemAt known k) == id) {
@@ -1838,6 +1904,11 @@ class DocxApp {
             if (name == "p") { return (this.runCommand("file.print" "")) }
             if (name == "h") { return (this.runCommand("edit.replace" "")) }
             if (name == "enter") { return (this.runCommand("insert.pageBreak" "")) }
+            def lower:string (to_lowercase name)
+            if (shift && (lower == "c")) { return (this.runCommand("edit.copyFormat" "")) }
+            if (shift && (lower == "v")) { return (this.runCommand("edit.pasteFormat" "")) }
+            if (lower == "t") { return (this.runCommand("para.hangingIndent" "")) }
+            if (lower == "j") { return (this.runCommand("para.justify" "")) }
         }
         if ((name == "escape") && viewer.edit.painterArmed) {
             viewer.edit.painterOff()

@@ -7,7 +7,7 @@ Text	Complex-script and East Asian props	w:rtl w:cs w:szCs w:bCs w:iCs w:eastAsi
 Text	Symbols	w:sym	yes	yes	no	no	no	no	-
 Paragraph	Alignment, indents, spacing	w:jc w:ind w:spacing	yes	yes	yes	no	yes	yes	tests/DocxTest.rgr
 Paragraph	Tab stops	w:tabs w:tab	yes	yes	no	no	no	no	-
-Paragraph	Keeps, widow control, page break before	w:keepNext w:keepLines w:widowControl w:pageBreakBefore	yes	yes	partial	no	partial	no	tests/DocxTest.rgr
+Paragraph	Keeps, widow control, page break before	w:keepNext w:keepLines w:widowControl w:pageBreakBefore	yes	yes	partial	no	yes	yes	tests/HomeTest.rgr
 Paragraph	Borders and shading	w:pBdr w:shd	yes	yes	no	no	no	no	-
 Paragraph	Paragraph direction	w:bidi	yes	yes	yes	no	yes	partial	tests/DocxTest.rgr
 Paragraph	Text frames and drop caps	w:framePr	yes	yes	no	no	no	no	-

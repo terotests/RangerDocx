@@ -358,15 +358,28 @@ impl DocxWriter {
         }
         r
     }
+    /// A three-state paragraph flag: -1 writes nothing, 0 writes it off.
+    pub fn triFlag(tag: &str, v: i64) -> String {
+        if v == 1 {
+            return format!("<{}/>", tag);
+        }
+        if v == 0 {
+            return format!("<{} w:val=\"0\"/>", tag);
+        }
+        String::new()
+    }
     pub fn pPrXml(&self, p: &Rc<RefCell<Paragraph>>, orig_p_pr: &str) -> String {
         let mut ps: Rc<RefCell<ResolvedParagraphStyle>> = self.resolver.borrow().resolveParagraphStyle(p.borrow().styleId.clone());
         let mut r: String = String::new();
         if !p.borrow().styleId.is_empty() && p.borrow().styleId != "Normal" {
             r = format!("{}<w:pStyle w:val=\"{}\"/>", r, DocxWriter::esc(&p.borrow().styleId));
         }
+        r = format!("{}{}", r, DocxWriter::triFlag("w:keepNext", p.borrow().keepNext));
+        r = format!("{}{}", r, DocxWriter::triFlag("w:keepLines", p.borrow().keepLines));
         if p.borrow().pageBreakBefore {
             r = format!("{}<w:pageBreakBefore/>", r);
         }
+        r = format!("{}{}", r, DocxWriter::triFlag("w:widowControl", p.borrow().widowControl));
         if p.borrow().listNumId > 0 {
             r = format!("{}<w:numPr><w:ilvl w:val=\"{}\"/><w:numId w:val=\"{}\"/></w:numPr>", r, p.borrow().listLevel, p.borrow().listNumId);
         }
@@ -397,6 +410,9 @@ impl DocxWriter {
         }
         if p.borrow().align != ps.borrow().align {
             r = format!("{}<w:jc w:val=\"{}\"/>", r, DocxWriter::alignName(p.borrow().align));
+        }
+        if p.borrow().outlineLevel >= 0 {
+            r = format!("{}<w:outlineLvl w:val=\"{}\"/>", r, p.borrow().outlineLevel);
         }
         // A section that ends at this paragraph ends here whatever was edited.
         if !orig_p_pr.is_empty() {

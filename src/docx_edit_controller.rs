@@ -89,6 +89,8 @@ pub struct DocxEditController {
     /// Set while keys are typing, so typed text and only typed text joins the
     /// undo step before it.
     pub typingNow: bool,
+    /// Copy Formatting has picked up a look for Paste Formatting.
+    pub formatCopied: bool,
 }
 
 impl DocxEditController {
@@ -126,6 +128,7 @@ impl DocxEditController {
             autoFormat: true,
             numberRemovedPid: 0,
             typingNow: false,
+            formatCopied: false,
         }
     }
     pub fn intOr(s: &str, fallback: i64) -> i64 {
@@ -1905,6 +1908,24 @@ impl DocxEditController {
         if what == "list" {
             list_num = self.listTarget(&ids, arg);
         }
+        // Toggles follow the first paragraph: on everywhere unless it is on.
+        let first: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(ids[0]);
+        let mut flag_on: i64 = 1;
+        if what == "keepNext" && first.borrow().keepNext == 1 {
+            flag_on = 0;
+        }
+        if what == "keepLines" && first.borrow().keepLines == 1 {
+            flag_on = 0;
+        }
+        if what == "widowControl" && first.borrow().widowControl != 0 {
+            flag_on = 0;
+        }
+        if what == "pageBreakBefore" && first.borrow().pageBreakBefore {
+            flag_on = 0;
+        }
+        if what == "hanging" && first.borrow().indentFirstLinePt < 0.0 {
+            flag_on = 0;
+        }
         self.beginAction();
         let mut i: i64 = 0;
         while i < (ids.len() as i64) {
@@ -1951,6 +1972,51 @@ impl DocxEditController {
                 }
                 if what == "spacing" {
                     p.borrow_mut().lineSpacing = DocxParaFormat::num(arg);
+                }
+                if what == "keepNext" {
+                    p.borrow_mut().keepNext = flag_on;
+                }
+                if what == "keepLines" {
+                    p.borrow_mut().keepLines = flag_on;
+                }
+                if what == "widowControl" {
+                    p.borrow_mut().widowControl = flag_on;
+                }
+                if what == "pageBreakBefore" {
+                    p.borrow_mut().pageBreakBefore = flag_on == 1;
+                }
+                if what == "outline" {
+                    p.borrow_mut().outlineLevel = if arg.is_empty() { -1 } else { DocxParaFormat::int(arg) };
+                }
+                if what == "hanging" {
+                    // Hanging Indent (Ctrl+T): the first line half an inch out
+                    // from the rest, the text where it was; again takes it off.
+                    let fl: f64 = p.borrow().indentFirstLinePt;
+                    if flag_on == 1 && fl >= 0.0 {
+                        let nl: f64 = p.borrow().indentLeftPt + 36.0 - fl;
+                        p.borrow_mut().indentLeftPt = nl;
+                        p.borrow_mut().indentFirstLinePt = -36.0;
+                    }
+                    if flag_on == 0 && fl < 0.0 {
+                        let nl2: f64 = p.borrow().indentLeftPt + fl;
+                        p.borrow_mut().indentLeftPt = if nl2 < 0.0 { 0.0 } else { nl2 };
+                        p.borrow_mut().indentFirstLinePt = 0.0;
+                    }
+                }
+                if what == "dir" {
+                    // The direction mirrors the alignment, as in Word.
+                    if arg == "rtl" && p.borrow().bidi != 1 {
+                        p.borrow_mut().bidi = 1;
+                        if p.borrow().align == 0 {
+                            p.borrow_mut().align = 2;
+                        }
+                    }
+                    if arg == "ltr" && p.borrow().bidi == 1 {
+                        p.borrow_mut().bidi = 0;
+                        if p.borrow().align == 2 {
+                            p.borrow_mut().align = 0;
+                        }
+                    }
                 }
                 if what == "before" {
                     p.borrow_mut().spaceBeforePt = DocxParaFormat::num(arg);
@@ -3130,6 +3196,182 @@ impl DocxEditController {
         }
         self.setRange(pid, a, b);
     }
+    pub fn sortKind() -> i64 {
+        43
+    }
+    /// Put the paragraph blocks [f, l] in the order of `ids` (comma list).
+    fn orderBlocks(&self, f: i64, l: i64, ids: &str) {
+        let order: Vec<String> = ids.split(",").map(|s| s.to_string()).collect::<Vec<String>>();
+        let mut blocks: Vec<Rc<RefCell<crate::rich_document::DocBlock>>> = Vec::new();
+        let mut i: i64 = f;
+        while i <= l {
+            blocks.push(RichDocument::blockAt(&self.adapter.borrow().doc, i));
+            i += 1;
+        }
+        let mut k: i64 = 0;
+        while k < (order.len() as i64) && f + k <= l {
+            let want: i64 = DocxParaFormat::int(&order[k as usize].clone());
+            let mut j: i64 = 0;
+            while j < (blocks.len() as i64) {
+                let b: Rc<RefCell<crate::rich_document::DocBlock>> = blocks[j as usize].clone();
+                let bid: i64 = b.borrow().paragraph.borrow().id;
+                if bid == want {
+                    self.adapter.borrow().doc.borrow_mut().blocks[(f + k) as usize] = b.clone();
+                }
+                j += 1;
+            }
+            k += 1;
+        }
+        RichDocument::touch(&self.adapter.borrow().doc.clone());
+    }
+    /// Home › Sort: the selected paragraphs in alphabetical order (case
+    /// ignored), or reversed; one undo step.
+    pub fn sortParagraphs(&mut self, descending: bool) -> bool {
+        if !self.isActive() {
+            return false;
+        }
+        let r: Vec<i64> = self.selectedBlockRange();
+        let f: i64 = r[0];
+        let l: i64 = r[1];
+        if f < 0 || l <= f {
+            return false;
+        }
+        let mut ids: Vec<i64> = Vec::new();
+        let mut keys: Vec<String> = Vec::new();
+        let mut i: i64 = f;
+        while i <= l {
+            if !self.isParaBlock(i) {
+                return false;
+            }
+            let b: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&self.adapter.borrow().doc, i);
+            let bid: i64 = b.borrow().paragraph.borrow().id;
+            let bt: String = b.borrow().paragraph.borrow().text.to_lowercase();
+            ids.push(bid);
+            keys.push(bt);
+            i += 1;
+        }
+        let before: String = ids.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
+        // Insertion sort: stable, and the lists are short.
+        let n: i64 = ids.len() as i64;
+        let mut a: i64 = 1;
+        while a < n {
+            let mut b2: i64 = a;
+            while b2 > 0 {
+                let x: String = keys[(b2 - 1) as usize].clone();
+                let y: String = keys[b2 as usize].clone();
+                let out_of_order: bool = if descending { x < y } else { x > y };
+                if !out_of_order {
+                    break;
+                }
+                keys[(b2 - 1) as usize] = y.clone();
+                keys[b2 as usize] = x.clone();
+                let t: i64 = ids[(b2 - 1) as usize];
+                ids[(b2 - 1) as usize] = ids[b2 as usize];
+                ids[b2 as usize] = t;
+                b2 -= 1;
+            }
+            a += 1;
+        }
+        let after: String = ids.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
+        if after == before {
+            return true;
+        }
+        self.orderBlocks(f, l, &after);
+        // The sorted paragraphs stay selected, start to end.
+        let first_id: i64 = ids[0];
+        let last_id: i64 = ids[(n - 1) as usize];
+        self.setCaret(first_id, 0);
+        self.extendTo(last_id, self.adapter.borrow().textLength(last_id));
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = DocxEditController::sortKind();
+        op.borrow_mut().start = f;
+        op.borrow_mut().end = l;
+        op.borrow_mut().oldText = before.clone();
+        op.borrow_mut().newText = after.clone();
+        self.pushUndo(op.clone());
+        true
+    }
+    /// Find Previous: the match before the selection, wrapping at the start.
+    pub fn findPrevious(&mut self) -> bool {
+        if self.findQuery.is_empty() {
+            self.findStatus = "nothing to find".to_string();
+            return false;
+        }
+        let n: i64 = self.adapter.borrow().bodyParagraphCount();
+        if n == 0 {
+            return false;
+        }
+        let mut start_order: i64 = n - 1;
+        let mut start_off: i64 = self.adapter.borrow().textLength(self.adapter.borrow().bodyParagraphIdAt(n - 1));
+        if self.isActive() {
+            let mut a: Vec<i64> = Vec::new();
+            let mut b: Vec<i64> = Vec::new();
+            self.orderedEnds(&mut a, &mut b);
+            let o: i64 = self.adapter.borrow().bodyOrderOf(a[0]);
+            if o >= 0 {
+                start_order = o;
+                start_off = a[1];
+            }
+        }
+        let mut step: i64 = 0;
+        while step <= n {
+            let order: i64 = ((start_order - step) % n + n) % n;
+            let pid: i64 = self.adapter.borrow().bodyParagraphIdAt(order);
+            let text: String = self.adapter.borrow().getText(pid);
+            let mut limit: i64 = DxNative::str_len(&text) + 1;
+            if step == 0 {
+                limit = start_off;
+            }
+            let mut best: i64 = -1;
+            let mut at: i64 = self.matchIn(&text, 0);
+            while at >= 0 && at < limit {
+                best = at;
+                at = self.matchIn(&text, at + 1);
+            }
+            if step == n && best < start_off {
+                best = -1;
+            }
+            if best >= 0 {
+                self.setRange(pid, best, best + (DxNative::str_len(&self.findQuery)));
+                self.findStatus = "found".to_string();
+                return true;
+            }
+            step += 1;
+        }
+        self.findStatus = format!("no match for '{}'", self.findQuery);
+        false
+    }
+    /// Copy Formatting (Ctrl+Shift+C): the look at the caret, kept for Paste
+    /// Formatting until the next copy.
+    pub fn copyFormat(&mut self) -> bool {
+        if !self.painterPick(false) {
+            return false;
+        }
+        self.painterArmed = false;
+        self.formatCopied = true;
+        true
+    }
+    /// Go To: the caret to the first line of a page.
+    pub fn caretToPage(&mut self, layout: &Rc<RefCell<DocxLayout>>, page_index: i64) -> bool {
+        if page_index < 0 || page_index >= layout.borrow().pageCount() {
+            return false;
+        }
+        let page: Rc<RefCell<LaidPage>> = layout.borrow().pageAt(page_index);
+        let mut i: i64 = 0;
+        while i < (page.borrow().lines.len() as i64) {
+            let line: Rc<RefCell<LaidLine>> = page.borrow().lines[i as usize].clone();
+            if LaidLineKind::isBodyText(line.borrow().kind.clone()) && line.borrow().paragraphRef.is_some() {
+                let p: Rc<RefCell<Paragraph>> = line.borrow().paragraphRef.clone().unwrap();
+                if p.borrow().id > 0 {
+                    let off: i64 = line.borrow().docStart;
+                    self.setCaret(p.borrow().id.clone(), off);
+                    return true;
+                }
+            }
+            i += 1;
+        }
+        false
+    }
     /// --- undo and redo, which are ONE function with a direction ---------------
     ///
     /// They used to be two switches over `op.kind`, and they drifted: `undo`
@@ -3139,6 +3381,11 @@ impl DocxEditController {
     /// there. Written as one function that cannot happen: a kind is handled in
     /// both directions or in neither.
     fn applyOp(&mut self, op: &Rc<RefCell<DocEditOp>>, forward: bool) -> bool {
+        if op.borrow().kind == DocxEditController::sortKind() {
+            let ids: String = if forward { op.borrow().newText.clone() } else { op.borrow().oldText.clone() };
+            self.orderBlocks(op.borrow().start, op.borrow().end, &ids);
+            return true;
+        }
         if op.borrow().kind == DocxEditController::moveKind() {
             let f: i64 = op.borrow().start;
             let l: i64 = op.borrow().end;

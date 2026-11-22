@@ -151,6 +151,7 @@ impl DocxParaFormat {
         s = format!("{}\t{}\t{}\t{}", s, p.borrow().spaceBeforePt, p.borrow().spaceAfterPt, p.borrow().lineSpacing);
         s = format!("{}\t{}\t{}\t{}", s, p.borrow().indentLeftPt, p.borrow().indentRightPt, p.borrow().indentFirstLinePt);
         s = format!("{}\t{}", s, DocxParaFormat::b(p.borrow().pageBreakBefore));
+        s = format!("{}\t{}\t{}\t{}\t{}", s, p.borrow().keepNext, p.borrow().keepLines, p.borrow().widowControl, p.borrow().outlineLevel);
         let mut i: i64 = 0;
         while i < (p.borrow().spans.len() as i64) {
             let mut sp: Rc<RefCell<TextSpan>> = p.borrow().spans[i as usize].clone();
@@ -189,6 +190,12 @@ impl DocxParaFormat {
         p.borrow_mut().indentRightPt = DocxParaFormat::num(&f[12].clone());
         p.borrow_mut().indentFirstLinePt = DocxParaFormat::num(&f[13].clone());
         p.borrow_mut().pageBreakBefore = f[14].clone() == "1";
+        if (f.len() as i64) >= 19 {
+            p.borrow_mut().keepNext = DocxParaFormat::int(&f[15].clone());
+            p.borrow_mut().keepLines = DocxParaFormat::int(&f[16].clone());
+            p.borrow_mut().widowControl = DocxParaFormat::int(&f[17].clone());
+            p.borrow_mut().outlineLevel = DocxParaFormat::int(&f[18].clone());
+        }
         p.borrow_mut().spans.clear();
         let mut i: i64 = 1;
         while i < (lines.len() as i64) {

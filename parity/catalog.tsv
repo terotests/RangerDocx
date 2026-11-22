@@ -35,8 +35,8 @@ Home	Clipboard	Paste Special	edit.pasteSpecial	live	no	no	-
 Home	Clipboard	Cut	edit.cut	live	partial	partial	tests/DocxAppTest.rgr
 Home	Clipboard	Copy	edit.copy	live	partial	partial	tests/DocxAppTest.rgr
 Home	Clipboard	Format Painter	edit.formatPainter	live	no	done	tests/DocxChromeTest.rgr
-Home	Clipboard	Copy Formatting	edit.copyFormat	live	no	no	-
-Home	Clipboard	Paste Formatting	edit.pasteFormat	live	no	no	-
+Home	Clipboard	Copy Formatting	edit.copyFormat	live	no	yes	tests/HomeTest.rgr
+Home	Clipboard	Paste Formatting	edit.pasteFormat	live	no	yes	tests/HomeTest.rgr
 Home	Clipboard	Clipboard Pane	edit.clipboardPane	live	no	no	-
 Home	Font	Font	format.font	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Font Size	format.size	live	partial	partial	tests/DocxAppTest.rgr
@@ -84,7 +84,7 @@ Home	Paragraph	Define New Number Format	para.defineNumber	live	no	no	-
 Home	Paragraph	Set Numbering Value	para.setNumberingValue	live	no	no	-
 Home	Paragraph	Decrease Indent	para.outdent	live	yes	yes	tests/DocxTest.rgr
 Home	Paragraph	Increase Indent	para.indent	live	yes	yes	tests/DocxTest.rgr
-Home	Paragraph	Sort	para.sort	live	no	no	-
+Home	Paragraph	Sort	para.sort	live	no	yes	tests/HomeTest.rgr
 Home	Paragraph	Show/Hide Marks	view.marks	live	no	no	-
 Home	Paragraph	Align Left	para.alignLeft	live	no	yes	tests/DocxChromeTest.rgr
 Home	Paragraph	Center	para.alignCenter	live	no	yes	tests/DocxChromeTest.rgr
@@ -99,20 +99,20 @@ Home	Paragraph	Borders	para.borders	live	no	no	-
 Home	Paragraph	Horizontal Line	insert.horizontalLine	live	no	no	-
 Home	Paragraph	Paragraph Dialog	para.dialog	live	no	no	-
 Home	Paragraph	Tabs	para.tabs	live	no	no	-
-Home	Paragraph	Keep with Next	para.keepNext	live	no	no	-
-Home	Paragraph	Keep Lines Together	para.keepLines	live	no	no	-
-Home	Paragraph	Page Break Before	para.pageBreakBefore	live	no	no	-
-Home	Paragraph	Widow/Orphan Control	para.widowControl	live	no	no	-
-Home	Paragraph	Outline Level	para.outlineLevel	live	no	no	-
-Home	Paragraph	Hanging Indent	para.hangingIndent	live	no	no	-
-Home	Paragraph	Right-to-Left Text Direction	para.rtl	live	partial	partial	tests/DocxTest.rgr
-Home	Paragraph	Left-to-Right Text Direction	para.ltr	live	no	no	-
+Home	Paragraph	Keep with Next	para.keepNext	live	no	partial	tests/HomeTest.rgr
+Home	Paragraph	Keep Lines Together	para.keepLines	live	no	partial	tests/HomeTest.rgr
+Home	Paragraph	Page Break Before	para.pageBreakBefore	live	no	yes	tests/HomeTest.rgr
+Home	Paragraph	Widow/Orphan Control	para.widowControl	live	no	partial	tests/HomeTest.rgr
+Home	Paragraph	Outline Level	para.outlineLevel	live	no	partial	tests/HomeTest.rgr
+Home	Paragraph	Hanging Indent	para.hangingIndent	live	no	yes	tests/HomeTest.rgr
+Home	Paragraph	Right-to-Left Text Direction	para.rtl	live	partial	yes	tests/HomeTest.rgr
+Home	Paragraph	Left-to-Right Text Direction	para.ltr	live	no	yes	tests/HomeTest.rgr
 Home	Paragraph	Asian Typography	para.asianTypography	live	no	no	-
 Home	Styles	Styles Gallery	para.style	live	no	yes	tests/DocxChromeTest.rgr
 Home	Styles	Normal	para.normal	live	no	yes	tests/DocxChromeTest.rgr
 Home	Styles	Heading 1	para.heading1	live	no	yes	tests/DocxChromeTest.rgr
 Home	Styles	Heading 2	para.heading2	live	no	yes	tests/DocxChromeTest.rgr
-Home	Styles	Heading 3	para.heading3	live	no	no	-
+Home	Styles	Heading 3	para.heading3	live	no	yes	tests/HomeTest.rgr
 Home	Styles	Create a Style	styles.create	live	no	no	-
 Home	Styles	Modify Style	styles.modify	live	no	no	-
 Home	Styles	Update Style to Match	styles.updateToMatch	live	no	no	-
@@ -124,11 +124,11 @@ Home	Styles	Apply Styles	styles.apply	live	no	partial	tests/DocxChromeTest.rgr
 Home	Styles	Character Style	format.charStyle	live	no	no	-
 Home	Editing	Find	edit.find	live	no	yes	tests/DocxChromeTest.rgr
 Home	Editing	Find Next	edit.findNext	live	no	yes	tests/DocxChromeTest.rgr
-Home	Editing	Find Previous	edit.findPrevious	live	no	no	-
+Home	Editing	Find Previous	edit.findPrevious	live	no	yes	tests/HomeTest.rgr
 Home	Editing	Advanced Find	edit.advancedFind	live	no	no	-
 Home	Editing	Replace	edit.replace	live	no	yes	tests/DocsAppTest.rgr
 Home	Editing	Replace All	edit.replaceAll	live	no	yes	tests/DocsAppTest.rgr
-Home	Editing	Go To	edit.goto	live	no	no	-
+Home	Editing	Go To	edit.goto	live	no	yes	tests/HomeTest.rgr
 Home	Editing	Select All	select.all	live	yes	yes	tests/DocxTest.rgr
 Home	Editing	Select Objects	select.objects	live	no	no	-
 Home	Editing	Select Similar Formatting	select.similar	live	no	no	-

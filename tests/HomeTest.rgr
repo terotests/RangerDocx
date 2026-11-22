@@ -1,0 +1,259 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; HomeTest - Home tab paragraph commands, copy/paste formatting, find previous
+; and Go To (parity/catalog.tsv rows marked with this file).
+; ==============================================================================
+;
+; Each command runs through DocxApp.runCommand, as a ribbon button or a key
+; sends it; paragraph properties are also saved and read back.
+;
+;   npm run docx_viewer:home:test
+; ==============================================================================
+
+Import "../src/DocxApp.rgr"
+
+class HomeCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class HomeTest {
+    sfn fresh:DocxApp () {
+        def app:DocxApp (new DocxApp)
+        app.init()
+        app.resize(900 700)
+        app.runCommand("file.new" "")
+        app.viewer.edit.autoCorrect = false
+        return app
+    }
+
+    sfn para:Paragraph (app:DocxApp i:int) {
+        def ad:RichDocumentEdit app.viewer.edit.adapter
+        return (ad.findParagraph((ad.bodyParagraphIdAt(i))))
+    }
+
+    sfn f_keepNext:int (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.keepNext
+    }
+
+    sfn f_pageBreakBefore:boolean (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.pageBreakBefore
+    }
+
+    sfn f_outlineLevel:int (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.outlineLevel
+    }
+
+    sfn f_align:int (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.align
+    }
+
+    sfn f_bidi:int (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.bidi
+    }
+
+    sfn f_styleId:string (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.styleId
+    }
+
+    sfn text:string (app:DocxApp i:int) {
+        def p:Paragraph (HomeTest.para(app i))
+        return p.text
+    }
+
+    sfn pid:int (app:DocxApp i:int) {
+        return (app.viewer.edit.adapter.bodyParagraphIdAt(i))
+    }
+
+    sfn lines:void (app:DocxApp words:string) {
+        def parts:[string] (strsplit words " ")
+        def i:int 0
+        while (i < (array_length parts)) {
+            if (i > 0) {
+                app.runCommand("text.newParagraph" "")
+            }
+            app.runCommand("text.insert" (itemAt parts i))
+            i = (i + 1)
+        }
+    }
+
+    sfn order:string (app:DocxApp) {
+        def s:string ""
+        def i:int 0
+        while (i < (app.viewer.edit.adapter.bodyParagraphCount())) {
+            if (i > 0) {
+                s = (s + ",")
+            }
+            s = (s + (HomeTest.text(app i)))
+            i = (i + 1)
+        }
+        return s
+    }
+
+    sfn reopen:DocxApp (app:DocxApp) {
+        def b:buffer (app.viewer.saveBytes())
+        def back:DocxApp (new DocxApp)
+        back.init()
+        back.resize(900 700)
+        back.viewer.openBytes(b "home.docx")
+        return back
+    }
+
+    sfn main:void () {
+        def c:HomeCheck (new HomeCheck)
+        print "== HomeTest =="
+
+        print "-- Keep with next, Keep lines together, Page break before, Widow/Orphan control --"
+        def a:DocxApp (HomeTest.fresh())
+        HomeTest.lines(a "one two three")
+        a.viewer.edit.setCaret((HomeTest.pid(a 0)) 0)
+        c.ok("para.keepNext runs" (a.runCommand("para.keepNext" "")))
+        a.runCommand("para.keepLines" "")
+        a.runCommand("para.widowControl" "")
+        def p0:Paragraph (HomeTest.para(a 0))
+        c.eqInt("keep with next is on" p0.keepNext 1)
+        c.eqInt("keep lines together is on" p0.keepLines 1)
+        c.eqInt("widow control (on by default) is switched off" p0.widowControl 0)
+        a.runCommand("para.keepNext" "")
+        c.eqInt("a second press takes keep with next off" (HomeTest.f_keepNext(a 0)) 0)
+        a.runCommand("edit.undo" "")
+        c.eqInt("undo puts it back" (HomeTest.f_keepNext(a 0)) 1)
+        a.viewer.edit.setCaret((HomeTest.pid(a 2)) 0)
+        a.runCommand("para.pageBreakBefore" "")
+        c.ok("page break before is on" (HomeTest.f_pageBreakBefore(a 2)))
+        c.eqInt("and the paragraph starts a new page" (a.viewer.pageCount()) 2)
+        a.runCommand("para.outlineLevel" "2")
+        c.eqInt("para.outlineLevel sets level 3 (w:val 2)" (HomeTest.f_outlineLevel(a 2)) 2)
+        def r:DocxApp (HomeTest.reopen(a))
+        def q0:Paragraph (HomeTest.para(r 0))
+        def q2:Paragraph (HomeTest.para(r 2))
+        c.eqInt("saved and read back: keep with next" q0.keepNext 1)
+        c.eqInt("keep lines together" q0.keepLines 1)
+        c.eqInt("widow control off" q0.widowControl 0)
+        c.ok("page break before" q2.pageBreakBefore)
+        c.eqInt("outline level" q2.outlineLevel 2)
+        c.eqInt("a paragraph nobody set has none" (HomeTest.f_keepNext(r 1)) -1)
+
+        print "-- Hanging indent, Justify, text direction --"
+        def h:DocxApp (HomeTest.fresh())
+        HomeTest.lines(h "alpha")
+        h.runCommand("para.hangingIndent" "")
+        def hp:Paragraph (HomeTest.para(h 0))
+        c.ok("hanging indent: the first line half an inch out" ((hp.indentFirstLinePt == -36.0) && (hp.indentLeftPt == 36.0)))
+        h.runCommand("para.hangingIndent" "")
+        def hp2:Paragraph (HomeTest.para(h 0))
+        c.ok("and again takes it off" ((hp2.indentFirstLinePt == 0.0) && (hp2.indentLeftPt == 0.0)))
+        h.runCommand("para.justify" "")
+        c.eqInt("para.justify" (HomeTest.f_align(h 0)) 3)
+        h.runCommand("para.align" "0")
+        h.runCommand("para.rtl" "")
+        def rp:Paragraph (HomeTest.para(h 0))
+        c.ok("para.rtl: right to left, against the right margin" ((rp.bidi == 1) && (rp.align == 2)))
+        h.runCommand("para.ltr" "")
+        def lp:Paragraph (HomeTest.para(h 0))
+        c.ok("para.ltr: back" ((lp.bidi == 0) && (lp.align == 0)))
+        def hr:DocxApp (HomeTest.reopen(h))
+        c.eqInt("direction saved" (HomeTest.f_bidi(hr 0)) 0)
+
+        print "-- Heading 1, 2, 3 --"
+        h.runCommand("para.heading3" "")
+        c.eqStr("para.heading3" (HomeTest.f_styleId(h 0)) "Heading3")
+        h.runCommand("para.heading2" "")
+        c.eqStr("para.heading2" (HomeTest.f_styleId(h 0)) "Heading2")
+        h.runCommand("para.heading1" "")
+        c.eqStr("para.heading1" (HomeTest.f_styleId(h 0)) "Heading1")
+
+        print "-- Sort --"
+        def s:DocxApp (HomeTest.fresh())
+        HomeTest.lines(s "pear Apple banana cherry")
+        s.viewer.edit.setCaret((HomeTest.pid(s 0)) 0)
+        s.viewer.edit.extendTo((HomeTest.pid(s 3)) 3)
+        c.ok("para.sort runs" (s.runCommand("para.sort" "")))
+        c.eqStr("alphabetical, case ignored" (HomeTest.order(s)) "Apple,banana,cherry,pear")
+        s.runCommand("para.sort" "desc")
+        c.eqStr("descending" (HomeTest.order(s)) "pear,cherry,banana,Apple")
+        s.runCommand("edit.undo" "")
+        c.eqStr("undo: one step back" (HomeTest.order(s)) "Apple,banana,cherry,pear")
+        s.runCommand("edit.undo" "")
+        c.eqStr("and the original order" (HomeTest.order(s)) "pear,Apple,banana,cherry")
+        def sr:DocxApp (HomeTest.reopen(s))
+        c.eqStr("the order is saved" (HomeTest.order(sr)) "pear,Apple,banana,cherry")
+
+        print "-- Copy and Paste Formatting --"
+        def f:DocxApp (HomeTest.fresh())
+        HomeTest.lines(f "bold plain")
+        def fp0:int (HomeTest.pid(f 0))
+        def fp1:int (HomeTest.pid(f 1))
+        f.viewer.edit.setRange(fp0 0 4)
+        f.runCommand("format.bold" "")
+        f.viewer.edit.setCaret(fp0 2)
+        c.ok("edit.copyFormat runs" (f.runCommand("edit.copyFormat" "")))
+        c.ok("it does not arm the brush" (f.viewer.edit.painterArmed == false))
+        f.viewer.edit.setRange(fp1 0 5)
+        f.runCommand("edit.pasteFormat" "")
+        c.ok("edit.pasteFormat makes the target bold" (f.viewer.edit.adapter.rangeIsOn(fp1 0 5 "bold")))
+        f.key("z" false true)
+        c.ok("one undo takes it back" ((f.viewer.edit.adapter.rangeIsOn(fp1 0 5 "bold")) == false))
+        f.viewer.edit.setRange(fp1 0 2)
+        f.key("v" true true)
+        c.ok("Ctrl+Shift+V pastes it again" (f.viewer.edit.adapter.rangeIsOn(fp1 0 2 "bold")))
+
+        print "-- Find Next, Find Previous --"
+        def n:DocxApp (HomeTest.fresh())
+        HomeTest.lines(n "cat dog cat bird cat")
+        n.viewer.edit.findQuery = "cat"
+        n.viewer.edit.setCaret((HomeTest.pid(n 2)) 0)
+        n.runCommand("edit.findNext" "")
+        c.eqInt("edit.findNext from the third paragraph finds it there" n.viewer.edit.sel.focus.paragraphId (HomeTest.pid(n 2)))
+        n.runCommand("edit.findPrevious" "")
+        c.eqInt("edit.findPrevious goes back to the first" n.viewer.edit.sel.focus.paragraphId (HomeTest.pid(n 0)))
+        n.runCommand("edit.findPrevious" "")
+        c.eqInt("and wraps to the last" n.viewer.edit.sel.focus.paragraphId (HomeTest.pid(n 4)))
+        c.eqStr("selecting the match" (n.viewer.copySelection()) "cat")
+
+        print "-- Go To --"
+        def g:DocxApp (new DocxApp)
+        g.init()
+        g.resize(900 700)
+        g.viewer.openFile("gallery/docx_viewer/fixtures" "08-pages.docx")
+        g.viewer.setEditMode(true)
+        g.viewer.renderPage(0)
+        c.ok("a document with pages" ((g.viewer.pageCount()) >= 3))
+        c.ok("edit.goto 3 runs" (g.runCommand("edit.goto" "3")))
+        c.eqInt("the caret is on page 3" (g.viewer.pageOfCaret()) 2)
+        c.ok("a page that is not there is refused" ((g.runCommand("edit.goto" "999")) == false))
+
+        print ""
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        } {
+            print "FAILURES"
+        }
+    }
+}

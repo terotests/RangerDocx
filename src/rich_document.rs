@@ -196,6 +196,13 @@ pub struct Paragraph {
     pub indentFirstLinePt: f64,
     pub images: Vec<Rc<RefCell<DocImage>>>,
     pub pageBreakBefore: bool,
+    /// Pagination flags set on the paragraph itself (`w:keepNext`,
+    /// `w:keepLines`, `w:widowControl`): -1 not set here, 0 off, 1 on.
+    pub keepNext: i64,
+    pub keepLines: i64,
+    pub widowControl: i64,
+    /// `w:outlineLvl` set on the paragraph: 0-8 a level, 9 body text, -1 not set.
+    pub outlineLevel: i64,
     /// Which way the paragraph runs, from `w:bidi`: -1 nobody said, 0 left to
     /// right, 1 right to left. Three states rather than two because a style can
     /// say one thing and the paragraph the other, and "unset" has to be
@@ -243,6 +250,10 @@ impl Paragraph {
             indentFirstLinePt: 0.0,
             images: Vec::new(),
             pageBreakBefore: false,
+            keepNext: -1,
+            keepLines: -1,
+            widowControl: -1,
+            outlineLevel: -1,
             bidi: -1,
             mdSrcStart: -1,
             mdSrcEnd: -1,
@@ -282,6 +293,10 @@ impl Paragraph {
         o.borrow_mut().listNumId = self.listNumId;
         o.borrow_mut().listFmt = self.listFmt.clone();
         o.borrow_mut().listText = self.listText.clone();
+        o.borrow_mut().keepNext = self.keepNext;
+        o.borrow_mut().keepLines = self.keepLines;
+        o.borrow_mut().widowControl = self.widowControl;
+        o.borrow_mut().outlineLevel = self.outlineLevel;
     }
     pub fn appendText(&mut self, chunk: &str, span: &Rc<RefCell<TextSpan>>) {
         let a: i64 = DxNative::str_len(&self.text);

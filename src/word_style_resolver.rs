@@ -893,6 +893,24 @@ impl WordStyleResolver {
         if WordXml::hasFlag(p_pr_xml, "w:pageBreakBefore") {
             p.borrow_mut().pageBreakBefore = true;
         }
+        // Pagination flags and the outline level, as set on the paragraph.
+        if WordXml::findNext(p_pr_xml, "w:keepNext", 0) >= 0 {
+            p.borrow_mut().keepNext = if WordXml::hasFlag(p_pr_xml, "w:keepNext") { 1 } else { 0 };
+        }
+        if WordXml::findNext(p_pr_xml, "w:keepLines", 0) >= 0 {
+            p.borrow_mut().keepLines = if WordXml::hasFlag(p_pr_xml, "w:keepLines") { 1 } else { 0 };
+        }
+        if WordXml::findNext(p_pr_xml, "w:widowControl", 0) >= 0 {
+            p.borrow_mut().widowControl = if WordXml::hasFlag(p_pr_xml, "w:widowControl") { 1 } else { 0 };
+        }
+        let ol: i64 = WordXml::findNext(p_pr_xml, "w:outlineLvl", 0);
+        if ol >= 0 {
+            let ol_el: String = WordXml::sliceElement(p_pr_xml, "w:outlineLvl", ol);
+            let ov: Option<i64> = WordXml::attr(&WordXml::openTag(&ol_el), "w:val").parse::<i64>().ok();
+            if ov.is_some() {
+                p.borrow_mut().outlineLevel = ov.unwrap();
+            }
+        }
     }
     fn resolveParagraph(&self, p: &Rc<RefCell<Paragraph>>, p_pr_xml: &str) {
         let mut sid: String = p.borrow().styleId.clone();

@@ -41,6 +41,7 @@ impl DocxFingerprint {
         s = format!("{}|{}|{}|{}", s, p.borrow().spaceBeforePt, p.borrow().spaceAfterPt, p.borrow().lineSpacing);
         s = format!("{}|{}|{}|{}", s, p.borrow().indentLeftPt, p.borrow().indentRightPt, p.borrow().indentFirstLinePt);
         s = format!("{}|{}", s, DocxFingerprint::b(p.borrow().pageBreakBefore));
+        s = format!("{}|{}|{}|{}|{}", s, p.borrow().keepNext, p.borrow().keepLines, p.borrow().widowControl, p.borrow().outlineLevel);
         s
     }
     fn span(sp: &Rc<RefCell<TextSpan>>) -> String {
