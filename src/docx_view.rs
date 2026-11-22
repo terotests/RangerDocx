@@ -53,6 +53,11 @@ pub struct DocxView {
     pub docRef: Option<Rc<RefCell<RichDocument>>>,
     caretColor: Rc<RefCell<EVGColor>>,
     selColor: Rc<RefCell<EVGColor>>,
+    /// The least thickness of a table border, in page pixels. A host that
+    /// shows the page scaled down (a preview at half size) sets 2: a 1 px
+    /// border there is half a pixel and, depending on where it falls, is
+    /// rounded away, so a table lost its top or right edge.
+    pub borderPx: i64,
 }
 
 impl DocxView {
@@ -74,6 +79,7 @@ impl DocxView {
             docRef: None,
             caretColor: EVGColor::rgb(20, 90, 200),
             selColor: EVGColor::rgb(120, 170, 255),
+            borderPx: 1,
         }
     }
     /// The four corners of a drawing's selection frame, in the page's own
@@ -556,6 +562,12 @@ impl DocxView {
             if line.borrow().kind == LaidLineKind::border() {
                 let mut _tmp_6917 = line.borrow().width.clone();
                 let mut _tmp_6918 = line.borrow().height.clone();
+                if _tmp_6917 < self.borderPx {
+                    _tmp_6917 = self.borderPx;
+                }
+                if _tmp_6918 < self.borderPx {
+                    _tmp_6918 = self.borderPx;
+                }
                 let mut _tmp_6920 = self.hexColor(&line.borrow().borderColor.clone());
                 self.ink.clone().borrow().rect(lx, ly, _tmp_6917, _tmp_6918, &_tmp_6920);
             }
