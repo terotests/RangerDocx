@@ -174,26 +174,6 @@ impl RichDocumentEdit {
             si += 1;
         }
         p.borrow_mut().text = format!("{}{}{}", before, text, after);
-        // The inline anchors (tabs, line breaks, field marks) stay with the
-        // text around them: those after the edit move with it, those inside
-        // the removed text go with it.
-        let mut kept: Vec<Rc<RefCell<InlineAnchor>>> = Vec::new();
-        let na: i64 = p.borrow().anchors.len() as i64;
-        let mut ai: i64 = 0;
-        while ai < na {
-            let an: Rc<RefCell<InlineAnchor>> = p.borrow().anchors[ai as usize].clone();
-            let at: i64 = an.borrow().offset;
-            if at <= start {
-                kept.push(an.clone());
-            } else {
-                if at >= end {
-                    an.borrow_mut().offset = at + delta;
-                    kept.push(an.clone());
-                }
-            }
-            ai += 1;
-        }
-        p.borrow_mut().anchors = kept;
         if !text.is_empty() {
             let mut mid: Rc<RefCell<TextSpan>> = TextSpan::copy(&insert_fmt);
             mid.borrow_mut().start = start;
@@ -303,22 +283,6 @@ impl RichDocumentEdit {
             empty.borrow_mut().end = 0;
             np.borrow_mut().spans.push(empty.clone());
         }
-        // the anchors after the split point go with the right half
-        let mut left_anchors: Vec<Rc<RefCell<InlineAnchor>>> = Vec::new();
-        np.borrow_mut().anchors.clear();
-        let n_an: i64 = p.borrow().anchors.len() as i64;
-        let mut ak: i64 = 0;
-        while ak < n_an {
-            let an: Rc<RefCell<InlineAnchor>> = p.borrow().anchors[ak as usize].clone();
-            if an.borrow().offset >= offset && an.borrow().offset > 0 {
-                an.borrow_mut().offset = an.borrow().offset - offset;
-                np.borrow_mut().anchors.push(an.clone());
-            } else {
-                left_anchors.push(an.clone());
-            }
-            ak += 1;
-        }
-        p.borrow_mut().anchors = left_anchors;
         // Truncate original
         self.replaceRange(paragraph_id, offset, __len, "");
         p.borrow_mut().text = left.clone();
@@ -932,16 +896,6 @@ impl RichDocumentEdit {
             let b_1: i64 = join_at + (DxNative::str_len(&joined));
             self.applyBold(prev_id, a, b_1, fmt.borrow().bold.clone());
         }
-        // cur's breaks and tabs go along, shifted past prev's text
-        let n_an: i64 = cur.borrow().anchors.len() as i64;
-        let mut ak: i64 = 0;
-        while ak < n_an {
-            let an: Rc<RefCell<InlineAnchor>> = cur.borrow().anchors[ak as usize].clone();
-            an.borrow_mut().offset = an.borrow().offset + join_at;
-            prev.borrow_mut().anchors.push(an.clone());
-            ak += 1;
-        }
-        cur.borrow_mut().anchors.clear();
         if at[0] >= 0 {
             let t: Rc<RefCell<DocumentTable>> = self.tableAtBlock(at[0]);
             let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[at[1] as usize].clone();
