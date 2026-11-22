@@ -155,9 +155,9 @@ Insert	Add-ins	Get Add-ins	addins.get	missing	no	no	-
 Insert	Media	Online Video	insert.video	missing	no	no	-
 Insert	Links	Link	insert.link	live	no	no	-
 Insert	Links	Remove Link	insert.removeLink	live	no	no	-
-Insert	Links	Bookmark	insert.bookmark	live	no	no	-
+Insert	Links	Bookmark	insert.bookmark	live	no	partial	tests/ReviewTest.rgr
 Insert	Links	Cross-reference	insert.crossReference	live	no	no	-
-Insert	Comments	Comment	review.newComment	live	no	no	-
+Insert	Comments	Comment	review.newComment	live	no	yes	tests/ReviewTest.rgr
 Insert	Header & Footer	Header	insert.header	live	no	no	-
 Insert	Header & Footer	Footer	insert.footer	live	no	no	-
 Insert	Header & Footer	Page Number	insert.pageNumber	live	no	no	-
@@ -237,7 +237,7 @@ References	Table of Contents	Update Table	references.updateToc	live	no	no	-
 References	Table of Contents	Remove Table of Contents	references.removeToc	live	no	no	-
 References	Footnotes	Insert Footnote	references.footnote	live	no	no	-
 References	Footnotes	Insert Endnote	references.endnote	live	no	no	-
-References	Footnotes	Next Footnote	references.nextFootnote	live	no	no	-
+References	Footnotes	Next Footnote	references.nextFootnote	live	no	yes	tests/ReviewTest.rgr
 References	Footnotes	Show Notes	references.notes	live	no	no	-
 References	Footnotes	Footnote Options	references.noteOptions	live	no	no	-
 References	Research	Researcher	references.researcher	live	no	no	-
@@ -287,10 +287,10 @@ Review	Accessibility	Check Accessibility	file.accessibility	live	no	no	-
 Review	Accessibility	Alt Text	view.altTextPane	live	no	no	-
 Review	Language	Translate	review.translate	missing	no	no	-
 Review	Language	Language	review.language	live	no	no	-
-Review	Comments	New Comment	review.newComment	live	no	no	-
-Review	Comments	Delete	review.deleteComment	live	no	no	-
-Review	Comments	Previous	review.previousComment	live	no	no	-
-Review	Comments	Next	review.nextComment	live	no	no	-
+Review	Comments	New Comment	review.newComment	live	no	yes	tests/ReviewTest.rgr
+Review	Comments	Delete	review.deleteComment	live	no	yes	tests/ReviewTest.rgr
+Review	Comments	Previous	review.previousComment	live	no	yes	tests/ReviewTest.rgr
+Review	Comments	Next	review.nextComment	live	no	yes	tests/ReviewTest.rgr
 Review	Comments	Show Comments	review.comments	live	no	no	-
 Review	Comments	Resolve	review.resolveComment	live	no	no	-
 Review	Comments	Reply	review.reply	live	no	no	-
@@ -299,12 +299,12 @@ Review	Tracking	Display for Review	review.markup	live	no	no	-
 Review	Tracking	Show Markup	review.showMarkup	live	no	no	-
 Review	Tracking	Reviewing Pane	review.changes	live	no	no	-
 Review	Tracking	Track Changes Options	review.trackingOptions	live	no	no	-
-Review	Changes	Accept	review.accept	live	no	no	-
-Review	Changes	Reject	review.reject	live	no	no	-
-Review	Changes	Accept All	review.acceptAll	live	no	no	-
-Review	Changes	Reject All	review.rejectAll	live	no	no	-
-Review	Changes	Previous Change	review.previousChange	live	no	no	-
-Review	Changes	Next Change	review.nextChange	live	no	no	-
+Review	Changes	Accept	review.accept	live	no	yes	tests/ReviewTest.rgr
+Review	Changes	Reject	review.reject	live	no	yes	tests/ReviewTest.rgr
+Review	Changes	Accept All	review.acceptAll	live	no	yes	tests/ReviewTest.rgr
+Review	Changes	Reject All	review.rejectAll	live	no	yes	tests/ReviewTest.rgr
+Review	Changes	Previous Change	review.previousChange	live	no	yes	tests/ReviewTest.rgr
+Review	Changes	Next Change	review.nextChange	live	no	yes	tests/ReviewTest.rgr
 Review	Compare	Compare	review.compare	live	no	no	-
 Review	Compare	Combine	review.combine	live	no	no	-
 Review	Protect	Block Authors	review.blockAuthors	missing	no	no	-
@@ -512,8 +512,8 @@ Editing	Fields	Edit Field Code	fields.setCode	live	no	no	-
 Editing	Fields	Unlink Fields	fields.unlink	live	no	no	-
 Editing	Fields	Lock Fields	fields.lock	live	no	no	-
 Editing	Fields	Unlock Fields	fields.unlock	live	no	no	-
-Editing	Fields	Next Field	fields.next	live	no	no	-
-Editing	Fields	Previous Field	fields.previous	live	no	no	-
+Editing	Fields	Next Field	fields.next	live	no	yes	tests/ReviewTest.rgr
+Editing	Fields	Previous Field	fields.previous	live	no	yes	tests/ReviewTest.rgr
 Tools	Proofing	AutoCorrect Options	tools.autocorrect	live	no	partial	tests/TypingTest.rgr
 Tools	Proofing	Set Proofing Language	review.language	live	no	no	-
 Tools	Customize	Customize Ribbon	tools.customizeRibbon	live	no	no	-

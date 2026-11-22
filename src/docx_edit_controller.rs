@@ -15,6 +15,8 @@ use crate::docx_layout::LaidPage;
 use crate::docx_para_format::DocxParaFormat;
 use crate::docx_table_edit::DocxTableEdit;
 use crate::docx_table_edit::DocxTableSnap;
+use crate::docx_review::DocxReview;
+use crate::docx_review::DocxReviewSnap;
 use crate::docx_text_metrics::DocxTextMetrics;
 use crate::docx_typing::DocxTyping;
 use crate::rgr::DxNative;
@@ -102,6 +104,12 @@ pub struct DocxEditController {
     pub cellSelG1: i64,
     /// Table shapes before and after each table command, for undo.
     pub tableSnaps: Vec<Rc<RefCell<DocxTableSnap>>>,
+    /// Paragraph contents before and after each review command, for undo.
+    pub reviewSnaps: Vec<Rc<RefCell<DocxReviewSnap>>>,
+    /// What the last review command found ("Inserted by Ann", a comment).
+    pub reviewStatus: String,
+    /// Who new comments are by.
+    pub authorName: String,
 }
 
 impl DocxEditController {
@@ -146,6 +154,9 @@ impl DocxEditController {
             cellSelG0: 0,
             cellSelG1: 0,
             tableSnaps: Vec::new(),
+            reviewSnaps: Vec::new(),
+            reviewStatus: String::new(),
+            authorName: "Author".to_string(),
         }
     }
     pub fn intOr(s: &str, fallback: i64) -> i64 {
@@ -2827,6 +2838,649 @@ impl DocxEditController {
         self.tableEnd1(&before, &t, caret);
         true
     }
+    // --- Review: tracked changes and comments -----------------------------------
+    /// Every paragraph the caret can reach, in reading order: body paragraphs
+    /// and the paragraphs of table cells.
+    pub fn textParagraphs(&self) -> Vec<Rc<RefCell<Paragraph>>> {
+        let mut out: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let mut bi: i64 = 0;
+        while bi < RichDocument::blockCount(&doc) {
+            let b: Rc<RefCell<crate::rich_document::DocBlock>> = RichDocument::blockAt(&doc, bi);
+            let k: i64 = b.borrow().kind;
+            if k == 0 {
+                out.push(b.borrow().paragraph.clone());
+            }
+            if k == 1 {
+                let t: Rc<RefCell<DocumentTable>> = b.borrow().table.clone();
+                let mut ri: i64 = 0;
+                while ri < (t.borrow().rows.len() as i64) {
+                    let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[ri as usize].clone();
+                    let mut ci: i64 = 0;
+                    while ci < (row.borrow().cells.len() as i64) {
+                        let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[ci as usize].clone();
+                        let mut pi: i64 = 0;
+                        while pi < (cell.borrow().paragraphs.len() as i64) {
+                            out.push(cell.borrow().paragraphs[pi as usize].clone());
+                            pi += 1;
+                        }
+                        ci += 1;
+                    }
+                    ri += 1;
+                }
+            }
+            bi += 1;
+        }
+        out
+    }
+    fn indexIn(list: &Vec<Rc<RefCell<Paragraph>>>, pid: i64) -> i64 {
+        let mut i: i64 = 0;
+        while i < (list.len() as i64) {
+            if list[i as usize].borrow().id == pid {
+                return i;
+            }
+            i += 1;
+        }
+        -1
+    }
+    fn reviewBegin(&self, paras: &Vec<Rc<RefCell<Paragraph>>>) -> Rc<RefCell<DocxReviewSnap>> {
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        DocxReview::capture(&doc, paras, pid, off)
+    }
+    fn reviewEnd(&mut self, before: &Rc<RefCell<DocxReviewSnap>>, paras: &Vec<Rc<RefCell<Paragraph>>>, pid: i64, off: i64) {
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        RichDocument::touch(&doc);
+        if pid > 0 {
+            self.setCaret(pid, off);
+        }
+        let after: Rc<RefCell<DocxReviewSnap>> = DocxReview::capture(&doc, paras, pid, off);
+        self.reviewSnaps.push(before.clone());
+        let a: i64 = (self.reviewSnaps.len() as i64) - 1;
+        self.reviewSnaps.push(after.clone());
+        let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
+        op.borrow_mut().kind = DocxReview::opKind();
+        op.borrow_mut().start = a;
+        op.borrow_mut().end = a + 1;
+        self.pushUndo(op.clone());
+    }
+    /// Accept All / Reject All.
+    pub fn reviewAll(&mut self, accept: bool) -> bool {
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut touched: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        let mut i: i64 = 0;
+        while i < (all.len() as i64) {
+            if DocxReview::hasChanges(&all[i as usize].clone()) {
+                touched.push(all[i as usize].clone());
+            }
+            i += 1;
+        }
+        if touched.is_empty() {
+            self.reviewStatus = "no tracked changes".to_string();
+            return false;
+        }
+        let before: Rc<RefCell<DocxReviewSnap>> = self.reviewBegin(&touched);
+        let mut k: i64 = 0;
+        while k < (touched.len() as i64) {
+            let p: Rc<RefCell<Paragraph>> = touched[k as usize].clone();
+            let n: i64 = DxNative::str_len(&p.borrow().text);
+            DocxReview::resolve(&self.adapter.clone(), &p, 0, n, accept);
+            k += 1;
+        }
+        let mut pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let mut off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        if !self.adapter.borrow().paragraphExists(pid) {
+            pid = self.adapter.borrow().bodyParagraphIdAt(0);
+            off = 0;
+        }
+        let tl: i64 = self.adapter.borrow().textLength(pid);
+        if off > tl {
+            off = tl;
+        }
+        self.reviewEnd(&before, &touched, pid, off);
+        self.reviewStatus = format!("{} paragraphs", touched.len() as i64);
+        true
+    }
+    /// Accept / Reject the change at the caret (or every change the selection
+    /// covers in its paragraph), then move to the next one.
+    pub fn reviewOne(&mut self, accept: bool) -> bool {
+        if !self.isActive() {
+            return false;
+        }
+        let mut s_out: Vec<i64> = Vec::new();
+        let mut e_out: Vec<i64> = Vec::new();
+        self.orderedEnds(&mut s_out, &mut e_out);
+        let pid: i64 = s_out[0];
+        let p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        let mut a: i64 = s_out[1];
+        let mut b: i64 = if e_out[0] == pid { e_out[1] } else { DxNative::str_len(&p.borrow().text) };
+        if a == b {
+            let r: Vec<i64> = DocxReview::changeAt(&p, a);
+            if r[0] < 0 {
+                self.reviewStatus = "no change here".to_string();
+                return false;
+            }
+            a = r[0];
+            b = r[1];
+        }
+        let mut one: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        one.push(p.clone());
+        let before: Rc<RefCell<DocxReviewSnap>> = self.reviewBegin(&one);
+        if !DocxReview::resolve(&self.adapter.clone(), &p, a, b, accept) {
+            return false;
+        }
+        self.reviewEnd(&before, &one, pid, a);
+        self.nextChange(true);
+        true
+    }
+    /// Select the next (or previous) tracked change, wrapping at the ends.
+    pub fn nextChange(&mut self, forward: bool) -> bool {
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut s_out: Vec<i64> = Vec::new();
+        let mut e_out: Vec<i64> = Vec::new();
+        let mut cp: i64 = 0;
+        let mut co: i64 = 0;
+        let mut cq: i64 = 0;
+        let mut ce: i64 = 0;
+        if self.isActive() {
+            self.orderedEnds(&mut s_out, &mut e_out);
+            cp = DocxEditController::indexIn(&all, s_out[0]);
+            co = s_out[1];
+            cq = DocxEditController::indexIn(&all, e_out[0]);
+            ce = e_out[1];
+        }
+        let mut hit_p: i64 = -1;
+        let mut hit_a: i64 = 0;
+        let mut hit_b: i64 = 0;
+        let mut first_p: i64 = -1;
+        let mut first_a: i64 = 0;
+        let mut first_b: i64 = 0;
+        let mut i: i64 = 0;
+        while i < (all.len() as i64) {
+            let ch: Vec<i64> = DocxReview::changes(&all[i as usize].clone());
+            let mut k: i64 = 0;
+            while k + 1 < (ch.len() as i64) {
+                let a: i64 = ch[k as usize];
+                let b: i64 = ch[(k + 1) as usize];
+                if forward {
+                    if first_p < 0 {
+                        first_p = i;
+                        first_a = a;
+                        first_b = b;
+                    }
+                    let after: bool = i > cq || (i == cq && a >= ce && !(a == co && b == ce && i == cp));
+                    if after && hit_p < 0 {
+                        hit_p = i;
+                        hit_a = a;
+                        hit_b = b;
+                    }
+                } else {
+                    // the last change before the selection, and the last of all
+                    first_p = i;
+                    first_a = a;
+                    first_b = b;
+                    let before: bool = i < cp || (i == cp && b <= co && !(a == co && b == ce));
+                    if before {
+                        hit_p = i;
+                        hit_a = a;
+                        hit_b = b;
+                    }
+                }
+                k += 2;
+            }
+            i += 1;
+        }
+        if hit_p < 0 {
+            hit_p = first_p;
+            hit_a = first_a;
+            hit_b = first_b;
+        }
+        if hit_p < 0 {
+            self.reviewStatus = "no tracked changes".to_string();
+            return false;
+        }
+        let pid: i64 = all[hit_p as usize].borrow().id;
+        self.setRange(pid, hit_a, hit_b);
+        let p: Rc<RefCell<Paragraph>> = all[hit_p as usize].clone();
+        let mut who: String = String::new();
+        let mut kind: String = "Inserted".to_string();
+        let mut si: i64 = 0;
+        while si < (p.borrow().spans.len() as i64) {
+            let sp: Rc<RefCell<TextSpan>> = p.borrow().spans[si as usize].clone();
+            if sp.borrow().start == hit_a && sp.borrow().rev != 0 {
+                who = sp.borrow().revAuthor.clone();
+                if sp.borrow().rev == 2 {
+                    kind = "Deleted".to_string();
+                }
+            }
+            si += 1;
+        }
+        self.reviewStatus = format!("{} by {}", kind, who);
+        true
+    }
+    /// Comment ranges in reading order: for each, [id index into
+    /// `commentIds`, start paragraph index, start offset, end paragraph index,
+    /// end offset], flattened.
+    fn commentRanges(&self, all: &Vec<Rc<RefCell<Paragraph>>>, ids: &mut Vec<String>) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::new();
+        let mut i: i64 = 0;
+        while i < (all.len() as i64) {
+            let p: Rc<RefCell<Paragraph>> = all[i as usize].clone();
+            let mut ai: i64 = 0;
+            while ai < (p.borrow().anchors.len() as i64) {
+                let an: Rc<RefCell<crate::rich_document::InlineAnchor>> = p.borrow().anchors[ai as usize].clone();
+                if DocxReview::isCommentStart(&an.borrow().xml) {
+                    let id: String = DocxReview::commentIdOf(&an.borrow().xml);
+                    // its end: here or in a later paragraph
+                    let mut ep: i64 = i;
+                    let mut eo: i64 = DxNative::str_len(&p.borrow().text);
+                    let mut found: bool = false;
+                    let mut j: i64 = i;
+                    while j < (all.len() as i64) && !found {
+                        let q: Rc<RefCell<Paragraph>> = all[j as usize].clone();
+                        let mut bj: i64 = 0;
+                        while bj < (q.borrow().anchors.len() as i64) && !found {
+                            let bn: Rc<RefCell<crate::rich_document::InlineAnchor>> = q.borrow().anchors[bj as usize].clone();
+                            if DocxReview::isCommentEnd(&bn.borrow().xml) && DocxReview::commentIdOf(&bn.borrow().xml) == id {
+                                ep = j;
+                                eo = bn.borrow().offset;
+                                found = true;
+                            }
+                            bj += 1;
+                        }
+                        j += 1;
+                    }
+                    ids.push(id.clone());
+                    out.push((ids.len() as i64) - 1);
+                    out.push(i);
+                    out.push(an.borrow().offset);
+                    out.push(ep);
+                    out.push(eo);
+                }
+                ai += 1;
+            }
+            i += 1;
+        }
+        out
+    }
+    fn selectSpan(&mut self, all: &Vec<Rc<RefCell<Paragraph>>>, sp: i64, so: i64, ep: i64, eo: i64) {
+        let a: i64 = all[sp as usize].borrow().id;
+        let b: i64 = all[ep as usize].borrow().id;
+        self.setCaret(a, so);
+        self.extendTo(b, eo);
+    }
+    fn describeComment(&mut self, id: &str) {
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let ci: i64 = DocxReview::commentById(&doc, id);
+        if ci < 0 {
+            self.reviewStatus = String::new();
+            return;
+        }
+        let c: Rc<RefCell<crate::rich_document::DocComment>> = doc.borrow().comments[ci as usize].clone();
+        self.reviewStatus = format!("{}: {}", c.borrow().author, c.borrow().plainText());
+    }
+    /// Select the next (or previous) comment's range and show what it says.
+    pub fn nextComment(&mut self, forward: bool) -> bool {
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut ids: Vec<String> = Vec::new();
+        let r: Vec<i64> = self.commentRanges(&all, &mut ids);
+        if r.is_empty() {
+            self.reviewStatus = "no comments".to_string();
+            return false;
+        }
+        let mut cp: i64 = 0;
+        let mut co: i64 = 0;
+        if self.isActive() {
+            let mut s_out: Vec<i64> = Vec::new();
+            let mut e_out: Vec<i64> = Vec::new();
+            self.orderedEnds(&mut s_out, &mut e_out);
+            cp = DocxEditController::indexIn(&all, s_out[0]);
+            co = s_out[1];
+        }
+        let count: i64 = (r.len() as i64) / 5;
+        let mut pick: i64 = -1;
+        let mut k: i64 = 0;
+        while k < count {
+            let sp: i64 = r[(k * 5 + 1) as usize];
+            let so: i64 = r[(k * 5 + 2) as usize];
+            if forward {
+                if pick < 0 && (sp > cp || (sp == cp && so > co)) {
+                    pick = k;
+                }
+            } else {
+                if sp < cp || (sp == cp && so < co) {
+                    pick = k;
+                }
+            }
+            k += 1;
+        }
+        if pick < 0 {
+            pick = if forward { 0 } else { count - 1 };
+        }
+        let b: i64 = pick * 5;
+        self.selectSpan(&all, r[(b + 1) as usize], r[(b + 2) as usize], r[(b + 3) as usize], r[(b + 4) as usize]);
+        let id: String = ids[r[b as usize] as usize].clone();
+        self.describeComment(&id);
+        true
+    }
+    /// The comment whose range holds the caret, or "".
+    pub fn commentAtCaret(&self) -> String {
+        if !self.isActive() {
+            return String::new();
+        }
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut ids: Vec<String> = Vec::new();
+        let r: Vec<i64> = self.commentRanges(&all, &mut ids);
+        let cp: i64 = DocxEditController::indexIn(&all, self.sel.borrow().focus.borrow().paragraphId);
+        let co: i64 = self.sel.borrow().focus.borrow().textOffset;
+        let count: i64 = (r.len() as i64) / 5;
+        let mut k: i64 = 0;
+        while k < count {
+            let b: i64 = k * 5;
+            let sp: i64 = r[(b + 1) as usize];
+            let so: i64 = r[(b + 2) as usize];
+            let ep: i64 = r[(b + 3) as usize];
+            let eo: i64 = r[(b + 4) as usize];
+            let after_start: bool = cp > sp || (cp == sp && co >= so);
+            let before_end: bool = cp < ep || (cp == ep && co <= eo);
+            if after_start && before_end {
+                return ids[r[b as usize] as usize].clone();
+            }
+            k += 1;
+        }
+        String::new()
+    }
+    /// Delete the comment at the caret, or every comment with `all`.
+    pub fn deleteComment(&mut self, all_of_them: bool) -> bool {
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let mut ids: Vec<String> = Vec::new();
+        if all_of_them {
+            let mut i: i64 = 0;
+            while i < (doc.borrow().comments.len() as i64) {
+                ids.push(doc.borrow().comments[i as usize].borrow().id.clone());
+                i += 1;
+            }
+        } else {
+            let id: String = self.commentAtCaret();
+            if !id.is_empty() {
+                ids.push(id.clone());
+            }
+        }
+        if ids.is_empty() {
+            self.reviewStatus = "no comment here".to_string();
+            return false;
+        }
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut touched: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        let mut i2: i64 = 0;
+        while i2 < (all.len() as i64) {
+            let p: Rc<RefCell<Paragraph>> = all[i2 as usize].clone();
+            let mut mine: bool = false;
+            let mut ai: i64 = 0;
+            while ai < (p.borrow().anchors.len() as i64) {
+                let cid: String = DocxReview::commentIdOf(&p.borrow().anchors[ai as usize].borrow().xml.clone());
+                let mut k: i64 = 0;
+                while k < (ids.len() as i64) {
+                    if !cid.is_empty() && cid == ids[k as usize] {
+                        mine = true;
+                    }
+                    k += 1;
+                }
+                ai += 1;
+            }
+            if mine {
+                touched.push(p.clone());
+            }
+            i2 += 1;
+        }
+        let before: Rc<RefCell<DocxReviewSnap>> = self.reviewBegin(&touched);
+        let mut k2: i64 = 0;
+        while k2 < (ids.len() as i64) {
+            let id: String = ids[k2 as usize].clone();
+            let mut t: i64 = 0;
+            while t < (touched.len() as i64) {
+                DocxReview::removeCommentAnchors(&touched[t as usize].clone(), &id);
+                t += 1;
+            }
+            let ci: i64 = DocxReview::commentById(&doc, &id);
+            if ci >= 0 {
+                doc.borrow_mut().comments.remove(ci as usize);
+            }
+            k2 += 1;
+        }
+        doc.borrow_mut().commentsChanged = true;
+        let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+        let off: i64 = self.sel.borrow().focus.borrow().textOffset;
+        self.reviewEnd(&before, &touched, pid, off);
+        self.reviewStatus = format!("{} deleted", ids.len() as i64);
+        true
+    }
+    /// A comment saying `text` on the selection (within one paragraph; at the
+    /// caret when nothing is selected).
+    pub fn newComment(&mut self, text: &str) -> bool {
+        if !self.isActive() {
+            return false;
+        }
+        let mut s_out: Vec<i64> = Vec::new();
+        let mut e_out: Vec<i64> = Vec::new();
+        self.orderedEnds(&mut s_out, &mut e_out);
+        let pid: i64 = s_out[0];
+        let p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        let a: i64 = s_out[1];
+        let b: i64 = if e_out[0] == pid { e_out[1] } else { DxNative::str_len(&p.borrow().text) };
+        let doc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let mut one: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        one.push(p.clone());
+        let before: Rc<RefCell<DocxReviewSnap>> = self.reviewBegin(&one);
+        let id: String = DocxReview::nextCommentId(&doc);
+        DocxReview::insertAnchor(&p, a, &format!("<w:commentRangeStart w:id=\"{}\"/>", id), true);
+        DocxReview::insertAnchor(&p, b, &format!("<w:commentRangeEnd w:id=\"{}\"/>", id), false);
+        DocxReview::insertAnchor(&p, b, &format!("<w:r><w:commentReference w:id=\"{}\"/></w:r>", id), false);
+        let mut c: Rc<RefCell<crate::rich_document::DocComment>> = Rc::new(RefCell::new(crate::rich_document::DocComment::new()));
+        c.borrow_mut().id = id.clone();
+        c.borrow_mut().author = self.authorName.clone();
+        c.borrow_mut().initials = DocxReview::initialsOf(&self.authorName);
+        let mut cp: Rc<RefCell<Paragraph>> = RichDocument::addParagraphOnly(&doc);
+        cp.borrow_mut().styleId = "Normal".to_string();
+        let sp: Rc<RefCell<TextSpan>> = TextSpan::create(0, 0);
+        Paragraph::appendText(&cp, text, &sp);
+        if cp.borrow().spans.is_empty() {
+            cp.borrow_mut().spans.push(TextSpan::create(0, 0));
+        }
+        c.borrow_mut().paragraphs.push(cp.clone());
+        doc.borrow_mut().comments.push(c.clone());
+        doc.borrow_mut().commentsChanged = true;
+        self.reviewEnd(&before, &one, pid, a);
+        self.extendTo(pid, b);
+        self.reviewStatus = format!("{}: {}", self.authorName, text);
+        true
+    }
+    /// The caret to the next (or previous) anchor whose XML contains `what`
+    /// (a footnote reference, a field's start), wrapping at the ends.
+    pub fn nextAnchor(&mut self, what: &str, forward: bool) -> bool {
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut cp: i64 = 0;
+        let mut co: i64 = -1;
+        if self.isActive() {
+            cp = DocxEditController::indexIn(&all, self.sel.borrow().focus.borrow().paragraphId);
+            co = self.sel.borrow().focus.borrow().textOffset;
+        }
+        let mut hit_p: i64 = -1;
+        let mut hit_o: i64 = 0;
+        let mut first_p: i64 = -1;
+        let mut first_o: i64 = 0;
+        let mut i: i64 = 0;
+        while i < (all.len() as i64) {
+            let p: Rc<RefCell<Paragraph>> = all[i as usize].clone();
+            let mut ai: i64 = 0;
+            while ai < (p.borrow().anchors.len() as i64) {
+                let an: Rc<RefCell<crate::rich_document::InlineAnchor>> = p.borrow().anchors[ai as usize].clone();
+                if DxNative::index_of(&an.borrow().xml, what) >= 0 {
+                    let o: i64 = an.borrow().offset;
+                    if forward {
+                        if first_p < 0 {
+                            first_p = i;
+                            first_o = o;
+                        }
+                        if hit_p < 0 && (i > cp || (i == cp && o > co)) {
+                            hit_p = i;
+                            hit_o = o;
+                        }
+                    } else {
+                        first_p = i;
+                        first_o = o;
+                        if i < cp || (i == cp && o < co) {
+                            hit_p = i;
+                            hit_o = o;
+                        }
+                    }
+                }
+                ai += 1;
+            }
+            i += 1;
+        }
+        if hit_p < 0 {
+            hit_p = first_p;
+            hit_o = first_o;
+        }
+        if hit_p < 0 {
+            return false;
+        }
+        let pid: i64 = all[hit_p as usize].borrow().id;
+        self.setCaret(pid, hit_o);
+        true
+    }
+    /// A bookmark called `name` over the selection (in one paragraph), or at
+    /// the caret. A bookmark of that name already there moves.
+    pub fn insertBookmark(&mut self, name: &str) -> bool {
+        if !self.isActive() || name.is_empty() {
+            return false;
+        }
+        let mut s_out: Vec<i64> = Vec::new();
+        let mut e_out: Vec<i64> = Vec::new();
+        self.orderedEnds(&mut s_out, &mut e_out);
+        let pid: i64 = s_out[0];
+        let p: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+        let a: i64 = s_out[1];
+        let b: i64 = if e_out[0] == pid { e_out[1] } else { DxNative::str_len(&p.borrow().text) };
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        // ids in use, and an old bookmark of this name
+        let mut best: i64 = -1;
+        let mut old_id: String = String::new();
+        let mut touched: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        touched.push(p.clone());
+        let mut i: i64 = 0;
+        while i < (all.len() as i64) {
+            let q: Rc<RefCell<Paragraph>> = all[i as usize].clone();
+            let mut ai: i64 = 0;
+            while ai < (q.borrow().anchors.len() as i64) {
+                let x: String = q.borrow().anchors[ai as usize].borrow().xml.clone();
+                if DxNative::index_of(&x, "<w:bookmarkStart") == 0 {
+                    let v: Option<i64> = crate::word_xml::WordXml::attr(&x, "w:id").parse::<i64>().ok();
+                    if v.is_some() && v.unwrap() > best {
+                        best = v.unwrap();
+                    }
+                    if crate::word_xml::WordXml::attr(&x, "w:name") == name {
+                        old_id = crate::word_xml::WordXml::attr(&x, "w:id");
+                        if q.borrow().id != pid {
+                            touched.push(q.clone());
+                        }
+                    }
+                }
+                ai += 1;
+            }
+            i += 1;
+        }
+        let before: Rc<RefCell<DocxReviewSnap>> = self.reviewBegin(&touched);
+        if !old_id.is_empty() {
+            let mut t: i64 = 0;
+            while t < (all.len() as i64) {
+                let q: Rc<RefCell<Paragraph>> = all[t as usize].clone();
+                let mut keep: Vec<Rc<RefCell<crate::rich_document::InlineAnchor>>> = Vec::new();
+                let mut ai2: i64 = 0;
+                while ai2 < (q.borrow().anchors.len() as i64) {
+                    let an: Rc<RefCell<crate::rich_document::InlineAnchor>> = q.borrow().anchors[ai2 as usize].clone();
+                    let x2: String = an.borrow().xml.clone();
+                    let bm: bool = DxNative::index_of(&x2, "<w:bookmarkStart") == 0 || DxNative::index_of(&x2, "<w:bookmarkEnd") == 0;
+                    if !(bm && crate::word_xml::WordXml::attr(&x2, "w:id") == old_id) {
+                        keep.push(an.clone());
+                    }
+                    ai2 += 1;
+                }
+                q.borrow_mut().anchors = keep;
+                t += 1;
+            }
+        }
+        let id: i64 = best + 1;
+        DocxReview::insertAnchor(&p, a, &format!("<w:bookmarkStart w:id=\"{}\" w:name=\"{}\"/>", id, DocxEditController::escAttr(name)), true);
+        DocxReview::insertAnchor(&p, b, &format!("<w:bookmarkEnd w:id=\"{}\"/>", id), false);
+        self.reviewEnd(&before, &touched, pid, a);
+        true
+    }
+    pub fn escAttr(s: &str) -> String {
+        let mut out: String = String::new();
+        let n: i64 = DxNative::str_len(s);
+        let mut i: i64 = 0;
+        while i < n {
+            let c: i64 = DxNative::char_at(s, i);
+            let ch: String = DxNative::substr(s, i, i + 1);
+            if c == 38 {
+                out = format!("{}&amp;", out);
+            } else {
+                if c == 60 {
+                    out = format!("{}&lt;", out);
+                } else {
+                    if c == 34 {
+                        out = format!("{}&quot;", out);
+                    } else {
+                        out = format!("{}{}", out, ch);
+                    }
+                }
+            }
+            i += 1;
+        }
+        out
+    }
+    /// The caret to bookmark `name`: its text selected. False when there is
+    /// no such bookmark.
+    pub fn gotoBookmark(&mut self, name: &str) -> bool {
+        let all: Vec<Rc<RefCell<Paragraph>>> = self.textParagraphs();
+        let mut i: i64 = 0;
+        while i < (all.len() as i64) {
+            let p: Rc<RefCell<Paragraph>> = all[i as usize].clone();
+            let mut ai: i64 = 0;
+            while ai < (p.borrow().anchors.len() as i64) {
+                let an: Rc<RefCell<crate::rich_document::InlineAnchor>> = p.borrow().anchors[ai as usize].clone();
+                let x: String = an.borrow().xml.clone();
+                if DxNative::index_of(&x, "<w:bookmarkStart") == 0 && crate::word_xml::WordXml::attr(&x, "w:name") == name {
+                    let id: String = crate::word_xml::WordXml::attr(&x, "w:id");
+                    let so: i64 = an.borrow().offset;
+                    // its end, here or later
+                    let mut j: i64 = i;
+                    while j < (all.len() as i64) {
+                        let q: Rc<RefCell<Paragraph>> = all[j as usize].clone();
+                        let mut bj: i64 = 0;
+                        while bj < (q.borrow().anchors.len() as i64) {
+                            let bx: String = q.borrow().anchors[bj as usize].borrow().xml.clone();
+                            if DxNative::index_of(&bx, "<w:bookmarkEnd") == 0 && crate::word_xml::WordXml::attr(&bx, "w:id") == id {
+                                let eo: i64 = q.borrow().anchors[bj as usize].borrow().offset;
+                                self.selectSpan(&all, i, so, j, eo);
+                                return true;
+                            }
+                            bj += 1;
+                        }
+                        j += 1;
+                    }
+                    self.setCaret(p.borrow().id, so);
+                    return true;
+                }
+                ai += 1;
+            }
+            i += 1;
+        }
+        false
+    }
     /// Where the query next occurs in `text` at or after `from`, or -1.
     pub fn matchIn(&self, text: &str, from: i64) -> i64 {
         let mut q: String = self.findQuery.clone();
@@ -3968,6 +4622,20 @@ impl DocxEditController {
     /// there. Written as one function that cannot happen: a kind is handled in
     /// both directions or in neither.
     fn applyOp(&mut self, op: &Rc<RefCell<DocEditOp>>, forward: bool) -> bool {
+        if op.borrow().kind == DocxReview::opKind() {
+            let ridx: i64 = if forward { op.borrow().end } else { op.borrow().start };
+            if ridx < 0 || ridx >= (self.reviewSnaps.len() as i64) {
+                return false;
+            }
+            let rsnap: Rc<RefCell<DocxReviewSnap>> = self.reviewSnaps[ridx as usize].clone();
+            let rdoc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+            DocxReview::restore(&rdoc, &rsnap);
+            let rpid: i64 = rsnap.borrow().caretPid;
+            if rpid > 0 && self.adapter.borrow().paragraphExists(rpid) {
+                self.setCaret(rpid, rsnap.borrow().caretOff);
+            }
+            return true;
+        }
         if op.borrow().kind == DocxTableEdit::opKind() {
             let idx: i64 = if forward { op.borrow().end } else { op.borrow().start };
             if idx < 0 || idx >= (self.tableSnaps.len() as i64) {

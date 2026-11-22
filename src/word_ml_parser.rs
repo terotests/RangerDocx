@@ -9,6 +9,8 @@ use crate::docx_package::DocxPackage;
 use crate::docx_png::DocxPng;
 use crate::rgr::DxNative;
 use crate::rich_document::DocBlock;
+use crate::rich_document::DocComment;
+use crate::rich_document::DocNote;
 use crate::rich_document::DocImage;
 use crate::rich_document::DocSection;
 use crate::rich_document::DocTableBorder;
@@ -144,6 +146,18 @@ impl WordMlParser {
                 self.loadHeaderFooter(&doc, &sec, &sec.borrow().footerRelId.clone(), false);
             }
             si += 1;
+        }
+        let foot: String = self.pkg.borrow().readRelatedPart("/footnotes", "word/footnotes.xml");
+        if !foot.is_empty() {
+            self.loadNotes(&doc, &foot, 1, "w:footnote");
+        }
+        let endn: String = self.pkg.borrow().readRelatedPart("/endnotes", "word/endnotes.xml");
+        if !endn.is_empty() {
+            self.loadNotes(&doc, &endn, 2, "w:endnote");
+        }
+        let cxml: String = self.pkg.borrow().readRelatedPart("/comments", "word/comments.xml");
+        if !cxml.is_empty() {
+            self.loadComments(&doc, &cxml);
         }
         DocxFingerprint::stamp(&doc);
         doc
@@ -651,12 +665,65 @@ impl WordMlParser {
         p.borrow_mut().spans.clear();
         p.borrow_mut().anchors.clear();
         p.borrow_mut().text = String::new();
+        // Tracked changes: where each w:ins / w:del (w:moveTo / w:moveFrom)
+        // starts and ends, so a run inside one is marked with it.
+        let mut rev_s: Vec<i64> = Vec::new();
+        let mut rev_e: Vec<i64> = Vec::new();
+        let mut rev_k: Vec<i64> = Vec::new();
+        let mut rev_who: Vec<String> = Vec::new();
+        let mut rev_when: Vec<String> = Vec::new();
+        let mut rev_ids: Vec<i64> = Vec::new();
+        let rtags: Vec<String> = vec!["w:ins".to_string(), "w:del".to_string(), "w:moveTo".to_string(), "w:moveFrom".to_string()];
+        let mut tk: i64 = 0;
+        while tk < 4 {
+            let tag: String = rtags[tk as usize].clone();
+            let mut pos: i64 = 0;
+            let mut more: bool = true;
+            while more {
+                let at: i64 = WordXml::findNext(p_el, &tag, pos);
+                if at < 0 {
+                    more = false;
+                } else {
+                    let el: String = WordXml::sliceElement(p_el, &tag, at);
+                    let ot: String = WordXml::openTag(&el);
+                    if el.is_empty() || DxNative::index_of(&ot, "/>") >= 0 {
+                        pos = at + 1;
+                    } else {
+                        rev_s.push(at);
+                        rev_e.push(at + (DxNative::str_len(&el)));
+                        rev_k.push(if tk == 0 || tk == 2 { 1 } else { 2 });
+                        rev_who.push(WordXml::decodeEntities(&WordXml::attr(&ot, "w:author")));
+                        rev_when.push(WordXml::attr(&ot, "w:date"));
+                        let idv: Option<i64> = WordXml::attr(&ot, "w:id").parse::<i64>().ok();
+                        rev_ids.push(if idv.is_some() { idv.unwrap() } else { 0 });
+                        pos = at + (DxNative::str_len(&el));
+                    }
+                }
+            }
+            tk += 1;
+        }
         let mut ri: i64 = 0;
         let pn: i64 = DxNative::str_len(&p_el);
         while ri < pn {
             let r_start: i64 = WordXml::findNext(p_el, "w:r", ri);
             if r_start < 0 {
+                self.collectMarks(p, p_el, ri, pn);
                 return;
+            }
+            self.collectMarks(p, p_el, ri, r_start);
+            let mut rv: i64 = 0;
+            let mut rv_who: String = String::new();
+            let mut rv_when: String = String::new();
+            let mut rv_id: i64 = 0;
+            let mut rq: i64 = 0;
+            while rq < (rev_s.len() as i64) {
+                if r_start >= rev_s[rq as usize] && r_start < rev_e[rq as usize] {
+                    rv = rev_k[rq as usize];
+                    rv_who = rev_who[rq as usize].clone();
+                    rv_when = rev_when[rq as usize].clone();
+                    rv_id = rev_ids[rq as usize];
+                }
+                rq += 1;
             }
             let r_el: String = WordXml::sliceElement(p_el, "w:r", r_start);
             if r_el.is_empty() {
@@ -684,15 +751,20 @@ impl WordMlParser {
             let mut chunk: String = String::new();
             let mut ti: i64 = 0;
             let rn: i64 = DxNative::str_len(&r_el);
+            // A deleted run's text is in w:delText.
+            let mut tname: String = "w:t".to_string();
+            if WordXml::findNext(&r_el, "w:delText", 0) >= 0 {
+                tname = "w:delText".to_string();
+            }
             while ti < rn {
-                let t_start: i64 = WordXml::findNext(&r_el, "w:t", ti);
+                let t_start: i64 = WordXml::findNext(&r_el, &tname, ti);
                 if t_start < 0 {
                     ti = rn;
                 } else {
-                    let t_el: String = WordXml::sliceElement(&r_el, "w:t", t_start);
-                    let inner: String = WordXml::innerOf(&t_el, "w:t");
+                    let t_el: String = WordXml::sliceElement(&r_el, &tname, t_start);
+                    let inner: String = WordXml::innerOf(&t_el, &tname);
                     chunk = format!("{}{}", chunk, WordXml::decodeEntities(&inner));
-                    let t_end: i64 = WordXml::elementEnd(&r_el, "w:t", t_start);
+                    let t_end: i64 = WordXml::elementEnd(&r_el, &tname, t_start);
                     if t_end < 0 {
                         ti = rn;
                     } else {
@@ -703,6 +775,10 @@ impl WordMlParser {
             if !chunk.is_empty() {
                 let mut span: Rc<RefCell<TextSpan>> = TextSpan::create(0, 0);
                 run_style.borrow().applyToSpan(&span);
+                span.borrow_mut().rev = rv;
+                span.borrow_mut().revAuthor = rv_who.clone();
+                span.borrow_mut().revDate = rv_when.clone();
+                span.borrow_mut().revId = rv_id;
                 p.borrow_mut().appendText(&chunk, &span);
             }
             let r_end: i64 = WordXml::elementEnd(p_el, "w:r", r_start);
@@ -747,8 +823,8 @@ impl WordMlParser {
             if end_at <= lt {
                 return;
             }
-            if name == "w:t" {
-                let tx: String = WordXml::decodeEntities(&WordXml::innerOf(&DxNative::substr(&r_el, lt, end_at), "w:t"));
+            if name == "w:t" || name == "w:delText" {
+                let tx: String = WordXml::decodeEntities(&WordXml::innerOf(&DxNative::substr(&r_el, lt, end_at), &name));
                 off += (DxNative::str_len(&tx));
             } else {
                 if WordMlParser::anchorTag(&name) {
@@ -760,6 +836,141 @@ impl WordMlParser {
             }
             at = end_at;
         }
+    }
+    /// Elements between runs that mark a place in the text: kept as inline
+    /// anchors, so an edited paragraph writes them back where they were.
+    pub fn markTag(name: &str) -> bool {
+        name == "w:bookmarkStart" || name == "w:bookmarkEnd" || name == "w:commentRangeStart" || name == "w:commentRangeEnd" || name == "w:permStart" || name == "w:permEnd"
+    }
+    /// Wrappers around runs whose open and close tags are kept as anchors.
+    pub fn wrapTag(name: &str) -> bool {
+        name == "w:fldSimple" || name == "w:hyperlink"
+    }
+    /// The marks and wrapper tags in xml[from, to), between two runs, as
+    /// anchors at the end of the text read so far.
+    pub fn collectMarks(&self, p: &Rc<RefCell<Paragraph>>, xml: &str, from: i64, to: i64) {
+        let off: i64 = DxNative::str_len(&p.borrow().text);
+        let mut at: i64 = from;
+        while at < to {
+            let lt: i64 = DxNative::index_of_from(xml, "<", at);
+            if lt < 0 || lt >= to {
+                return;
+            }
+            let mut e: i64 = lt + 1;
+            let n: i64 = DxNative::str_len(xml);
+            let mut stop: bool = false;
+            while e < n && !stop {
+                let ch: i64 = DxNative::char_at(xml, e);
+                if ((((ch == 32 || ch == 47) || ch == 62) || ch == 9) || ch == 10) || ch == 13 {
+                    if ch == 47 && e == lt + 1 {
+                        e += 1;
+                    } else {
+                        stop = true;
+                    }
+                } else {
+                    e += 1;
+                }
+            }
+            let name: String = DxNative::substr(xml, lt + 1, e);
+            let mut next: i64 = e;
+            if WordMlParser::markTag(&name) {
+                let el: String = WordXml::sliceElement(xml, &name, lt);
+                if !el.is_empty() {
+                    let mut a: Rc<RefCell<InlineAnchor>> = Rc::new(RefCell::new(InlineAnchor::new()));
+                    a.borrow_mut().offset = off;
+                    a.borrow_mut().xml = el.clone();
+                    p.borrow_mut().anchors.push(a.clone());
+                    next = lt + (DxNative::str_len(&el));
+                }
+            }
+            let bare: String = if DxNative::index_of(&name, "/") == 0 { DxNative::substr(&name, 1, DxNative::str_len(&name)) } else { name.clone() };
+            if WordMlParser::wrapTag(&bare) {
+                let gt: i64 = DxNative::index_of_from(xml, ">", lt);
+                if gt > lt {
+                    let tag: String = DxNative::substr(xml, lt, gt + 1);
+                    if DxNative::index_of(&tag, "/>") < 0 {
+                        let mut a2: Rc<RefCell<InlineAnchor>> = Rc::new(RefCell::new(InlineAnchor::new()));
+                        a2.borrow_mut().offset = off;
+                        a2.borrow_mut().xml = tag.clone();
+                        p.borrow_mut().anchors.push(a2.clone());
+                    }
+                    next = gt + 1;
+                }
+            }
+            if next <= lt {
+                next = lt + 1;
+            }
+            at = next;
+        }
+    }
+    /// Footnotes (kind 1, tag w:footnote) or endnotes (2, w:endnote); the
+    /// separators Word keeps in the same part are left out.
+    pub fn loadNotes(&self, doc: &Rc<RefCell<RichDocument>>, xml: &str, kind: i64, tag: &str) {
+        let n: i64 = DxNative::str_len(xml);
+        let mut i: i64 = 0;
+        while i < n {
+            let at: i64 = WordXml::findNext(xml, tag, i);
+            if at < 0 {
+                return;
+            }
+            let el: String = WordXml::sliceElement(xml, tag, at);
+            if el.is_empty() {
+                return;
+            }
+            let ot: String = WordXml::openTag(&el);
+            let ty: String = WordXml::attr(&ot, "w:type");
+            if ty.is_empty() || ty == "normal" {
+                let mut note: Rc<RefCell<DocNote>> = Rc::new(RefCell::new(DocNote::new()));
+                note.borrow_mut().kind = kind;
+                note.borrow_mut().id = WordXml::attr(&ot, "w:id");
+                note.borrow_mut().paragraphs = self.readParagraphs(doc, &el);
+                doc.borrow_mut().notes.push(note.clone());
+            }
+            i = at + (DxNative::str_len(&el));
+        }
+    }
+    pub fn loadComments(&self, doc: &Rc<RefCell<RichDocument>>, xml: &str) {
+        let n: i64 = DxNative::str_len(xml);
+        let mut i: i64 = 0;
+        while i < n {
+            let at: i64 = WordXml::findNext(xml, "w:comment", i);
+            if at < 0 {
+                return;
+            }
+            let el: String = WordXml::sliceElement(xml, "w:comment", at);
+            if el.is_empty() {
+                return;
+            }
+            let ot: String = WordXml::openTag(&el);
+            let mut c: Rc<RefCell<DocComment>> = Rc::new(RefCell::new(DocComment::new()));
+            c.borrow_mut().id = WordXml::attr(&ot, "w:id");
+            c.borrow_mut().author = WordXml::decodeEntities(&WordXml::attr(&ot, "w:author"));
+            c.borrow_mut().initials = WordXml::decodeEntities(&WordXml::attr(&ot, "w:initials"));
+            c.borrow_mut().date = WordXml::attr(&ot, "w:date");
+            c.borrow_mut().paragraphs = self.readParagraphs(doc, &el);
+            doc.borrow_mut().comments.push(c.clone());
+            i = at + (DxNative::str_len(&el));
+        }
+    }
+    pub fn readParagraphs(&self, doc: &Rc<RefCell<RichDocument>>, xml: &str) -> Vec<Rc<RefCell<Paragraph>>> {
+        let mut out: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+        let n: i64 = DxNative::str_len(xml);
+        let mut i: i64 = 0;
+        while i < n {
+            let p_start: i64 = WordXml::findNext(xml, "w:p", i);
+            if p_start < 0 {
+                return out;
+            }
+            let p_el: String = WordXml::sliceElement(xml, "w:p", p_start);
+            if p_el.is_empty() {
+                return out;
+            }
+            let mut p: Rc<RefCell<Paragraph>> = doc.borrow_mut().addParagraphOnly();
+            self.fillParagraph(&p, &p_el);
+            out.push(p.clone());
+            i = p_start + (DxNative::str_len(&p_el));
+        }
+        out
     }
     pub fn parseParagraph(&self, doc: &Rc<RefCell<RichDocument>>, p_el: &str) {
         let mut p: Rc<RefCell<Paragraph>> = doc.borrow_mut().addParagraph();

@@ -547,6 +547,40 @@ impl DocxLayout {
             }
             bi += 1;
         }
+        // Footnotes and endnotes: after the text, under a short rule (not yet
+        // at the foot of the page that refers to them).
+        if !doc.borrow().notes.is_empty() {
+            y += 12;
+            let mut rule: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
+            rule.borrow_mut().kind = LaidLineKind::border();
+            rule.borrow_mut().x = ml;
+            rule.borrow_mut().y = y;
+            rule.borrow_mut().width = self.contentW / 3;
+            rule.borrow_mut().height = 1;
+            rule.borrow_mut().borderColor = "888888".to_string();
+            self.curPage.borrow_mut().lines.push(rule.clone());
+            y += 6;
+            let mut ni: i64 = 0;
+            while ni < (doc.borrow().notes.len() as i64) {
+                let note: Rc<RefCell<crate::rich_document::DocNote>> = doc.borrow().notes[ni as usize].clone();
+                let mut pi: i64 = 0;
+                while pi < (note.borrow().paragraphs.len() as i64) {
+                    let np: Rc<RefCell<Paragraph>> = note.borrow().paragraphs[pi as usize].clone();
+                    if y + 16 > self.curMaxY {
+                        let mut _tmp_n1 = self.curPage.clone();
+                        self.paintChrome(&_tmp_n1, &self.curSec.clone());
+                        let mut _tmp_n2 = self.curSec.clone();
+                        let _tmp_n3 = self.newPage(&_tmp_n2, self.curSecIdx.clone());
+                        self.curPage = _tmp_n3;
+                        y = DocSection::marginTopPx(&self.curSec);
+                    }
+                    let mut _tmp_n4 = self.curPage.clone();
+                    y = self.layoutChromePara(&_tmp_n4, np.clone(), ml, y, self.contentW, LaidLineKind::footer());
+                    pi += 1;
+                }
+                ni += 1;
+            }
+        }
         let mut _tmp_1910 = self.curPage.clone();
         self.paintChrome(&_tmp_1910, &self.curSec.clone());
     }

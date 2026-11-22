@@ -11,13 +11,13 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Quick Access | 5 | 5 | 2 | 2 |
 | Title Bar | 1 | 1 | 0 | 0 |
 | Home | 106 | 105 | 13 | 49.5 |
-| Insert | 53 | 47 | 1 | 3.5 |
+| Insert | 53 | 47 | 1 | 5 |
 | Draw | 11 | 10 | 0 | 0 |
 | Design | 10 | 10 | 0 | 0 |
 | Layout | 23 | 23 | 0 | 0 |
-| References | 25 | 25 | 0 | 0 |
+| References | 25 | 25 | 0 | 1 |
 | Mailings | 23 | 23 | 0 | 0 |
-| Review | 31 | 29 | 0 | 0.5 |
+| Review | 31 | 29 | 0 | 10.5 |
 | View | 29 | 29 | 1.5 | 6 |
 | Read Mode | 3 | 2 | 0 | 0 |
 | Developer | 11 | 11 | 0 | 0 |
@@ -30,9 +30,9 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | SmartArt Design | 7 | 7 | 0 | 0 |
 | Chart Design | 5 | 5 | 0 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 |
-| Editing | 41 | 41 | 0 | 25 |
+| Editing | 41 | 41 | 0 | 27 |
 | Tools | 7 | 7 | 0 | 0.5 |
-| **Total** | **522** | **510 (97.7%)** | **20 (3.8%)** | **119.5 (22.9%)** |
+| **Total** | **522** | **510 (97.7%)** | **20 (3.8%)** | **134 (25.7%)** |
 
 ## OOXML read and write (C2, C3)
 
@@ -45,16 +45,16 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Tables | 5 | 5 | 5 | 1.5 | 0 | 2 | 2.5 |
 | Sections | 3 | 3 | 3 | 1 | 0 | 1 | 1 |
 | Headers | 2 | 2 | 2 | 1 | 0 | 1 | 0.5 |
-| Notes | 1 | 1 | 1 | 0 | 0 | 0 | 0 |
-| Review | 4 | 4 | 4 | 0 | 0 | 0 | 0 |
-| Fields | 1 | 1 | 1 | 0 | 0 | 0 | 0 |
-| Links | 1 | 1 | 1 | 0.5 | 0 | 0 | 0 |
+| Notes | 1 | 1 | 1 | 0 | 0 | 0.5 | 0.5 |
+| Review | 4 | 4 | 4 | 0 | 0 | 2.5 | 2.5 |
+| Fields | 1 | 1 | 1 | 0 | 0 | 0.5 | 0.5 |
+| Links | 1 | 1 | 1 | 0.5 | 0 | 0.5 | 1 |
 | Drawing | 10 | 9 | 9 | 2.5 | 0 | 2.5 | 2 |
 | Math | 1 | 1 | 1 | 0 | 0 | 0 | 0 |
 | Controls | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | East Asian | 1 | 0.5 | 0.5 | 0 | 0 | 0 | 0 |
 | Package | 8 | 7.5 | 6.5 | 0.5 | 0 | 0.5 | 2 |
-| **Total** | **55** | **52 (94.5%)** | **51 (92.7%)** | **14 (25.5%)** | **0 (0.0%)** | **14.5 (26.4%)** | **15.5 (28.2%)** |
+| **Total** | **55** | **52 (94.5%)** | **51 (92.7%)** | **14 (25.5%)** | **0 (0.0%)** | **18.5 (33.6%)** | **20 (36.4%)** |
 
 ## Typing behaviour (C4)
 
@@ -79,9 +79,9 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 
 | id | metric | unit | better | WordCraft | Ranger docx_viewer | RangerDocx | target |
 |---|---|---|---|---:|---:|---:|---:|
-| C1 | Ribbon/menu catalog features with a working command | count of 522 | higher | 510 | 20 | 119.5 | 300 |
-| C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 14.5 | 40 |
-| C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 15.5 | 35 |
+| C1 | Ribbon/menu catalog features with a working command | count of 522 | higher | 510 | 20 | 134 | 300 |
+| C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 18.5 | 40 |
+| C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 20 | 35 |
 | C4 | Typing-behaviour scenarios that pass | count of 110 | higher | 110 | 0 | 28.5 | 30 |
 | F1 | Corpus files that open without error | % of corpus | higher | unmeasured | unmeasured | 100 (19/19 fixtures) | 99 |
 | F2 | Semantic round trip: open, save, reopen gives the same semantic dump | % of corpus | higher | unmeasured | 0 | 100 (17/17, all blocks regenerated) | 90 |
@@ -99,5 +99,5 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | R2 | Fuzz iterations without a crash | count | higher | 0 | 0 | 0 | 100000 |
 | X1 | Other formats read or written (PDF, RTF, ODT, HTML, MD, TXT, LaTeX, .doc) | count of 8 | higher | 8 | 1 | 3 | 4 |
 | A1 | Accessibility tree for the document canvas | yes/no | higher | 1 | 1 | 1 | 1 |
-| T1 | Automated tests | count | higher | 4802 | unmeasured | 1312 checks | 500 |
+| T1 | Automated tests | count | higher | 4802 | unmeasured | 1378 checks | 500 |
 

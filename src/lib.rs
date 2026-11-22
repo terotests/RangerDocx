@@ -13,6 +13,7 @@ mod docx_package;
 mod docx_para_format;
 mod docx_table_edit;
 mod docx_png;
+mod docx_review;
 mod docx_text_metrics;
 mod docx_typing;
 mod docx_view;

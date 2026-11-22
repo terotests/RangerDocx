@@ -42,9 +42,11 @@ use crate::rgr::{Utf8, ZipWriter};
 /// Every other part of the package is copied unchanged. A document built in
 /// memory gets a minimal package of its own.
 ///
-/// What an EDITED paragraph loses (an unedited one loses nothing): w:hyperlink
-/// and w:ins/w:del wrappers around its runs, bookmarks inside it, and run
-/// properties the model does not hold (character styles, language, highlight).
+/// What an EDITED paragraph loses (an unedited one loses nothing): wrappers
+/// the model does not keep (w:smartTag, w:sdt inside it, formatting
+/// revisions), and run properties the model does not hold (character styles,
+/// language). Tracked insertions and deletions are written from the spans;
+/// bookmarks, comment ranges, hyperlinks and simple fields from its anchors.
 /// Runs are written with the differences between each span and the paragraph
 /// style's run properties.
 /// ==============================================================================
@@ -178,6 +180,64 @@ impl DocxWriter {
     }
     /// One run of text; a tab or a newline in the text becomes its element.
     pub fn textRun(text: &str, r_pr: &str) -> String {
+        DocxWriter::textRunTag(text, r_pr, "w:t")
+    }
+    /// One text run inside the w:ins or w:del its span is marked with; a
+    /// deleted run's text goes in w:delText.
+    pub fn revRun(text: &str, r_pr: &str, sp: &Rc<RefCell<TextSpan>>) -> String {
+        if sp.borrow().rev == 0 {
+            return DocxWriter::textRun(text, r_pr);
+        }
+        if text.is_empty() {
+            return String::new();
+        }
+        let mut attrs: String = format!(" w:id=\"{}\" w:author=\"{}\"", sp.borrow().revId, DocxWriter::esc(&sp.borrow().revAuthor));
+        if !sp.borrow().revDate.is_empty() {
+            attrs = format!("{} w:date=\"{}\"", attrs, DocxWriter::esc(&sp.borrow().revDate));
+        }
+        if sp.borrow().rev == 1 {
+            return format!("<w:ins{}>{}</w:ins>", attrs, DocxWriter::textRun(text, r_pr));
+        }
+        format!("<w:del{}>{}</w:del>", attrs, DocxWriter::textRunTag(text, r_pr, "w:delText"))
+    }
+    /// Which anchors to write: a wrapper's open tag (w:hyperlink, w:fldSimple)
+    /// only with its close tag in the same paragraph, so an edit that split a
+    /// paragraph between them never writes half a wrapper.
+    pub fn anchorsToWrite(p: &Rc<RefCell<Paragraph>>) -> Vec<bool> {
+        let n: i64 = p.borrow().anchors.len() as i64;
+        let mut emit: Vec<bool> = Vec::new();
+        let mut stack: Vec<i64> = Vec::new();
+        let mut i: i64 = 0;
+        while i < n {
+            let x: String = p.borrow().anchors[i as usize].borrow().xml.clone();
+            let opens: bool = DxNative::index_of(&x, "<w:hyperlink") == 0 || DxNative::index_of(&x, "<w:fldSimple") == 0;
+            let closes: bool = DxNative::index_of(&x, "</w:hyperlink") == 0 || DxNative::index_of(&x, "</w:fldSimple") == 0;
+            if opens {
+                emit.push(false);
+                stack.push(i);
+            } else {
+                if closes {
+                    let mut ok: bool = false;
+                    if !stack.is_empty() {
+                        let top: i64 = stack[((stack.len() as i64) - 1) as usize];
+                        let ox: String = p.borrow().anchors[top as usize].borrow().xml.clone();
+                        let same: bool = (DxNative::index_of(&ox, "<w:hyperlink") == 0) == (DxNative::index_of(&x, "</w:hyperlink") == 0);
+                        if same {
+                            emit[top as usize] = true;
+                            stack.pop();
+                            ok = true;
+                        }
+                    }
+                    emit.push(ok);
+                } else {
+                    emit.push(true);
+                }
+            }
+            i += 1;
+        }
+        emit
+    }
+    pub fn textRunTag(text: &str, r_pr: &str, ttag: &str) -> String {
         if text.is_empty() {
             return String::new();
         }
@@ -189,7 +249,7 @@ impl DocxWriter {
             let c: i64 = DxNative::char_at(&text, i);
             if c == 9 || c == 10 {
                 if i > from {
-                    body = format!("{}<w:t xml:space=\"preserve\">{}</w:t>", body, DocxWriter::esc(&DxNative::substr(&text, from, i)));
+                    body = format!("{}<{} xml:space=\"preserve\">{}</{}>", body, ttag, DocxWriter::esc(&DxNative::substr(&text, from, i)), ttag);
                 }
                 body = format!("{}{}", body, if (c == 9) { "<w:tab/>".to_string() } else { "<w:br/>".to_string() });
                 from = i + 1;
@@ -197,7 +257,7 @@ impl DocxWriter {
             i += 1;
         }
         if n > from {
-            body = format!("{}<w:t xml:space=\"preserve\">{}</w:t>", body, DocxWriter::esc(&DxNative::substr(&text, from, n)));
+            body = format!("{}<{} xml:space=\"preserve\">{}</{}>", body, ttag, DocxWriter::esc(&DxNative::substr(&text, from, n)), ttag);
         }
         format!("<w:r>{}{}</w:r>", r_pr, body)
     }
@@ -251,6 +311,64 @@ impl DocxWriter {
             return ct.to_string();
         }
         format!("{}<Override PartName=\"{}\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>{}", DxNative::substr(&ct, 0, end), part_name, DxNative::substr(&ct, end, (DxNative::str_len(&ct))))
+    }
+    pub fn withPartType(ct: &str, part_name: &str, ctype: &str) -> String {
+        if DxNative::index_of(&ct, part_name) >= 0 {
+            return ct.to_string();
+        }
+        let end: i64 = DxNative::index_of(&ct, "</Types>");
+        if end < 0 {
+            return ct.to_string();
+        }
+        format!("{}<Override PartName=\"{}\" ContentType=\"{}\"/>{}", DxNative::substr(&ct, 0, end), part_name, ctype, DxNative::substr(&ct, end, (DxNative::str_len(&ct))))
+    }
+    pub fn commentsType() -> String {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml".to_string()
+    }
+    /// The relationships with one more, of type `rtype` (the last part of
+    /// its URI) to `target`, under an id nothing else uses.
+    pub fn withRel(mut rels: String, rtype: &str, target: &str) -> String {
+        if rels.is_empty() {
+            rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"></Relationships>".to_string();
+        }
+        if DxNative::index_of(&rels, &format!("Target=\"{}\"", target)) >= 0 {
+            return rels;
+        }
+        let mut n: i64 = 1;
+        while DxNative::index_of(&rels, &format!("Id=\"rIdX{}\"", n)) >= 0 {
+            n += 1;
+        }
+        let end: i64 = DxNative::index_of(&rels, "</Relationships>");
+        if end < 0 {
+            return rels;
+        }
+        format!("{}<Relationship Id=\"rIdX{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/{}\" Target=\"{}\"/>{}", DxNative::substr(&rels, 0, end), n, rtype, target, DxNative::substr(&rels, end, (DxNative::str_len(&rels))))
+    }
+    /// comments.xml from the document's comments.
+    pub fn commentsXml(&self, doc: &Rc<RefCell<RichDocument>>) -> String {
+        let mut r: String = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">".to_string();
+        let __n_ci = doc.borrow().comments.len() as i64;
+        for ci in 0..__n_ci {
+            let c = doc.borrow().comments[ci as usize].clone();
+            r = format!("{}<w:comment w:id=\"{}\" w:author=\"{}\"", r, DocxWriter::esc(&c.borrow().id), DocxWriter::esc(&c.borrow().author));
+            if !c.borrow().date.is_empty() {
+                r = format!("{} w:date=\"{}\"", r, DocxWriter::esc(&c.borrow().date));
+            }
+            if !c.borrow().initials.is_empty() {
+                r = format!("{} w:initials=\"{}\"", r, DocxWriter::esc(&c.borrow().initials));
+            }
+            r = format!("{}>", r);
+            if c.borrow().paragraphs.is_empty() {
+                r = format!("{}<w:p/>", r);
+            }
+            let __n_pi = c.borrow().paragraphs.len() as i64;
+            for pi in 0..__n_pi {
+                let cp = c.borrow().paragraphs[pi as usize].clone();
+                r = format!("{}{}", r, self.paragraphXml(&cp, ""));
+            }
+            r = format!("{}</w:comment>", r);
+        }
+        format!("{}</w:comments>", r)
     }
     /// The document's relationships with one to numbering.xml, under an id
     /// nothing else uses.
@@ -323,6 +441,7 @@ impl DocxWriter {
         let mut base: Rc<RefCell<ResolvedRunStyle>> = ps.borrow().run.clone().clone();
         let n: i64 = DxNative::str_len(&p.borrow().text);
         let na: i64 = p.borrow().anchors.len() as i64;
+        let emit: Vec<bool> = DocxWriter::anchorsToWrite(p);
         let mut ai: i64 = 0;
         let mut r: String = String::new();
         let __n_si = p.borrow().spans.len() as i64;
@@ -338,22 +457,26 @@ impl DocxWriter {
                 let at: i64 = if (an.borrow().offset > n) { n } else { an.borrow().offset };
                 if at < b {
                     if at > cur {
-                        r = format!("{}{}", r, DocxWriter::textRun(&DxNative::substr(&p.borrow().text, cur, at), &r_pr));
+                        r = format!("{}{}", r, DocxWriter::revRun(&DxNative::substr(&p.borrow().text, cur, at), &r_pr, &sp));
                         cur = at;
                     }
-                    r = format!("{}{}", r, an.borrow().xml);
+                    if emit[ai as usize] {
+                        r = format!("{}{}", r, an.borrow().xml);
+                    }
                     ai += 1;
                 } else {
                     going = false;
                 }
             }
             if b > cur {
-                r = format!("{}{}", r, DocxWriter::textRun(&DxNative::substr(&p.borrow().text, cur, b), &r_pr));
+                r = format!("{}{}", r, DocxWriter::revRun(&DxNative::substr(&p.borrow().text, cur, b), &r_pr, &sp));
             }
         }
         while ai < na {
             let mut an2: Rc<RefCell<InlineAnchor>> = p.borrow().anchors[ai as usize].clone();
-            r = format!("{}{}", r, an2.borrow().xml);
+            if emit[ai as usize] {
+                r = format!("{}{}", r, an2.borrow().xml);
+            }
             ai += 1;
         }
         r
@@ -723,6 +846,13 @@ impl DocxWriter {
             let main_dir: String = DocxWriter::dirOf(&doc.borrow().source.borrow().mainPart.clone());
             let rels_part: String = format!("{}_rels/{}.rels", main_dir, DxNative::substr(&doc.borrow().source.borrow().mainPart, (DxNative::str_len(&main_dir)), (DxNative::str_len(&doc.borrow().source.borrow().mainPart))));
             let new_num_part: bool = lists && num_part.is_empty();
+            // Comments the editor added or deleted: comments.xml is written
+            // from the model, and made (with its relationship and content
+            // type) when there was none.
+            let comments_on: bool = doc.borrow().commentsChanged;
+            let c_part: String = format!("{}comments.xml", main_dir);
+            let has_c: bool = doc.borrow().source.borrow().bytes.contains_key(&c_part);
+            let new_c: bool = comments_on && !has_c && !doc.borrow().comments.is_empty();
             let mut wrote_rels: bool = false;
             let __n_pi = doc.borrow().source.borrow().parts.len() as i64;
             for pi in 0..__n_pi {
@@ -741,14 +871,31 @@ impl DocxWriter {
                             ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4024));
                             handled = true;
                         }
-                        if new_num_part && part == "[Content_Types].xml" {
-                            let _tmp_4026 = DocxWriter::withNumberingType(&DocxWriter::text(&bytes), &format!("/{}numbering.xml", main_dir));
-                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4026));
+                        if comments_on && part == c_part {
+                            let cx: String = self.commentsXml(doc);
+                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&cx));
                             handled = true;
                         }
-                        if new_num_part && part == rels_part {
-                            let _tmp_4028 = DocxWriter::withNumberingRel(DocxWriter::text(&bytes));
-                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&_tmp_4028));
+                        if (new_num_part || new_c) && part == "[Content_Types].xml" {
+                            let mut ctx: String = DocxWriter::text(&bytes);
+                            if new_num_part {
+                                ctx = DocxWriter::withNumberingType(&ctx, &format!("/{}numbering.xml", main_dir));
+                            }
+                            if new_c {
+                                ctx = DocxWriter::withPartType(&ctx, &format!("/{}", c_part), &DocxWriter::commentsType());
+                            }
+                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&ctx));
+                            handled = true;
+                        }
+                        if (new_num_part || new_c) && part == rels_part {
+                            let mut rx: String = DocxWriter::text(&bytes);
+                            if new_num_part {
+                                rx = DocxWriter::withNumberingRel(rx.clone());
+                            }
+                            if new_c {
+                                rx = DocxWriter::withRel(rx.clone(), "comments", "comments.xml");
+                            }
+                            ZipWriter::addFile(&zip, &part, &DocxWriter::utf8(&rx));
                             handled = true;
                             wrote_rels = true;
                         }
@@ -767,9 +914,20 @@ impl DocxWriter {
                     &format!("{}numbering.xml", main_dir),
                     &DocxWriter::utf8(&self.numbering.borrow().withAdditions(""))
                 );
-                if !wrote_rels {
-                    ZipWriter::addFile(&zip, &rels_part, &DocxWriter::utf8(&DocxWriter::withNumberingRel(String::new())));
+            }
+            if new_c {
+                let cx2: String = self.commentsXml(doc);
+                ZipWriter::addFile(&zip, &c_part, &DocxWriter::utf8(&cx2));
+            }
+            if (new_num_part || new_c) && !wrote_rels {
+                let mut rx2: String = String::new();
+                if new_num_part {
+                    rx2 = DocxWriter::withNumberingRel(rx2.clone());
                 }
+                if new_c {
+                    rx2 = DocxWriter::withRel(rx2.clone(), "comments", "comments.xml");
+                }
+                ZipWriter::addFile(&zip, &rels_part, &DocxWriter::utf8(&rx2));
             }
             return zip;
         }
@@ -780,11 +938,20 @@ impl DocxWriter {
             ct = DocxWriter::withNumberingType(&ct, "/word/numbering.xml");
             doc_rels = DocxWriter::withNumberingRel(doc_rels.clone());
         }
+        let fresh_c: bool = !doc.borrow().comments.is_empty();
+        if fresh_c {
+            ct = DocxWriter::withPartType(&ct, "/word/comments.xml", &DocxWriter::commentsType());
+            doc_rels = DocxWriter::withRel(doc_rels.clone(), "comments", "comments.xml");
+        }
         ZipWriter::addFile(&zip, "[Content_Types].xml", &DocxWriter::utf8(&ct));
         ZipWriter::addFile(&zip, "_rels/.rels", &DocxWriter::utf8(rels));
         ZipWriter::addFile(&zip, "word/document.xml", &DocxWriter::utf8(&xml));
         ZipWriter::addFile(&zip, "word/_rels/document.xml.rels", &DocxWriter::utf8(&doc_rels));
         ZipWriter::addFile(&zip, "word/styles.xml", &DocxWriter::utf8(&DocxWriter::freshStylesXml()));
+        if fresh_c {
+            let cx3: String = self.commentsXml(doc);
+            ZipWriter::addFile(&zip, "word/comments.xml", &DocxWriter::utf8(&cx3));
+        }
         if self.numbering.borrow().hasAdditions() {
             ZipWriter::addFile(
                 &zip,

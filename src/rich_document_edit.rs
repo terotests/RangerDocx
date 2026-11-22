@@ -4,7 +4,7 @@ use ranger::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::rich_document::{DocBlock, DocBlockKind, DocChart, DocTableBorder, DocTableCell, DocTableRow, DocumentTable, Paragraph, RichDocument, TextSpan};
+use crate::rich_document::{DocBlock, DocBlockKind, DocChart, DocTableBorder, DocTableCell, DocTableRow, DocumentTable, InlineAnchor, Paragraph, RichDocument, TextSpan};
 use crate::rgr::DxNative;
 use crate::rgr::{DocumentPosition};
 
@@ -136,6 +136,22 @@ impl RichDocumentEdit {
         let before: String = DxNative::substr(&p.borrow().text, 0, start);
         let after: String = DxNative::substr(&p.borrow().text, end, __len);
         let delta: i64 = (DxNative::str_len(&text)) - (end - start);
+        // Anchors (tabs, note references, bookmarks, comment ranges) move with
+        // the text after them; one inside a deleted range stays at its start.
+        let __na: i64 = p.borrow().anchors.len() as i64;
+        let mut ak: i64 = 0;
+        while ak < __na {
+            let an: Rc<RefCell<InlineAnchor>> = p.borrow().anchors[ak as usize].clone();
+            let o: i64 = an.borrow().offset;
+            if o > start {
+                if o >= end {
+                    an.borrow_mut().offset = o + delta;
+                } else {
+                    an.borrow_mut().offset = start;
+                }
+            }
+            ak += 1;
+        }
         let mut new_spans: Vec<Rc<RefCell<TextSpan>>> = Vec::new();
         let mut si: i64 = 0;
         while si < (p.borrow().spans.len() as i64) {
@@ -234,6 +250,25 @@ impl RichDocumentEdit {
         // jumped to the left margin.
         Paragraph::copyFormatTo(&p, &np);
         np.borrow_mut().text = right.clone();
+        // Anchors after the split go with the right half; one AT it goes too
+        // when it opens something (a link, a bookmark, a comment range).
+        let mut keep_an: Vec<Rc<RefCell<InlineAnchor>>> = Vec::new();
+        np.borrow_mut().anchors.clear();
+        let mut ak: i64 = 0;
+        while ak < (p.borrow().anchors.len() as i64) {
+            let an: Rc<RefCell<InlineAnchor>> = p.borrow().anchors[ak as usize].clone();
+            let o: i64 = an.borrow().offset;
+            let x: String = an.borrow().xml.clone();
+            let opener: bool = DxNative::index_of(&x, "<w:hyperlink") == 0 || DxNative::index_of(&x, "<w:fldSimple") == 0 || DxNative::index_of(&x, "<w:bookmarkStart") == 0 || DxNative::index_of(&x, "<w:commentRangeStart") == 0;
+            if o > offset || (o == offset && opener && offset < __len) {
+                an.borrow_mut().offset = o - offset;
+                np.borrow_mut().anchors.push(an.clone());
+            } else {
+                keep_an.push(an.clone());
+            }
+            ak += 1;
+        }
+        p.borrow_mut().anchors = keep_an;
         // Split spans
         np.borrow_mut().spans.clear();
         let mut tip: Rc<RefCell<TextSpan>> = self.spanAt(&p, offset);
@@ -749,6 +784,13 @@ impl RichDocumentEdit {
         // Append text with formatting from first span of cur
         let mut fmt: Rc<RefCell<TextSpan>> = self.spanAt(&cur, 0);
         self.replaceRange(prev_id, join_at, join_at, &joined);
+        let mut ak: i64 = 0;
+        while ak < (cur.borrow().anchors.len() as i64) {
+            let an: Rc<RefCell<InlineAnchor>> = cur.borrow().anchors[ak as usize].clone();
+            an.borrow_mut().offset = an.borrow().offset + join_at;
+            prev.borrow_mut().anchors.push(an.clone());
+            ak += 1;
+        }
         if !joined.is_empty() {
             // apply cur's first span attrs onto inserted range roughly
             let a: i64 = join_at;
