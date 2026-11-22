@@ -254,7 +254,10 @@ impl DocxLayout {
             }
         }
         let lines: Vec<String> = self.wrapParagraph(p, font_px, width);
-        self.wrapWidths.borrow_mut().remove(&slot);
+        // an empty list, not remove: Ranger's Rust map has no remove, and
+        // lineWidth reads an empty list as nothing measured yet
+        let none: Vec<i64> = Vec::new();
+        self.wrapWidths.borrow_mut().insert(slot, none);
         self.wrapSig.borrow_mut().insert(slot, sig);
         self.wrapOut.borrow_mut().insert(slot, lines.clone());
         lines
