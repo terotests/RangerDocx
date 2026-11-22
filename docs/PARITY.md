@@ -104,3 +104,29 @@ case for an edited document.
   (used by the pptx and xlsx editors) is the model to follow.
 - Largest read gaps: footnotes, comments, track changes, fields, bookmarks,
   tab stops, vMerge/nested tables, floating images, first/even headers.
+
+## Re-measure 2026-11-22 (WordCraft 33d874c)
+
+- WordCraft grew: catalog 502 → 522 rows (510 live), typing scenarios
+  42 → 110, `#[test]` functions 1,930 → 4,802. The "View › Window" rows it
+  lacked are now live; new tabs/rows: Read Mode, Mailings record navigation,
+  Spike, underline colour, emphasis marks, multilevel list library.
+- RangerDocx since 2026-10-16: .odt/.rtf import (e84b53a, X1 1 → 3),
+  theme-font metric twins (91ed06d), sources converted to Ranger's Rust
+  syntax (src/*.rs, 87db17b). No new catalog commands, so C1 stays 52
+  (10.0% of 522, was 10.4% of 502).
+- `parity/ooxml.tsv` (C2/C3) is not refreshed by the import script; its
+  WordCraft columns are from 2026-10-13.
+- C4 is still 0: there is no keystroke-script runner. That runner is the
+  cheapest way to start scoring the 110 typing rows.
+
+### Next steps, in order
+
+1. Typing-scenario runner (tests/TypingTest) over the editor model; start
+   with Lists, Undo, Editing keys (C4).
+2. Home tab gaps (38 of 105): multilevel list, font/paragraph dialogs,
+   link, styles pane.
+3. Insert and Table Layout (2.5 of 47, 0 of 33): table editing commands
+   on top of the existing table insert.
+4. Read gaps (C2): footnotes, comments, track changes, fields, bookmarks.
+5. Layout and performance metrics (L1–L3, P1–P3) on the shared corpus.

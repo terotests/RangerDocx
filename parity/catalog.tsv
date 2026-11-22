@@ -21,6 +21,7 @@ File	Backstage	Version History	file.versions	live	no	no	-
 File	Backstage	Recover Unsaved	file.recover	live	no	no	-
 File	Backstage	New from Template	file.newFromTemplate	live	no	no	-
 File	Backstage	Save as Template	file.saveTemplate	live	no	no	-
+File	Backstage	Personal Templates	file.listTemplates	live	no	no	-
 Quick Access	Toolbar	Undo	edit.undo	live	yes	yes	tests/DocxAppTest.rgr
 Quick Access	Toolbar	Undo List	edit.undoTo	live	no	no	-
 Quick Access	Toolbar	Redo	edit.redo	live	yes	yes	tests/DocxAppTest.rgr
@@ -47,6 +48,7 @@ Home	Font	Bold	format.bold	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Italic	format.italic	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Underline	format.underline	live	yes	yes	tests/DocxAppTest.rgr
 Home	Font	Double Underline	format.doubleUnderline	live	no	no	-
+Home	Font	Underline Color	format.underlineColor	live	no	no	-
 Home	Font	Strikethrough	format.strikethrough	live	no	done	tests/DocxChromeTest.rgr
 Home	Font	Subscript	format.subscript	live	no	done	tests/DocxChromeTest.rgr
 Home	Font	Superscript	format.superscript	live	no	done	tests/DocxChromeTest.rgr
@@ -59,6 +61,7 @@ Home	Font	Character Shading	format.shading	live	no	no	-
 Home	Font	Font Dialog	format.fontDialog	live	no	no	-
 Home	Font	Double Strikethrough	format.doubleStrikethrough	live	no	no	-
 Home	Font	Small Caps	format.smallCaps	live	no	no	-
+Home	Font	Emphasis Mark	format.emphasisMark	live	no	no	-
 Home	Font	All Caps	format.allCaps	live	no	no	-
 Home	Font	Hidden	format.hidden	live	no	no	-
 Home	Font	Emboss	format.emboss	live	no	no	-
@@ -73,6 +76,7 @@ Home	Paragraph	Bullets	para.bullets	live	no	done	tests/DocxChromeTest.rgr
 Home	Paragraph	Numbering	para.numbering	live	no	done	tests/DocxChromeTest.rgr
 Home	Paragraph	Multilevel List	para.multilevel	live	no	no	-
 Home	Paragraph	Define New Multilevel List	list.define	live	no	no	-
+Home	Paragraph	Multilevel List Library	list.multilevelPreset	live	no	no	-
 Home	Paragraph	Change List Level	para.listLevel	live	no	done	tests/DocxChromeTest.rgr
 Home	Paragraph	Restart Numbering	para.restartNumbering	live	no	no	-
 Home	Paragraph	Define New Bullet	para.defineBullet	live	no	no	-
@@ -211,6 +215,7 @@ Layout	Page Setup	Columns	layout.columns	live	no	no	-
 Layout	Page Setup	Breaks	layout.break	live	no	no	-
 Layout	Page Setup	Line Numbers	layout.lineNumbers	live	no	no	-
 Layout	Page Setup	Hyphenation	layout.hyphenation	live	no	no	-
+Layout	Page Setup	Fit One Page	layout.fitOnePage	live	no	no	-
 Layout	Page Setup	Page Setup Dialog	layout.pageSetup	live	no	no	-
 Layout	Page Setup	Vertical Alignment	layout.verticalAlign	live	no	no	-
 Layout	Page Setup	Document Grid	layout.documentGrid	live	no	no	-
@@ -256,6 +261,8 @@ Mailings	Create	Labels	mailings.labels	live	no	no	-
 Mailings	Start Mail Merge	Start Mail Merge	mailings.start	live	no	no	-
 Mailings	Start Mail Merge	Select Recipients	mailings.recipients	live	no	no	-
 Mailings	Start Mail Merge	Edit Recipient List	mailings.editRecipients	live	no	no	-
+Mailings	Start Mail Merge	Filter Recipients	mailings.filterRecipients	live	no	no	-
+Mailings	Start Mail Merge	Sort Recipients	mailings.sortRecipients	live	no	no	-
 Mailings	Write & Insert Fields	Highlight Merge Fields	mailings.highlightFields	live	no	no	-
 Mailings	Write & Insert Fields	Address Block	mailings.addressBlock	live	no	no	-
 Mailings	Write & Insert Fields	Greeting Line	mailings.greetingLine	live	no	no	-
@@ -265,9 +272,13 @@ Mailings	Write & Insert Fields	Match Fields	mailings.matchFields	live	no	no	-
 Mailings	Preview Results	Preview Results	mailings.preview	live	no	no	-
 Mailings	Preview Results	Next Record	mailings.next	live	no	no	-
 Mailings	Preview Results	Previous Record	mailings.previous	live	no	no	-
+Mailings	Preview Results	First Record	mailings.first	live	no	no	-
+Mailings	Preview Results	Last Record	mailings.last	live	no	no	-
+Mailings	Preview Results	Go to Record	mailings.goToRecord	live	no	no	-
 Mailings	Preview Results	Find Recipient	mailings.findRecipient	live	no	no	-
 Mailings	Preview Results	Check for Errors	mailings.checkErrors	live	no	no	-
 Mailings	Finish	Finish & Merge	mailings.finish	live	no	no	-
+Mailings	Finish	Print Documents	mailings.printDocuments	live	no	no	-
 Review	Proofing	Spelling & Grammar	review.spelling	live	no	no	-
 Review	Proofing	Thesaurus	review.thesaurus	live	no	no	-
 Review	Proofing	Word Count	review.wordCount	live	no	partial	tests/DocxChromeTest.rgr
@@ -320,14 +331,17 @@ View	Zoom	Zoom In	view.zoomIn	live	partial	yes	tests/DocxChromeTest.rgr
 View	Zoom	Zoom Out	view.zoomOut	live	partial	yes	tests/DocxChromeTest.rgr
 View	Dark Mode	Switch Modes	view.darkMode	live	no	no	-
 View	Window	New Window	view.newWindow	live	no	no	-
-View	Window	Arrange All	view.arrangeAll	missing	no	no	-
+View	Window	Arrange All	view.arrangeAll	live	no	no	-
 View	Window	Split	view.split	live	no	no	-
-View	Window	View Side by Side	view.sideBySide	missing	no	no	-
-View	Window	Synchronous Scrolling	view.syncScroll	missing	no	no	-
-View	Window	Switch Windows	view.switchWindows	missing	no	no	-
+View	Window	View Side by Side	view.sideBySide	live	no	no	-
+View	Window	Synchronous Scrolling	view.syncScroll	live	no	no	-
+View	Window	Switch Windows	view.switchWindows	live	no	no	-
 View	Macros	Macros	tools.macros	live	no	no	-
 View	Macros	Record Macro	tools.recordMacro	live	no	no	-
 View	SharePoint	Properties	file.properties	live	no	no	-
+Read Mode	View	Column Width	view.readColumnWidth	live	no	no	-
+Read Mode	View	Page Color	view.readPageColor	live	no	no	-
+Read Mode	View	Layout	view.readLayout	missing	no	no	-
 Developer	Controls	Rich Text Content Control	developer.richText	live	no	no	-
 Developer	Controls	Plain Text Content Control	developer.plainText	live	no	no	-
 Developer	Controls	Picture Content Control	developer.picture	live	no	no	-
@@ -443,6 +457,8 @@ Chart Design	Chart Layouts	Chart Title	chart.title	live	no	no	-
 Chart Design	Chart Layouts	Legend	chart.legend	live	no	no	-
 Chart Design	Chart Layouts	Data Labels	chart.dataLabels	live	no	no	-
 Shape Format	Shape Styles	Shape Fill	shape.fill	live	no	no	-
+Shape Format	Shape Styles	Shape Fill Gradient	shape.fill	live	no	no	-
+Shape Format	Shape Styles	Format Shape Pane	view.formatShapePane	live	no	no	-
 Shape Format	Shape Styles	Shape Outline	shape.outline	live	no	no	-
 Shape Format	Shape Styles	Shape Effects	shape.effects	live	no	no	-
 Shape Format	WordArt Styles	WordArt Quick Styles	wordArt.style	live	no	no	-
@@ -462,6 +478,7 @@ Editing	Keyboard	New Paragraph	text.newParagraph	live	no	no	-
 Editing	Keyboard	Line Break	text.lineBreak	live	no	no	-
 Editing	Keyboard	Column Break	text.columnBreak	live	no	no	-
 Editing	Keyboard	Tab	text.tab	live	no	no	-
+Editing	Keyboard	Tab Character	text.insertTab	live	no	no	-
 Editing	Keyboard	Backspace	text.backspace	live	no	no	-
 Editing	Keyboard	Delete	text.delete	live	no	no	-
 Editing	Keyboard	Delete Previous Word	text.deleteWordBack	live	no	no	-
@@ -471,6 +488,8 @@ Editing	Keyboard	Move Paragraph Down	para.moveDown	live	no	no	-
 Editing	Keyboard	Promote	para.promote	live	no	no	-
 Editing	Keyboard	Demote	para.demote	live	no	no	-
 Editing	Keyboard	Toggle Unicode Character	text.toggleUnicode	live	no	no	-
+Editing	Keyboard	Spike	edit.spike	live	no	no	-
+Editing	Keyboard	Insert Spike	edit.insertSpike	live	no	no	-
 Editing	Navigation	Word Left	caret.wordLeft	live	no	no	-
 Editing	Navigation	Word Right	caret.wordRight	live	no	no	-
 Editing	Navigation	Line Start	caret.home	live	no	no	-
@@ -501,3 +520,4 @@ Tools	Customize	Customize Ribbon	tools.customizeRibbon	live	no	no	-
 Tools	Customize	Customize Keyboard	tools.customizeKeyboard	live	no	no	-
 Tools	Protection	Encrypt with Password	file.encrypt	live	no	no	-
 Tools	Templates	Templates and Add-ins	tools.templates	live	no	no	-
+Tools	Views	Full Screen View	view.fullScreenView	live	no	no	-
