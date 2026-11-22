@@ -137,7 +137,8 @@ case for an edited document.
 |---|---|---|
 | 1. Typing runner | bcc914b | tests/TypingTest (156 checks). C4 0 → 28.5 of 110 (25 yes, 7 partial) |
 | 2. Home tab | 0d18146 | tests/HomeTest (43 checks): keeps, outline level, hanging indent, direction, Heading 3, Sort, copy/paste formatting, Find Previous, Go To. C1 52 → 96 |
-| 3. Table Layout | (this commit) | tests/TableTest (78 checks): insert/delete rows, columns, cells and table; select cell/row/column/table; merge, split cell, split table; column width, row height, distribute, AutoFit to window; cell alignment, shading, header rows; sort; convert to text and back. All undoable, saved and read back. C1 96 → 119.5, C2 14 → 14.5, C3 15 → 15.5 |
+| 3. Table Layout | b0f91df | tests/TableTest (78 checks): insert/delete rows, columns, cells and table; select cell/row/column/table; merge, split cell, split table; column width, row height, distribute, AutoFit to window; cell alignment, shading, header rows; sort; convert to text and back. All undoable, saved and read back. C1 96 → 119.5, C2 14 → 14.5, C3 15 → 15.5 |
+| 4. Read gaps | (this commit) | tests/ReviewTest (66 checks), fixture 26-review-notes.docx: tracked insertions and deletions read, drawn in the author's colour, accepted or rejected (one, all, next, previous) and written back as w:ins/w:del; comments read (comments.xml), their ranges highlighted, browsed, deleted and added (comments.xml written, made when missing); footnotes and endnotes read and laid out after the text; bookmarks inserted and reached with Go To; fields, footnote references, bookmarks, comment ranges and links kept through edits (anchors now follow the text). C1 119.5 → 134, C2 14.5 → 18.5, C3 15.5 → 20 |
 
 Left partial in step 3: merging across rows merges each row on its own
 (vertical merge, `w:vMerge`, is not in the model); header rows are read,
@@ -146,3 +147,9 @@ across pages in the layout yet); Distribute Rows uses the tallest set height,
 not the laid-out one; AutoFit to contents and fixed width are not done.
 Not started in step 3: Draw Table, Eraser, Quick Tables, table styles and
 borders, cell margins, text direction, table direction, formula, properties.
+
+Left partial in step 4: notes are laid out after the text, not at the foot
+of their page, and their reference marks are not drawn; footnotes cannot be
+inserted yet; fields show their stored result (no update, no field codes);
+Track Changes recording while typing is not done (changes are only read,
+accepted and rejected); a link split by Enter loses its link.

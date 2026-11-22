@@ -865,6 +865,28 @@ impl DocxView {
                 return;
             }
         }
+        // Commented text sits on a pale yellow band.
+        if !mute_chrome && !p.borrow().anchors.is_empty() {
+            let cr: Vec<i64> = DocxView::commentRanges(&p);
+            let mut ck: i64 = 0;
+            while ck + 1 < (cr.len() as i64) {
+                let mut ca: i64 = cr[ck as usize];
+                let mut cb: i64 = cr[(ck + 1) as usize];
+                if ca < doc0 {
+                    ca = doc0;
+                }
+                if cb > doc1 {
+                    cb = doc1;
+                }
+                if ca < cb {
+                    let cx1: i64 = x + DocxTextMetrics::measureRange(&self.ctx.borrow().tr.clone(), &p, size, doc0, ca);
+                    let cx2: i64 = x + DocxTextMetrics::measureRange(&self.ctx.borrow().tr.clone(), &p, size, doc0, cb);
+                    let band: Rc<RefCell<EVGColor>> = EVGColor::rgb(255, 240, 170);
+                    self.ink.clone().borrow().rect(cx1, ly - 1, cx2 - cx1, ((size * 1.25).floor() as i64) + 2, &band);
+                }
+                ck += 2;
+            }
+        }
         let mut si: i64 = 0;
         while si < (p.borrow().spans.len() as i64) {
             let mut sp: Rc<RefCell<TextSpan>> = p.borrow().spans[si as usize].clone();
@@ -913,6 +935,12 @@ impl DocxView {
         if mute_chrome {
             col = EVGColor::rgb(80, 90, 110);
         }
+        // A tracked change in its author's colour: inserted text underlined,
+        // deleted text struck through.
+        let rv: i64 = sp.borrow().rev;
+        if rv != 0 {
+            col = DocxView::authorColor(&sp.borrow().revAuthor.clone());
+        }
         let mut run_size: f64 = size;
         if run_size < 8.0 {
             run_size = 8.0;
@@ -943,11 +971,11 @@ impl DocxView {
         let mut _tmp_7039 = sp.borrow().bold.clone();
         let mut _tmp_7040 = sp.borrow().italic.clone();
         self.ink.clone().borrow().textStyled(chunk, x, draw_y, draw_size, &col, _tmp_7039, _tmp_7040);
-        if sp.borrow().underline {
+        if sp.borrow().underline || rv == 1 {
             let uy: i64 = (y + (run_size.floor() as i64)) + 1;
             self.ink.clone().borrow().rect(x, uy, w, 1, &col);
         }
-        if sp.borrow().strike {
+        if sp.borrow().strike || rv == 2 {
             let mut sw: i64 = w;
             if sp.borrow().vertAlign != 0 {
                 sw = DocxTextMetrics::measureStyled(
@@ -962,6 +990,60 @@ impl DocxView {
             self.ink.clone().borrow().rect(x, sy, sw, 1, &col);
         }
         w
+    }
+    /// One colour per author, the same every time for the same name.
+    fn authorColor(name: &str) -> Rc<RefCell<EVGColor>> {
+        let mut h: i64 = 0;
+        let n: i64 = DxNative::str_len(name);
+        let mut i: i64 = 0;
+        while i < n {
+            h = (h * 31 + DxNative::char_at(name, i)) % 7919;
+            i += 1;
+        }
+        let k: i64 = h % 5;
+        if k == 0 {
+            return EVGColor::rgb(178, 34, 34);
+        }
+        if k == 1 {
+            return EVGColor::rgb(30, 90, 200);
+        }
+        if k == 2 {
+            return EVGColor::rgb(20, 130, 60);
+        }
+        if k == 3 {
+            return EVGColor::rgb(150, 60, 170);
+        }
+        EVGColor::rgb(190, 110, 0)
+    }
+    /// Where comments cover this paragraph: [start, end, start, end, ...]. A
+    /// range that began in an earlier paragraph starts at 0, one that ends in
+    /// a later one runs to the end.
+    pub fn commentRanges(p: &Rc<RefCell<Paragraph>>) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::new();
+        let n: i64 = DxNative::str_len(&p.borrow().text);
+        let mut open_at: i64 = -1;
+        let mut i: i64 = 0;
+        while i < (p.borrow().anchors.len() as i64) {
+            let an: Rc<RefCell<crate::rich_document::InlineAnchor>> = p.borrow().anchors[i as usize].clone();
+            let x: String = an.borrow().xml.clone();
+            if DxNative::index_of(&x, "<w:commentRangeStart") == 0 {
+                if open_at < 0 {
+                    open_at = an.borrow().offset;
+                }
+            }
+            if DxNative::index_of(&x, "<w:commentRangeEnd") == 0 {
+                let s0: i64 = if open_at < 0 { 0 } else { open_at };
+                out.push(s0);
+                out.push(an.borrow().offset);
+                open_at = -1;
+            }
+            i += 1;
+        }
+        if open_at >= 0 {
+            out.push(open_at);
+            out.push(n);
+        }
+        out
     }
     fn hexColor(&self, hex: &str) -> Rc<RefCell<EVGColor>> {
         if (DxNative::str_len(&hex)) != 6 {

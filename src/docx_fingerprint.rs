@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::rich_document::{DocumentTable, Paragraph, RichDocument, TextSpan};
+use crate::rgr::DxNative;
 
 /// ==============================================================================
 /// DocxFingerprint - what a paragraph or table looked like when it was read.
@@ -49,6 +50,7 @@ impl DocxFingerprint {
         s = format!("{}:{}{}{}", s, DocxFingerprint::b(sp.borrow().bold), DocxFingerprint::b(sp.borrow().italic), DocxFingerprint::b(sp.borrow().underline));
         s = format!("{}:{}:{}:{}:{}:{}", s, sp.borrow().fontSizePt, sp.borrow().fontFamily, sp.borrow().colorHex, sp.borrow().hyperlink, sp.borrow().math);
         s = format!("{}:{}{}:{}", s, DocxFingerprint::b(sp.borrow().strike), sp.borrow().vertAlign, sp.borrow().highlight);
+        s = format!("{}:{}:{}", s, sp.borrow().rev, sp.borrow().revAuthor);
         s
     }
     fn paragraph(p: &Rc<RefCell<Paragraph>>) -> String {
@@ -58,6 +60,11 @@ impl DocxFingerprint {
             s = format!("{}{};", s, DocxFingerprint::span(&sp));
         }
         s = format!("{}#{}", s, p.borrow().images.len() as i64);
+        // An anchor added, removed or moved (a comment, a bookmark) is a change.
+        let __it_an = p.borrow().anchors.clone();
+        for an in __it_an.iter().cloned() {
+            s = format!("{}@{}:{}", s, an.borrow().offset, DxNative::str_len(&an.borrow().xml));
+        }
         s
     }
     fn table(t: &Rc<RefCell<DocumentTable>>) -> String {

@@ -96,6 +96,13 @@ pub struct TextSpan {
     /// line of Unicode, which is what a painter without equations draws and
     /// what the plain text holds. Sliqtly's writer fills and writes it.
     pub math: String,
+    /// A tracked change: 0 none, 1 inserted (`w:ins`, `w:moveTo`), 2 deleted
+    /// (`w:del`, `w:moveFrom`). Deleted text stays in the paragraph's text,
+    /// drawn struck through, until the change is accepted or rejected.
+    pub rev: i64,
+    pub revAuthor: String,
+    pub revDate: String,
+    pub revId: i64,
 }
 
 impl TextSpan {
@@ -114,6 +121,10 @@ impl TextSpan {
             vertAlign: 0,
             highlight: String::new(),
             math: String::new(),
+            rev: 0,
+            revAuthor: String::new(),
+            revDate: String::new(),
+            revId: 0,
         }
     }
     pub fn create(start: i64, end: i64) -> Rc<RefCell<TextSpan>> {
@@ -136,6 +147,10 @@ impl TextSpan {
         s.borrow_mut().vertAlign = self.vertAlign;
         s.borrow_mut().highlight = self.highlight.clone();
         s.borrow_mut().math = self.math.clone();
+        s.borrow_mut().rev = self.rev;
+        s.borrow_mut().revAuthor = self.revAuthor.clone();
+        s.borrow_mut().revDate = self.revDate.clone();
+        s.borrow_mut().revId = self.revId;
         s
     }
     pub fn sameFormat(&self, other: &Rc<RefCell<TextSpan>>) -> bool {
@@ -167,6 +182,9 @@ impl TextSpan {
             return false;
         }
         if self.highlight != other.borrow().highlight {
+            return false;
+        }
+        if self.rev != other.borrow().rev || self.revAuthor != other.borrow().revAuthor || self.revId != other.borrow().revId {
             return false;
         }
         // two formulas side by side stay two formulas
@@ -412,6 +430,70 @@ impl DocImage {
 /// The pixels are never stored. A chart is its data, exactly as it is in the
 /// grid; the picture is recomputed whenever the page is painted.
 #[derive(Clone)]
+/// A footnote (kind 1) or endnote (kind 2), from footnotes.xml / endnotes.xml.
+/// Its reference in the text is an inline anchor (`w:footnoteReference`).
+pub struct DocNote {
+    pub kind: i64,
+    pub id: String,
+    pub paragraphs: Vec<Rc<RefCell<Paragraph>>>,
+}
+
+impl DocNote {
+    pub fn new() -> Self {
+        Self {
+            kind: 1,
+            id: String::new(),
+            paragraphs: Vec::new(),
+        }
+    }
+    pub fn plainText(&self) -> String {
+        let mut s: String = String::new();
+        let mut i: i64 = 0;
+        while i < (self.paragraphs.len() as i64) {
+            if i > 0 {
+                s = format!("{}\n", s);
+            }
+            s = format!("{}{}", s, self.paragraphs[i as usize].borrow().text);
+            i += 1;
+        }
+        s
+    }
+}
+
+/// A comment from comments.xml. Where it applies is a pair of inline anchors
+/// in the text (`w:commentRangeStart` / `w:commentRangeEnd` with its id).
+pub struct DocComment {
+    pub id: String,
+    pub author: String,
+    pub initials: String,
+    pub date: String,
+    pub paragraphs: Vec<Rc<RefCell<Paragraph>>>,
+}
+
+impl DocComment {
+    pub fn new() -> Self {
+        Self {
+            id: String::new(),
+            author: String::new(),
+            initials: String::new(),
+            date: String::new(),
+            paragraphs: Vec::new(),
+        }
+    }
+    pub fn plainText(&self) -> String {
+        let mut s: String = String::new();
+        let mut i: i64 = 0;
+        while i < (self.paragraphs.len() as i64) {
+            if i > 0 {
+                s = format!("{}\n", s);
+            }
+            s = format!("{}{}", s, self.paragraphs[i as usize].borrow().text);
+            i += 1;
+        }
+        s
+    }
+}
+
 pub struct DocChart {
     pub id: i64,
     pub json: String,
@@ -793,6 +875,11 @@ pub struct RichDocument {
     /// cost that follows the document rather than the frame.
     pub revision: i64,
     pub source: Rc<RefCell<DocxSource>>,
+    pub notes: Vec<Rc<RefCell<DocNote>>>,
+    pub comments: Vec<Rc<RefCell<DocComment>>>,
+    /// The comments were changed (added, deleted): a save writes comments.xml
+    /// from `comments` instead of copying it.
+    pub commentsChanged: bool,
 }
 
 impl RichDocument {
@@ -812,6 +899,9 @@ impl RichDocument {
             nextDrawingId: 1,
             revision: 0,
             source: Rc::new(RefCell::new(DocxSource::new())),
+            notes: Vec::new(),
+            comments: Vec::new(),
+            commentsChanged: false,
         };
         me.sections.push(me.section.clone());
         me

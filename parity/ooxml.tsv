@@ -25,13 +25,13 @@ Sections	Columns, line numbers, page borders, vAlign, docGrid	w:cols w:lnNumType
 Sections	Section text direction	w:textDirection	yes	yes	no	no	no	no	-
 Headers	Default header/footer	w:headerReference w:footerReference	yes	yes	yes	no	yes	partial	tests/DocxTest.rgr
 Headers	First-page and even/odd headers	w:titlePg w:evenAndOddHeaders	yes	yes	no	no	no	no	-
-Notes	Footnotes and endnotes	w:footnoteReference w:endnoteReference w:footnotePr	yes	yes	no	no	no	no	-
-Review	Comments	w:commentRangeStart w:commentReference comments.xml	yes	yes	no	no	no	no	-
-Review	Tracked insertions/deletions	w:ins w:del	yes	yes	no	no	no	no	-
+Notes	Footnotes and endnotes	w:footnoteReference w:endnoteReference w:footnotePr	yes	yes	no	no	partial	partial	tests/ReviewTest.rgr
+Review	Comments	w:commentRangeStart w:commentReference comments.xml	yes	yes	no	no	yes	yes	tests/ReviewTest.rgr
+Review	Tracked insertions/deletions	w:ins w:del	yes	yes	no	no	yes	yes	tests/ReviewTest.rgr
 Review	Formatting revisions	w:rPrChange w:pPrChange w:sectPrChange w:tblPrChange	yes	yes	no	no	no	no	-
-Review	Move tracking	w:moveFrom w:moveTo	yes	yes	no	no	no	no	-
-Fields	Complex and simple fields, TOC, cross-references	w:fldChar w:instrText w:fldSimple	yes	yes	no	no	no	no	-
-Links	Hyperlinks and bookmarks	w:hyperlink w:bookmarkStart w:bookmarkEnd	yes	yes	partial	no	impl	no	-
+Review	Move tracking	w:moveFrom w:moveTo	yes	yes	no	no	partial	partial	tests/ReviewTest.rgr
+Fields	Complex and simple fields, TOC, cross-references	w:fldChar w:instrText w:fldSimple	yes	yes	no	no	partial	partial	tests/ReviewTest.rgr
+Links	Hyperlinks and bookmarks	w:hyperlink w:bookmarkStart w:bookmarkEnd	yes	yes	partial	no	partial	yes	tests/ReviewTest.rgr
 Drawing	Inline pictures	wp:inline a:blip	yes	yes	yes	no	yes	yes	tests/DocxTest.rgr
 Drawing	Anchored pictures and wrapping	wp:anchor wp:wrapSquare wp:wrapTight wp:wrapPolygon	yes	yes	no	no	no	no	-
 Drawing	Shapes and text boxes	wps:wsp wps:txbx a:prstGeom	yes	yes	no	no	no	no	-

@@ -1,0 +1,284 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; ReviewTest - tracked changes, comments, footnotes and endnotes, bookmarks
+; and fields: read, shown, edited, saved and read back (parity rows marked
+; with this file). Fixture: fixtures/26-review-notes.docx, made by
+; fixtures/make_review_fixture.py.
+;
+;   npm run docx_viewer:review:test
+; ==============================================================================
+
+Import "../src/DocxApp.rgr"
+
+class ReviewCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+
+    fn eqInt:void (name:string got:int want:int) {
+        this.ok((name + " (got " + (to_string got) + " want " + (to_string want) + ")") (got == want))
+    }
+
+    fn eqStr:void (name:string got:string want:string) {
+        this.ok((name + " (got '" + got + "' want '" + want + "')") (got == want))
+    }
+}
+
+class ReviewTest {
+    sfn open:DocxApp () {
+        def app:DocxApp (new DocxApp)
+        app.init()
+        app.resize(900 700)
+        app.viewer.openFile("gallery/docx_viewer/fixtures" "26-review-notes.docx")
+        app.viewer.setEditMode(true)
+        app.viewer.renderPage(0)
+        app.viewer.edit.autoCorrect = false
+        return app
+    }
+
+    sfn reopen:DocxApp (app:DocxApp) {
+        def b:buffer (app.viewer.saveBytes())
+        def back:DocxApp (new DocxApp)
+        back.init()
+        back.resize(900 700)
+        back.viewer.openBytes(b "review.docx")
+        back.viewer.setEditMode(true)
+        back.viewer.renderPage(0)
+        return back
+    }
+
+    sfn para:Paragraph (app:DocxApp i:int) {
+        def ad:RichDocumentEdit app.viewer.edit.adapter
+        return (ad.findParagraph((ad.bodyParagraphIdAt(i))))
+    }
+
+    sfn text:string (app:DocxApp i:int) {
+        def p:Paragraph (ReviewTest.para(app i))
+        return p.text
+    }
+
+    sfn pid:int (app:DocxApp i:int) {
+        return (app.viewer.edit.adapter.bodyParagraphIdAt(i))
+    }
+
+    ; "text:rev" for each span with a change, joined by "|".
+    sfn revs:string (app:DocxApp i:int) {
+        def p:Paragraph (ReviewTest.para(app i))
+        def s:string ""
+        def k:int 0
+        while (k < (array_length p.spans)) {
+            def sp:TextSpan (itemAt p.spans k)
+            if (sp.rev != 0) {
+                if ((strlen s) > 0) {
+                    s = (s + "|")
+                }
+                s = (s + (substring p.text sp.start sp.end) + ":" + (to_string sp.rev))
+            }
+            k = (k + 1)
+        }
+        return s
+    }
+
+    sfn anchorsWith:int (app:DocxApp i:int what:string) {
+        def p:Paragraph (ReviewTest.para(app i))
+        def n:int 0
+        def k:int 0
+        while (k < (array_length p.anchors)) {
+            def an:InlineAnchor (itemAt p.anchors k)
+            if ((indexOf an.xml what) >= 0) {
+                n = (n + 1)
+            }
+            k = (k + 1)
+        }
+        return n
+    }
+
+    sfn commentCount:int (app:DocxApp) {
+        def doc:RichDocument app.viewer.edit.adapter.doc
+        return (array_length doc.comments)
+    }
+
+    ; Is there a footer-kind line (notes are laid out as page furniture)
+    ; holding `what` on any page?
+    sfn noteLine:boolean (app:DocxApp what:string) {
+        def lay:DocxLayout app.viewer.view.layout
+        def pi:int 0
+        while (pi < (lay.pageCount())) {
+            def pg:LaidPage (lay.pageAt(pi))
+            def li:int 0
+            while (li < (array_length pg.lines)) {
+                def ln:LaidLine (itemAt pg.lines li)
+                if ((ln.kind == 5) && ((indexOf ln.text what) >= 0)) {
+                    return true
+                }
+                li = (li + 1)
+            }
+            pi = (pi + 1)
+        }
+        return false
+    }
+
+    sfn main:void () {
+        def c:ReviewCheck (new ReviewCheck)
+        print "== ReviewTest =="
+
+        print "-- Read --"
+        def a:DocxApp (ReviewTest.open())
+        c.eqStr("a deletion stays in the text" (ReviewTest.text(a 0)) "The quick brown red fox jumps.")
+        c.eqStr("marked deleted and inserted" (ReviewTest.revs(a 0)) "brown :2|red :1")
+        def p0:Paragraph (ReviewTest.para(a 0))
+        def s1:TextSpan (itemAt p0.spans 1)
+        c.eqStr("with its author" s1.revAuthor "Ann Editor")
+        c.eqStr("a second author's changes" (ReviewTest.revs(a 1)) " and add this:1| but not this:2")
+        def doc:RichDocument a.viewer.edit.adapter.doc
+        c.eqInt("a footnote and an endnote" (array_length doc.notes) 2)
+        def n0:DocNote (itemAt doc.notes 0)
+        def n1:DocNote (itemAt doc.notes 1)
+        c.ok("the footnote's text" ((n0.kind == 1) && ((n0.plainText()) == " A footnote.")))
+        c.ok("the endnote's text" ((n1.kind == 2) && ((n1.plainText()) == " An endnote.")))
+        c.ok("notes are laid out after the text" (ReviewTest.noteLine(a "A footnote.")))
+        c.eqInt("one comment" (ReviewTest.commentCount(a)) 1)
+        def cm:DocComment (itemAt doc.comments 0)
+        c.ok("its author and text" ((cm.author == "Bo Reviewer") && ((cm.plainText()) == "Is this right?")))
+        c.eqInt("its range is two anchors in the text" (ReviewTest.anchorsWith(a 2 "commentRange")) 2)
+        c.eqInt("a bookmark's two anchors" (ReviewTest.anchorsWith(a 4 "bookmark")) 2)
+        c.eqInt("a simple field's open and close tags" (ReviewTest.anchorsWith(a 5 "fldSimple")) 2)
+        c.eqStr("its result is text" (ReviewTest.text(a 5)) "Page 1 of 1.")
+        c.eqInt("a link's open and close tags" (ReviewTest.anchorsWith(a 6 "hyperlink")) 2)
+
+        print "-- Next and previous change, accept and reject --"
+        a.viewer.edit.setCaret((ReviewTest.pid(a 0)) 0)
+        c.ok("review.nextChange runs" (a.runCommand("review.nextChange" "")))
+        c.eqStr("it selects the first change" (a.viewer.copySelection()) "brown ")
+        c.eqStr("and says what it is" a.status "Deleted by Ann Editor")
+        a.runCommand("review.nextChange" "")
+        c.eqStr("the next" (a.viewer.copySelection()) "red ")
+        a.runCommand("review.previousChange" "")
+        c.eqStr("review.previousChange goes back" (a.viewer.copySelection()) "brown ")
+        c.ok("review.accept runs" (a.runCommand("review.accept" "")))
+        c.eqStr("accepting a deletion removes the text" (ReviewTest.text(a 0)) "The quick red fox jumps.")
+        c.eqStr("and moves on to the next change" (a.viewer.copySelection()) "red ")
+        a.runCommand("review.reject" "")
+        c.eqStr("rejecting an insertion removes it" (ReviewTest.text(a 0)) "The quick fox jumps.")
+        a.runCommand("edit.undo" "")
+        a.runCommand("edit.undo" "")
+        c.eqStr("two undos bring both back" (ReviewTest.revs(a 0)) "brown :2|red :1")
+        c.ok("review.acceptAll runs" (a.runCommand("review.acceptAll" "")))
+        c.eqStr("accept all: first paragraph" (ReviewTest.text(a 0)) "The quick red fox jumps.")
+        c.eqStr("second" (ReviewTest.text(a 1)) "Keep this and add this.")
+        c.eqStr("no change is left" ((ReviewTest.revs(a 0)) + (ReviewTest.revs(a 1))) "")
+        a.runCommand("edit.undo" "")
+        a.runCommand("review.rejectAll" "")
+        c.eqStr("reject all: first paragraph" (ReviewTest.text(a 0)) "The quick brown fox jumps.")
+        c.eqStr("second" (ReviewTest.text(a 1)) "Keep this but not this.")
+        a.runCommand("edit.undo" "")
+        c.ok("with no changes left, accept all is refused" (((a.runCommand("review.acceptAll" "")) && ((a.runCommand("review.acceptAll" "")) == false))))
+        a.runCommand("edit.undo" "")
+
+        print "-- Changes survive an edit and a save --"
+        a.viewer.edit.setCaret((ReviewTest.pid(a 0)) (strlen (ReviewTest.text(a 0))))
+        a.runCommand("text.insert" "!")
+        def b:DocxApp (ReviewTest.reopen(a))
+        c.eqStr("the edited paragraph's text" (ReviewTest.text(b 0)) "The quick brown red fox jumps.!")
+        c.eqStr("its changes, written back" (ReviewTest.revs(b 0)) "brown :2|red :1")
+        c.eqStr("an untouched paragraph's" (ReviewTest.revs(b 1)) " and add this:1| but not this:2")
+
+        print "-- Comments --"
+        a.viewer.edit.setCaret((ReviewTest.pid(a 0)) 0)
+        c.ok("review.nextComment runs" (a.runCommand("review.nextComment" "")))
+        c.eqStr("it selects the commented text" (a.viewer.copySelection()) "a remark")
+        c.eqStr("and shows the comment" a.status "Bo Reviewer: Is this right?")
+        a.viewer.edit.setCaret((ReviewTest.pid(a 2)) 0)
+        a.runCommand("text.insert" "So: ")
+        def b2:DocxApp (ReviewTest.reopen(a))
+        b2.viewer.edit.setCaret((ReviewTest.pid(b2 0)) 0)
+        b2.runCommand("review.nextComment" "")
+        c.eqStr("after typing before it and saving, the range still covers it" (b2.viewer.copySelection()) "a remark")
+        b2.viewer.edit.setCaret((ReviewTest.pid(b2 2)) 22)
+        c.ok("review.deleteComment at the caret" (b2.runCommand("review.deleteComment" "")))
+        c.eqInt("no comments" (ReviewTest.commentCount(b2)) 0)
+        c.eqInt("and no anchors" (ReviewTest.anchorsWith(b2 2 "comment")) 0)
+        b2.runCommand("edit.undo" "")
+        c.eqInt("undo brings it back" (ReviewTest.commentCount(b2)) 1)
+        b2.runCommand("review.deleteComment" "all")
+        def b3:DocxApp (ReviewTest.reopen(b2))
+        c.eqInt("deleted and saved: none read back" (ReviewTest.commentCount(b3)) 0)
+        b3.viewer.edit.setRange((ReviewTest.pid(b3 7)) 4 7)
+        c.ok("review.newComment runs" (b3.runCommand("review.newComment" "Nice")))
+        c.eqInt("one comment" (ReviewTest.commentCount(b3)) 1)
+        def b4:DocxApp (ReviewTest.reopen(b3))
+        c.eqInt("saved: read back" (ReviewTest.commentCount(b4)) 1)
+        def doc4:RichDocument b4.viewer.edit.adapter.doc
+        def cm4:DocComment (itemAt doc4.comments 0)
+        c.ok("with its author and text" ((cm4.author == "Author") && ((cm4.plainText()) == "Nice")))
+        b4.viewer.edit.setCaret((ReviewTest.pid(b4 0)) 0)
+        b4.runCommand("review.nextComment" "")
+        c.eqStr("over the text it was put on" (b4.viewer.copySelection()) "end")
+
+        print "-- A comment in a new document --"
+        def f:DocxApp (new DocxApp)
+        f.init()
+        f.resize(900 700)
+        f.runCommand("file.new" "")
+        f.viewer.edit.autoCorrect = false
+        f.runCommand("text.insert" "hello world")
+        f.viewer.edit.setRange((ReviewTest.pid(f 0)) 0 5)
+        f.runCommand("review.newComment" "First")
+        def f2:DocxApp (ReviewTest.reopen(f))
+        c.eqInt("the package gets a comments part" (ReviewTest.commentCount(f2)) 1)
+        c.eqStr("the text is unchanged" (ReviewTest.text(f2 0)) "hello world")
+
+        print "-- Bookmarks, fields, notes --"
+        a.viewer.edit.setCaret((ReviewTest.pid(a 0)) 0)
+        c.ok("edit.goto a bookmark's name" (a.runCommand("edit.goto" "target")))
+        c.eqStr("selects its text" (a.viewer.copySelection()) "here")
+        c.ok("a name that is not there is refused" ((a.runCommand("edit.goto" "nowhere")) == false))
+        a.viewer.edit.setRange((ReviewTest.pid(a 7)) 0 3)
+        c.ok("insert.bookmark runs" (a.runCommand("insert.bookmark" "start")))
+        def g:DocxApp (ReviewTest.reopen(a))
+        g.viewer.edit.setCaret((ReviewTest.pid(g 0)) 0)
+        c.ok("saved: the new bookmark" (g.runCommand("edit.goto" "start")))
+        c.eqStr("over its text" (g.viewer.copySelection()) "The")
+        c.ok("and the old one" (g.runCommand("edit.goto" "target")))
+        g.viewer.edit.setCaret((ReviewTest.pid(g 0)) 0)
+        c.ok("fields.next runs" (g.runCommand("fields.next" "")))
+        c.ok("the caret is at the field" ((g.viewer.edit.sel.focus.paragraphId == (ReviewTest.pid(g 5))) && (g.viewer.edit.sel.focus.textOffset == 10)))
+        g.runCommand("fields.next" "")
+        c.ok("fields.next wraps past the last complex field" (g.viewer.edit.sel.focus.paragraphId == (ReviewTest.pid(g 5))))
+        g.viewer.edit.setCaret((ReviewTest.pid(g 0)) 0)
+        c.ok("references.nextFootnote runs" (g.runCommand("references.nextFootnote" "")))
+        c.ok("the caret is at the reference" ((g.viewer.edit.sel.focus.paragraphId == (ReviewTest.pid(g 3))) && (g.viewer.edit.sel.focus.textOffset == 10)))
+
+        print "-- Links survive an edit --"
+        a.viewer.edit.setCaret((ReviewTest.pid(a 6)) 4)
+        a.runCommand("text.insert" " here")
+        def h:DocxApp (ReviewTest.reopen(a))
+        c.eqStr("the edited link's text" (ReviewTest.text(h 6)) "Jump here")
+        c.eqInt("still inside its w:hyperlink" (ReviewTest.anchorsWith(h 6 "hyperlink")) 2)
+        a.viewer.edit.setCaret((ReviewTest.pid(a 6)) 2)
+        a.runCommand("text.newParagraph" "")
+        def h2:DocxApp (ReviewTest.reopen(a))
+        c.ok("split in two, the document still reads" ((ReviewTest.text(h2 6)) == "Ju"))
+        ; For tools/check: every part of the edited file parses as XML.
+        a.viewer.saveFile("gallery/docx_viewer/bin" "review_out.docx")
+        f.viewer.saveFile("gallery/docx_viewer/bin" "review_new.docx")
+
+        print ""
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        } {
+            print "FAILURES"
+        }
+    }
+}
