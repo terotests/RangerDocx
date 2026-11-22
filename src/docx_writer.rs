@@ -823,7 +823,7 @@ impl DocxWriter {
         if sec.borrow().landscape {
             sect = format!("{} w:orient=\"landscape\"", sect);
         }
-        sect = format!("{}/><w:pgMar w:top=\"{}\" w:right=\"{}\" w:bottom=\"{}\" w:left=\"{}\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr>", sect, sec.borrow().marginTopTwips, sec.borrow().marginRightTwips, sec.borrow().marginBottomTwips, sec.borrow().marginLeftTwips);
+        sect = format!("{}/><w:pgMar w:top=\"{}\" w:right=\"{}\" w:bottom=\"{}\" w:left=\"{}\" w:header=\"{}\" w:footer=\"{}\" w:gutter=\"0\"/></w:sectPr>", sect, sec.borrow().marginTopTwips, sec.borrow().marginRightTwips, sec.borrow().marginBottomTwips, sec.borrow().marginLeftTwips, sec.borrow().headerTwips, sec.borrow().footerTwips);
         format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>{}{}</w:body></w:document>", body, sect)
     }
     fn buildZip(&mut self, doc: &Rc<RefCell<RichDocument>>) -> Rc<RefCell<ZipWriter>> {

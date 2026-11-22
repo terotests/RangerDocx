@@ -327,6 +327,32 @@ impl DocxViewer {
     pub fn plainText(&self) -> String {
         return self.doc.borrow().plainText();
     }
+    /// One line per laid-out text line: page, kind, y, x, then the text
+    /// (it already carries the list prefix), tab-separated. The layout metrics in
+    /// harness/layout_metrics.py compare it against the reference PDF.
+    pub fn layoutLinesText(&mut self) -> String {
+        self.renderPage(0);
+        let lay = self.view.borrow().layout.clone();
+        let n = lay.borrow().pageCount();
+        let mut out = String::new();
+        let mut i: i64 = 0;
+        while i < n {
+            let page = lay.borrow().pageAt(i);
+            let cnt = page.borrow().lines.len() as i64;
+            let mut j: i64 = 0;
+            while j < cnt {
+                let line = page.borrow().lines[j as usize].clone();
+                let k = line.borrow().kind;
+                if k == LaidLineKind::text() || k == LaidLineKind::header() || k == LaidLineKind::footer() {
+                    let t = line.borrow().text.clone();
+                    out = format!("{}{}\t{}\t{}\t{}\t{}\n", out, i, k, line.borrow().y, line.borrow().x, t);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
     pub fn inspectJson(&self) -> String {
         return self.doc.borrow().inspectJson();
     }

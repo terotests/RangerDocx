@@ -138,12 +138,11 @@ case for an edited document.
 | 1. Typing runner | bcc914b | tests/TypingTest (156 checks). C4 0 → 28.5 of 110 (25 yes, 7 partial) |
 | 2. Home tab | 0d18146 | tests/HomeTest (43 checks): keeps, outline level, hanging indent, direction, Heading 3, Sort, copy/paste formatting, Find Previous, Go To. C1 52 → 96 |
 | 3. Table Layout | b0f91df | tests/TableTest (78 checks): insert/delete rows, columns, cells and table; select cell/row/column/table; merge, split cell, split table; column width, row height, distribute, AutoFit to window; cell alignment, shading, header rows; sort; convert to text and back. All undoable, saved and read back. C1 96 → 119.5, C2 14 → 14.5, C3 15 → 15.5 |
-| 4. Read gaps | (this commit) | tests/ReviewTest (66 checks), fixture 26-review-notes.docx: tracked insertions and deletions read, drawn in the author's colour, accepted or rejected (one, all, next, previous) and written back as w:ins/w:del; comments read (comments.xml), their ranges highlighted, browsed, deleted and added (comments.xml written, made when missing); footnotes and endnotes read and laid out after the text; bookmarks inserted and reached with Go To; fields, footnote references, bookmarks, comment ranges and links kept through edits (anchors now follow the text). C1 119.5 → 134, C2 14.5 → 18.5, C3 15.5 → 20 |
+| 4. Read gaps | 36d65f3 | tests/ReviewTest (66 checks), fixture 26-review-notes.docx: tracked insertions and deletions read, drawn in the author's colour, accepted or rejected (one, all, next, previous) and written back as w:ins/w:del; comments read (comments.xml), their ranges highlighted, browsed, deleted and added (comments.xml written, made when missing); footnotes and endnotes read and laid out after the text; bookmarks inserted and reached with Go To; fields, footnote references, bookmarks, comment ranges and links kept through edits (anchors now follow the text). C1 119.5 → 134, C2 14.5 → 18.5, C3 15.5 → 20 |
+| 5. Layout and performance metrics | (this commit) | harness/layout_metrics.py (L1–L3 against LibreOffice PDFs of the 19 fixtures it opens) and bench/parity_bench.rgr (P1–P3 on synthetic 188- and 1,096-page documents from bench/make_bench_docs.py). Fixed on the way: header and footer sit at the pgMar header/footer distance and the body starts at the top margin (was pushed below the header); tables break between rows and repeat their header rows (a long table ran off the page); paragraph wraps and line widths are cached per paragraph, so a keystroke re-measures one paragraph (P2 109 → 3.3 ms). L1 94.7%, L2 47.5%, L3 0.922, P1 250 ms, P2 3.3 ms, P3 6.4 ms. T1 1382 |
 
 Left partial in step 3: merging across rows merges each row on its own
-(vertical merge, `w:vMerge`, is not in the model); header rows are read,
-written and toggled but not repeated on the next page (tables do not break
-across pages in the layout yet); Distribute Rows uses the tallest set height,
+(vertical merge, `w:vMerge`, is not in the model); Distribute Rows uses the tallest set height,
 not the laid-out one; AutoFit to contents and fixed width are not done.
 Not started in step 3: Draw Table, Eraser, Quick Tables, table styles and
 borders, cell margins, text direction, table direction, formula, properties.
@@ -153,3 +152,15 @@ of their page, and their reference marks are not drawn; footnotes cannot be
 inserted yet; fields show their stored result (no update, no field codes);
 Track Changes recording while typing is not done (changes are only read,
 accepted and rejected); a link split by Enter loses its link.
+
+Step 5 notes: the reference is LibreOffice, not Word, and WordCraft was not
+run on this corpus, so L1–L3 have no WordCraft value. The L2 misses are
+mostly lines that fill the column to within about 0.5%: LibreOffice's text
+is about 0.4% wider than Carlito's advance widths, so it breaks one word
+earlier and the rest of the paragraph shifts. Which of the two Word agrees
+with needs a Word-made PDF. P1–P3 use synthetic documents of the same page
+counts as WordCraft's (theirs are not public), run under node on the JS
+target. P1 (250 ms, target 150) is about half parsing and half the first
+layout; the first layout of the 1,096-page table takes about 1.3 s. P2 still
+rebuilds the whole page list after the cached wraps; a layout that resumes
+from the edited page is the next step there.

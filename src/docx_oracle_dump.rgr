@@ -53,7 +53,7 @@ class DocxOracleDump {
     sfn main:void () {
         def argc:int (shell_arg_cnt)
         if (argc < 2) {
-            print "usage: docx_oracle_dump <file.docx> <outDir>"
+            print "usage: docx_oracle_dump <file.docx> <outDir> [fontDir]"
             return
         }
         def full:string (shell_arg 0)
@@ -66,7 +66,11 @@ class DocxOracleDump {
         def file:string (itemAt names 0)
 
         def viewer:DocxViewer (DocxViewer.new_())
-        viewer.init("gallery/pdf_writer/assets/fonts")
+        def fontDir:string "gallery/pdf_writer/assets/fonts"
+        if (argc > 2) {
+            fontDir = (shell_arg 2)
+        }
+        viewer.init(fontDir)
         def ok:boolean (viewer.openFile(dir file))
         if (ok == false) {
             print ("FAILED open " + full + " err=" + viewer.lastError)
@@ -76,6 +80,7 @@ class DocxOracleDump {
         DocxOracleDump.writeText(outDir "actual.json" (viewer.inspectJson()))
         print ("wrote " + outDir + "/actual.json")
 
+        write_file outDir "lines.tsv" (viewer.layoutLinesText())
         ; Force layout for page count, then render each page.
         viewer.renderPage(0)
         def n:int (viewer.pageCount())

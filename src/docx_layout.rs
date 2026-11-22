@@ -3,6 +3,7 @@
 use ranger::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::HashMap;
 
 use crate::rich_document::{DocBlock, DocBlockKind, DocChart, DocDrawing, DocImage, DocSection, DocTableCell, DocTableRow, DocumentTable, Paragraph, RichDocument, TextSpan};
 use crate::docx_text_metrics::DocxTextMetrics;
@@ -199,6 +200,14 @@ pub struct DocxLayout {
     curSec: Rc<RefCell<DocSection>>,
     pub curSecIdx: i64,
     pub curMaxY: i64,
+    /// Line breaks already worked out, per paragraph id: the face, size, width
+    /// and text they were worked out for, and the lines. A keystroke changes
+    /// one paragraph; every other one wraps from here instead of being
+    /// measured again. One entry per paragraph, so it does not grow with edits.
+    wrapSig: RefCell<HashMap<i64, String>>,
+    wrapOut: RefCell<HashMap<i64, Vec<String>>>,
+    /// The painted width of each of those lines, filled as layout asks.
+    wrapWidths: RefCell<HashMap<i64, Vec<i64>>>,
 }
 
 impl DocxLayout {
@@ -215,7 +224,47 @@ impl DocxLayout {
             curSec: Rc::new(RefCell::new(DocSection::new())),
             curSecIdx: 0,
             curMaxY: 0,
+            wrapSig: RefCell::new(HashMap::new()),
+            wrapOut: RefCell::new(HashMap::new()),
+            wrapWidths: RefCell::new(HashMap::new()),
         }
+    }
+    /// `UITextRenderer::wrap` in the renderer's current face, remembered per
+    /// paragraph and call site (`slot` = id * 4 + site): the height estimate
+    /// and the layout wrap the same paragraph in different faces.
+    fn wrapLines(&self, slot: i64, text: &str, font_px: f64, width: f64) -> Vec<String> {
+        let tr = self.tr.clone().unwrap();
+        let sig: String = format!("{}|{}|{}|{}", tr.borrow().fontFamily, font_px, width, text);
+        let old: Option<String> = self.wrapSig.borrow().get(&slot).cloned();
+        if old.is_some() && old.unwrap() == sig {
+            let hit: Option<Vec<String>> = self.wrapOut.borrow().get(&slot).cloned();
+            if hit.is_some() {
+                return hit.unwrap();
+            }
+        }
+        let lines: Vec<String> = UITextRenderer::wrap(&tr, text, font_px, width);
+        self.wrapWidths.borrow_mut().remove(&slot);
+        self.wrapSig.borrow_mut().insert(slot, sig);
+        self.wrapOut.borrow_mut().insert(slot, lines.clone());
+        lines
+    }
+    /// Width of line `li` of what `wrapLines(slot, ..)` returned last, measured
+    /// once and then remembered with the lines.
+    fn lineWidth(&self, slot: i64, li: i64, text: &str, font_px: f64) -> i64 {
+        let mut ws: Vec<i64> = Vec::new();
+        let had: Option<Vec<i64>> = self.wrapWidths.borrow().get(&slot).cloned();
+        if had.is_some() {
+            ws = had.unwrap();
+        }
+        if li < (ws.len() as i64) {
+            return ws[li as usize];
+        }
+        let tw: i64 = (UITextRenderer::measureWidth(&self.tr.as_ref().unwrap(), text, font_px)).floor() as i64;
+        if li == (ws.len() as i64) {
+            ws.push(tw);
+            self.wrapWidths.borrow_mut().insert(slot, ws);
+        }
+        tw
     }
     pub fn ptToPx(pt: f64) -> f64 {
         (pt * 96.0) / 72.0
@@ -309,13 +358,8 @@ impl DocxLayout {
         let mut header_h: i64 = self.measureHeaderFooter(&_tmp_1856, self.contentW.clone());
         let mut _tmp_1858 = self.curSec.borrow().footerParas.clone();
         let mut footer_h: i64 = self.measureHeaderFooter(&_tmp_1858, self.contentW.clone());
-        if header_h > 0 {
-            y = (mt + header_h) + 8;
-        }
-        self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-        if footer_h > 0 {
-            self.curMaxY -= 8;
-        }
+        y = self.bodyTop(header_h);
+        self.curMaxY = self.bodyBottom(footer_h);
         let mut bi: i64 = 0;
         while bi < RichDocument::blockCount(&doc) {
             let mut b: Rc<RefCell<DocBlock>> = RichDocument::blockAt(&doc, bi);
@@ -336,13 +380,8 @@ impl DocxLayout {
                     self.contentW
                 );
                 y = mt;
-                if header_h > 0 {
-                    y = (mt + header_h) + 8;
-                }
-                self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-                if footer_h > 0 {
-                    self.curMaxY -= 8;
-                }
+                y = self.bodyTop(header_h);
+                self.curMaxY = self.bodyBottom(footer_h);
             }
             if b.borrow().kind == DocBlockKind::sectionBreak() {
                 let mut _tmp_1869 = self.curPage.clone();
@@ -364,13 +403,8 @@ impl DocxLayout {
                     self.contentW
                 );
                 y = mt;
-                if header_h > 0 {
-                    y = (mt + header_h) + 8;
-                }
-                self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-                if footer_h > 0 {
-                    self.curMaxY -= 8;
-                }
+                y = self.bodyTop(header_h);
+                self.curMaxY = self.bodyBottom(footer_h);
             }
             if b.borrow().kind == DocBlockKind::para() {
                 let mut p: Rc<RefCell<Paragraph>> = b.borrow().paragraph.clone().clone();
@@ -403,13 +437,8 @@ impl DocxLayout {
                         self.contentW
                     );
                     y = mt;
-                    if header_h > 0 {
-                        y = (mt + header_h) + 8;
-                    }
-                    self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-                    if footer_h > 0 {
-                        self.curMaxY -= 8;
-                    }
+                    y = self.bodyTop(header_h);
+                    self.curMaxY = self.bodyBottom(footer_h);
                 }
                 y = self.layoutParagraph(p.clone(), ml, y, self.contentW);
             }
@@ -439,13 +468,8 @@ impl DocxLayout {
                         self.contentW
                     );
                     y = mt;
-                    if header_h > 0 {
-                        y = (mt + header_h) + 8;
-                    }
-                    self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-                    if footer_h > 0 {
-                        self.curMaxY -= 8;
-                    }
+                    y = self.bodyTop(header_h);
+                    self.curMaxY = self.bodyBottom(footer_h);
                 }
                 let mut cl: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
                 cl.borrow_mut().kind = LaidLineKind::chart();
@@ -496,13 +520,8 @@ impl DocxLayout {
                         self.contentW
                     );
                     y = mt;
-                    if header_h > 0 {
-                        y = (mt + header_h) + 8;
-                    }
-                    self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-                    if footer_h > 0 {
-                        self.curMaxY -= 8;
-                    }
+                    y = self.bodyTop(header_h);
+                    self.curMaxY = self.bodyBottom(footer_h);
                 }
                 let mut dl: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
                 dl.borrow_mut().kind = LaidLineKind::drawing();
@@ -518,31 +537,6 @@ impl DocxLayout {
             }
             if b.borrow().kind == DocBlockKind::table() {
                 let mut tbl: Rc<RefCell<DocumentTable>> = b.borrow().table.clone().clone();
-                let th: i64 = self.estimateTableHeight(&tbl, self.contentW.clone());
-                if y + th > self.curMaxY {
-                    let mut _tmp_1904 = self.curPage.clone();
-                    self.paintChrome(&_tmp_1904, &self.curSec.clone());
-                    let mut _tmp_1906 = self.curSec.clone();
-                    let _tmp_1908 = self.newPage(&_tmp_1906, self.curSecIdx.clone());
-                    self.curPage = _tmp_1908;
-                    ml = DocSection::marginLeftPx(&self.curSec);
-                    mt = DocSection::marginTopPx(&self.curSec);
-                    mb = DocSection::marginBottomPx(&self.curSec);
-                    header_h = self.measureHeaderFooter(&self.curSec.borrow().headerParas,
-                        self.contentW
-                    );
-                    footer_h = self.measureHeaderFooter(&self.curSec.borrow().footerParas,
-                        self.contentW
-                    );
-                    y = mt;
-                    if header_h > 0 {
-                        y = (mt + header_h) + 8;
-                    }
-                    self.curMaxY = (self.curPage.borrow().height - mb) - footer_h;
-                    if footer_h > 0 {
-                        self.curMaxY -= 8;
-                    }
-                }
                 y = self.layoutTable(&tbl, ml, y, self.contentW);
             }
             bi += 1;
@@ -602,8 +596,8 @@ impl DocxLayout {
         let mt: i64 = DocSection::marginTopPx(&sec);
         let mb: i64 = DocSection::marginBottomPx(&sec);
         let cw: i64 = DocSection::contentWidthPx(&sec);
-        // header
-        let mut hy: i64 = mt;
+        // header, from the section's header distance down
+        let mut hy: i64 = DocSection::headerPx(&sec);
         let mut hi: i64 = 0;
         while hi < (sec.borrow().headerParas.len() as i64) {
             let mut hp: Rc<RefCell<Paragraph>> = sec.borrow().headerParas[hi as usize].clone();
@@ -618,7 +612,8 @@ impl DocxLayout {
         }
         // footer
         let fh: i64 = self.measureHeaderFooter(&sec.borrow().footerParas.clone(), cw);
-        let mut fy: i64 = (page.borrow().height - mb) - fh;
+        // footer, ending at the section's footer distance from the bottom edge
+        let mut fy: i64 = (page.borrow().height - DocSection::footerPx(&sec)) - fh;
         let mut fi: i64 = 0;
         while fi < (sec.borrow().footerParas.len() as i64) {
             let mut fp: Rc<RefCell<Paragraph>> = sec.borrow().footerParas[fi as usize].clone();
@@ -646,8 +641,8 @@ impl DocxLayout {
         if lh < 10 {
             lh = 10;
         }
-        let mut wrapped: Vec<String> = UITextRenderer::wrap(
-            &self.tr.as_ref().unwrap(),
+        let mut wrapped: Vec<String> = self.wrapLines(
+            p.borrow().id * 4 + 0,
             &p.borrow().text,
             font_px,
             (wrap_w as f64)
@@ -728,8 +723,8 @@ impl DocxLayout {
         }
         let mut lines: i64 = 1;
         if !p.borrow().text.is_empty() {
-            let mut wrapped: Vec<String> = UITextRenderer::wrap(
-                &self.tr.as_ref().unwrap(),
+            let mut wrapped: Vec<String> = self.wrapLines(
+                p.borrow().id * 4 + 1,
                 &p.borrow().text,
                 font_px,
                 wrap
@@ -754,31 +749,32 @@ impl DocxLayout {
         }
         ((before + after) + lines * lh) + img_h
     }
-    fn estimateTableHeight(&self, tbl: &Rc<RefCell<DocumentTable>>, wrap_w: i64) -> i64 {
-        let mut h: i64 = 8;
-        let mut ri: i64 = 0;
-        while ri < (tbl.borrow().rows.len() as i64) {
-            let mut row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
-            let mut row_h: i64 = 28;
-            let mut ci: i64 = 0;
-            while ci < (row.borrow().cells.len() as i64) {
-                let mut cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[ci as usize].clone();
-                let mut ch: i64 = (cell.borrow().padTopPx + cell.borrow().padBottomPx) + 4;
-                let mut pi: i64 = 0;
-                while pi < (cell.borrow().paragraphs.len() as i64) {
-                    let mut cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
-                    ch += self.estimateParaHeight(&cp, 120);
-                    pi += 1;
-                }
-                if ch > row_h {
-                    row_h = ch;
-                }
-                ci += 1;
-            }
-            h += row_h;
-            ri += 1;
+    /// Where the body starts on the current page: the top margin, unless the
+    /// header (which starts at the header distance) reaches below it; then
+    /// straight under the header, as Word lays it out.
+    fn bodyTop(&self, header_h: i64) -> i64 {
+        let mt: i64 = DocSection::marginTopPx(&self.curSec);
+        if header_h <= 0 {
+            return mt;
         }
-        h
+        let hb: i64 = DocSection::headerPx(&self.curSec) + header_h;
+        if hb > mt {
+            return hb;
+        }
+        mt
+    }
+    /// Where the body must end: the bottom margin, or higher when the footer,
+    /// which ends at the footer distance from the bottom edge, reaches above it.
+    fn bodyBottom(&self, footer_h: i64) -> i64 {
+        let h: i64 = self.curPage.borrow().height;
+        let mut bottom: i64 = h - DocSection::marginBottomPx(&self.curSec);
+        if footer_h > 0 {
+            let ft: i64 = (h - DocSection::footerPx(&self.curSec)) - footer_h;
+            if ft < bottom {
+                bottom = ft;
+            }
+        }
+        bottom
     }
     pub fn breakPage(&mut self, y_unused: i64) -> i64 {
         let mut _tmp_1933 = self.curPage.clone();
@@ -792,13 +788,8 @@ impl DocxLayout {
         let mut _tmp_1942 = self.curSec.borrow().footerParas.clone();
         let footer_h: i64 = self.measureHeaderFooter(&_tmp_1942, self.contentW.clone());
         let mut y: i64 = DocSection::marginTopPx(&self.curSec);
-        if header_h > 0 {
-            y = (y + header_h) + 8;
-        }
-        self.curMaxY = (self.curPage.borrow().height - DocSection::marginBottomPx(&self.curSec)) - footer_h;
-        if footer_h > 0 {
-            self.curMaxY -= 8;
-        }
+        y = self.bodyTop(header_h);
+        self.curMaxY = self.bodyBottom(footer_h);
         y
     }
     fn layoutParagraph(&mut self, p: Rc<RefCell<Paragraph>>, mut ml: i64, mut y: i64, content_w: i64) -> i64 {
@@ -859,9 +850,9 @@ impl DocxLayout {
                 wrap_w = 40.0;
             }
             // Wrap body text only so doc offsets stay accurate for editing hit-test.
-            let mut wrapped: Vec<String> = UITextRenderer::wrap(
-                &self.tr.as_ref().unwrap(),
-                &p.borrow().text,
+            let mut wrapped: Vec<String> = self.wrapLines(
+            p.borrow().id * 4 + 2,
+            &p.borrow().text,
                 font_px,
                 wrap_w
             );
@@ -914,11 +905,7 @@ impl DocxLayout {
                     line.borrow_mut().fontSizePx = _tmp_1970;
                 }
                 let mut _tmp_1972 = line.borrow().text.clone();
-                let tw: i64 = (UITextRenderer::measureWidth(
-                    &self.tr.as_ref().unwrap(),
-                    &_tmp_1972,
-                    font_px
-                )).floor() as i64;
+                let tw: i64 = self.lineWidth(p.borrow().id * 4 + 1, li, &_tmp_1972, font_px);
                 let mut x0: i64 = ml + indent;
                 if li == 0 {
                     x0 += first_extra;
@@ -1030,7 +1017,7 @@ impl DocxLayout {
         y += after;
         y
     }
-    fn layoutTable(&self, tbl: &Rc<RefCell<DocumentTable>>, ml: i64, mut y: i64, content_w: i64) -> i64 {
+    fn layoutTable(&mut self, tbl: &Rc<RefCell<DocumentTable>>, ml: i64, mut y: i64, content_w: i64) -> i64 {
         let cols: i64 = tbl.borrow().colWidthsTwips.len() as i64;
         if cols < 1 {
             return y + 4;
@@ -1055,166 +1042,210 @@ impl DocxLayout {
             col_px.push(px);
             ci1 += 1;
         }
+        // Rows break across pages the way Word breaks them: a row that does not
+        // fit goes to the next page whole, and the header rows (w:tblHeader at
+        // the top of the table) are drawn again above it.
+        let mut fresh: bool = self.curPage.borrow().lines.is_empty();
         let mut ri: i64 = 0;
         while ri < (tbl.borrow().rows.len() as i64) {
-            let mut row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
-            // Measure row height
-            let mut row_h: i64 = 24;
-            let mut cell_heights: Vec<i64> = Vec::new();
-            let mut c: i64 = 0;
-            let mut grid_col: i64 = 0;
-            while c < (row.borrow().cells.len() as i64) {
-                let mut cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[c as usize].clone();
-                let mut span: i64 = cell.borrow().gridSpan;
-                if span < 1 {
-                    span = 1;
+            let row_h: i64 = self.tableRowHeight(tbl, ri, &col_px);
+            if y + row_h > self.curMaxY && !fresh {
+                y = self.breakPage(y);
+                let mut hr: i64 = 0;
+                while hr < ri && tbl.borrow().rows[hr as usize].borrow().header {
+                    let hh: i64 = self.tableRowHeight(tbl, hr, &col_px);
+                    self.drawTableRow(tbl, hr, &col_px, ml, y, hh);
+                    y += hh;
+                    hr += 1;
                 }
-                let mut cw: i64 = 0;
-                let mut s: i64 = 0;
-                while s < span && grid_col + s < (col_px.len() as i64) {
-                    cw += col_px[(grid_col + s) as usize];
-                    s += 1;
-                }
-                let mut inner_w: i64 = (cw - cell.borrow().padLeftPx) - cell.borrow().padRightPx;
-                if inner_w < 20 {
-                    inner_w = 20;
-                }
-                let mut ch: i64 = cell.borrow().padTopPx + cell.borrow().padBottomPx;
-                let mut pi: i64 = 0;
-                while pi < (cell.borrow().paragraphs.len() as i64) {
-                    let mut cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
-                    ch += self.estimateParaHeight(&cp, inner_w);
-                    pi += 1;
-                }
-                if ch < 24 {
-                    ch = 24;
-                }
-                cell_heights.push(ch);
-                if ch > row_h {
-                    row_h = ch;
-                }
-                grid_col += span;
-                c += 1;
             }
-            let min_h: i64 = (((row.borrow().heightTwips as f64) * 96.0) / 1440.0).floor() as i64;
-            if min_h > row_h {
-                row_h = min_h;
-            }
-            // Draw cells
-            let mut x: i64 = ml;
-            grid_col = 0;
-            c = 0;
-            while c < (row.borrow().cells.len() as i64) {
-                let mut cell2: Rc<RefCell<DocTableCell>> = row.borrow().cells[c as usize].clone();
-                let mut span2: i64 = cell2.borrow().gridSpan;
-                if span2 < 1 {
-                    span2 = 1;
-                }
-                let mut cw2: i64 = 0;
-                let mut s2: i64 = 0;
-                while s2 < span2 && grid_col + s2 < (col_px.len() as i64) {
-                    cw2 += col_px[(grid_col + s2) as usize];
-                    s2 += 1;
-                }
-                // background
-                if (DxNative::str_len(&cell2.borrow().fillHex)) == 6 {
-                    let mut bg: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
-                    bg.borrow_mut().kind = LaidLineKind::fill();
-                    bg.borrow_mut().x = x;
-                    bg.borrow_mut().y = y;
-                    bg.borrow_mut().width = cw2;
-                    bg.borrow_mut().height = row_h;
-                    bg.borrow_mut().fillHex = cell2.borrow().fillHex.clone();
-                    self.curPage.borrow_mut().lines.push(bg.clone());
-                }
-                // borders
-                let mut bcol: String = cell2.borrow().borderTop.borrow().colorHex.clone();
-                if (DxNative::str_len(&bcol)) != 6 {
-                    bcol = tbl.borrow().borderColor.clone();
-                }
-                if cell2.borrow().borderTop.borrow().style != "nil" {
-                    if cell2.borrow().borderTop.borrow().style != "none" {
-                        let mut bt: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
-                        bt.borrow_mut().kind = LaidLineKind::border();
-                        bt.borrow_mut().x = x;
-                        bt.borrow_mut().y = y;
-                        bt.borrow_mut().width = cw2;
-                        bt.borrow_mut().height = 1;
-                        bt.borrow_mut().borderColor = bcol.clone();
-                        self.curPage.borrow_mut().lines.push(bt.clone());
-                    }
-                }
-                if cell2.borrow().borderBottom.borrow().style != "nil" {
-                    if cell2.borrow().borderBottom.borrow().style != "none" {
-                        let mut bb: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
-                        bb.borrow_mut().kind = LaidLineKind::border();
-                        bb.borrow_mut().x = x;
-                        bb.borrow_mut().y = (y + row_h) - 1;
-                        bb.borrow_mut().width = cw2;
-                        bb.borrow_mut().height = 1;
-                        bb.borrow_mut().borderColor = bcol.clone();
-                        self.curPage.borrow_mut().lines.push(bb.clone());
-                    }
-                }
-                if cell2.borrow().borderLeft.borrow().style != "nil" {
-                    if cell2.borrow().borderLeft.borrow().style != "none" {
-                        let mut bl: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
-                        bl.borrow_mut().kind = LaidLineKind::border();
-                        bl.borrow_mut().x = x;
-                        bl.borrow_mut().y = y;
-                        bl.borrow_mut().width = 1;
-                        bl.borrow_mut().height = row_h;
-                        bl.borrow_mut().borderColor = bcol.clone();
-                        self.curPage.borrow_mut().lines.push(bl.clone());
-                    }
-                }
-                if cell2.borrow().borderRight.borrow().style != "nil" {
-                    if cell2.borrow().borderRight.borrow().style != "none" {
-                        let mut br: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
-                        br.borrow_mut().kind = LaidLineKind::border();
-                        br.borrow_mut().x = (x + cw2) - 1;
-                        br.borrow_mut().y = y;
-                        br.borrow_mut().width = 1;
-                        br.borrow_mut().height = row_h;
-                        br.borrow_mut().borderColor = bcol.clone();
-                        self.curPage.borrow_mut().lines.push(br.clone());
-                    }
-                }
-                // cell paragraphs
-                let mut cy: i64 = y + cell2.borrow().padTopPx;
-                // Centred or bottom: the room the row has over this cell's own
-                // height goes above the text.
-                if c < (cell_heights.len() as i64) {
-                    let room: i64 = row_h - cell_heights[c as usize];
-                    if cell2.borrow().vAlign == 1 && room > 0 {
-                        cy += room / 2;
-                    }
-                    if cell2.borrow().vAlign == 2 && room > 0 {
-                        cy += room;
-                    }
-                }
-                let mut inner_w2: i64 = (cw2 - cell2.borrow().padLeftPx) - cell2.borrow().padRightPx;
-                if inner_w2 < 20 {
-                    inner_w2 = 20;
-                }
-                let mut pi2: i64 = 0;
-                while pi2 < (cell2.borrow().paragraphs.len() as i64) {
-                    let mut cp2: Rc<RefCell<Paragraph>> = cell2.borrow().paragraphs[pi2 as usize].clone();
-                    cy = self.layoutCellPara(cp2.clone(),
-                        x + cell2.borrow().padLeftPx,
-                        cy,
-                        inner_w2
-                    );
-                    pi2 += 1;
-                }
-                x += cw2;
-                grid_col += span2;
-                c += 1;
-            }
+            self.drawTableRow(tbl, ri, &col_px, ml, y, row_h);
+            fresh = false;
             y += row_h;
             ri += 1;
         }
         y + 10
+    }
+    /// A cell's content height: padding plus its paragraphs, at least 24 px.
+    fn cellHeight(&self, cell: &Rc<RefCell<DocTableCell>>, cw: i64) -> i64 {
+        let mut inner_w: i64 = (cw - cell.borrow().padLeftPx) - cell.borrow().padRightPx;
+        if inner_w < 20 {
+            inner_w = 20;
+        }
+        let mut ch: i64 = cell.borrow().padTopPx + cell.borrow().padBottomPx;
+        let mut pi: i64 = 0;
+        while pi < (cell.borrow().paragraphs.len() as i64) {
+            let mut cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
+            ch += self.estimateParaHeight(&cp, inner_w);
+            pi += 1;
+        }
+        if ch < 24 {
+            ch = 24;
+        }
+        ch
+    }
+    /// The height a row takes: its tallest cell, or its own minimum height.
+    fn tableRowHeight(&self, tbl: &Rc<RefCell<DocumentTable>>, ri: i64, col_px: &Vec<i64>) -> i64 {
+        let mut row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
+        let mut row_h: i64 = 24;
+        let mut c: i64 = 0;
+        let mut grid_col: i64 = 0;
+        while c < (row.borrow().cells.len() as i64) {
+            let mut cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[c as usize].clone();
+            let mut span: i64 = cell.borrow().gridSpan;
+            if span < 1 {
+                span = 1;
+            }
+            let mut cw: i64 = 0;
+            let mut s: i64 = 0;
+            while s < span && grid_col + s < (col_px.len() as i64) {
+                cw += col_px[(grid_col + s) as usize];
+                s += 1;
+            }
+            let ch: i64 = self.cellHeight(&cell, cw);
+            if ch > row_h {
+                row_h = ch;
+            }
+            grid_col += span;
+            c += 1;
+        }
+        let min_h: i64 = (((row.borrow().heightTwips as f64) * 96.0) / 1440.0).floor() as i64;
+        if min_h > row_h {
+            row_h = min_h;
+        }
+        row_h
+    }
+    fn drawTableRow(&self, tbl: &Rc<RefCell<DocumentTable>>, ri: i64, col_px: &Vec<i64>, ml: i64, y: i64, row_h: i64) {
+        let mut row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
+        let mut cell_heights: Vec<i64> = Vec::new();
+        let mut cm: i64 = 0;
+        let mut gm: i64 = 0;
+        while cm < (row.borrow().cells.len() as i64) {
+            let mut cellm: Rc<RefCell<DocTableCell>> = row.borrow().cells[cm as usize].clone();
+            let mut spanm: i64 = cellm.borrow().gridSpan;
+            if spanm < 1 {
+                spanm = 1;
+            }
+            let mut cwm: i64 = 0;
+            let mut sm: i64 = 0;
+            while sm < spanm && gm + sm < (col_px.len() as i64) {
+                cwm += col_px[(gm + sm) as usize];
+                sm += 1;
+            }
+            cell_heights.push(self.cellHeight(&cellm, cwm));
+            gm += spanm;
+            cm += 1;
+        }
+        let mut grid_col: i64 = 0;
+        let mut c: i64 = 0;
+        let mut x: i64 = ml;
+        while c < (row.borrow().cells.len() as i64) {
+            let mut cell2: Rc<RefCell<DocTableCell>> = row.borrow().cells[c as usize].clone();
+            let mut span2: i64 = cell2.borrow().gridSpan;
+            if span2 < 1 {
+                span2 = 1;
+            }
+            let mut cw2: i64 = 0;
+            let mut s2: i64 = 0;
+            while s2 < span2 && grid_col + s2 < (col_px.len() as i64) {
+                cw2 += col_px[(grid_col + s2) as usize];
+                s2 += 1;
+            }
+            // background
+            if (DxNative::str_len(&cell2.borrow().fillHex)) == 6 {
+                let mut bg: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
+                bg.borrow_mut().kind = LaidLineKind::fill();
+                bg.borrow_mut().x = x;
+                bg.borrow_mut().y = y;
+                bg.borrow_mut().width = cw2;
+                bg.borrow_mut().height = row_h;
+                bg.borrow_mut().fillHex = cell2.borrow().fillHex.clone();
+                self.curPage.borrow_mut().lines.push(bg.clone());
+            }
+            // borders
+            let mut bcol: String = cell2.borrow().borderTop.borrow().colorHex.clone();
+            if (DxNative::str_len(&bcol)) != 6 {
+                bcol = tbl.borrow().borderColor.clone();
+            }
+            if cell2.borrow().borderTop.borrow().style != "nil" {
+                if cell2.borrow().borderTop.borrow().style != "none" {
+                    let mut bt: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
+                    bt.borrow_mut().kind = LaidLineKind::border();
+                    bt.borrow_mut().x = x;
+                    bt.borrow_mut().y = y;
+                    bt.borrow_mut().width = cw2;
+                    bt.borrow_mut().height = 1;
+                    bt.borrow_mut().borderColor = bcol.clone();
+                    self.curPage.borrow_mut().lines.push(bt.clone());
+                }
+            }
+            if cell2.borrow().borderBottom.borrow().style != "nil" {
+                if cell2.borrow().borderBottom.borrow().style != "none" {
+                    let mut bb: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
+                    bb.borrow_mut().kind = LaidLineKind::border();
+                    bb.borrow_mut().x = x;
+                    bb.borrow_mut().y = (y + row_h) - 1;
+                    bb.borrow_mut().width = cw2;
+                    bb.borrow_mut().height = 1;
+                    bb.borrow_mut().borderColor = bcol.clone();
+                    self.curPage.borrow_mut().lines.push(bb.clone());
+                }
+            }
+            if cell2.borrow().borderLeft.borrow().style != "nil" {
+                if cell2.borrow().borderLeft.borrow().style != "none" {
+                    let mut bl: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
+                    bl.borrow_mut().kind = LaidLineKind::border();
+                    bl.borrow_mut().x = x;
+                    bl.borrow_mut().y = y;
+                    bl.borrow_mut().width = 1;
+                    bl.borrow_mut().height = row_h;
+                    bl.borrow_mut().borderColor = bcol.clone();
+                    self.curPage.borrow_mut().lines.push(bl.clone());
+                }
+            }
+            if cell2.borrow().borderRight.borrow().style != "nil" {
+                if cell2.borrow().borderRight.borrow().style != "none" {
+                    let mut br: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
+                    br.borrow_mut().kind = LaidLineKind::border();
+                    br.borrow_mut().x = (x + cw2) - 1;
+                    br.borrow_mut().y = y;
+                    br.borrow_mut().width = 1;
+                    br.borrow_mut().height = row_h;
+                    br.borrow_mut().borderColor = bcol.clone();
+                    self.curPage.borrow_mut().lines.push(br.clone());
+                }
+            }
+            // cell paragraphs
+            let mut cy: i64 = y + cell2.borrow().padTopPx;
+            // Centred or bottom: the room the row has over this cell's own
+            // height goes above the text.
+            if c < (cell_heights.len() as i64) {
+                let room: i64 = row_h - cell_heights[c as usize];
+                if cell2.borrow().vAlign == 1 && room > 0 {
+                    cy += room / 2;
+                }
+                if cell2.borrow().vAlign == 2 && room > 0 {
+                    cy += room;
+                }
+            }
+            let mut inner_w2: i64 = (cw2 - cell2.borrow().padLeftPx) - cell2.borrow().padRightPx;
+            if inner_w2 < 20 {
+                inner_w2 = 20;
+            }
+            let mut pi2: i64 = 0;
+            while pi2 < (cell2.borrow().paragraphs.len() as i64) {
+                let mut cp2: Rc<RefCell<Paragraph>> = cell2.borrow().paragraphs[pi2 as usize].clone();
+                cy = self.layoutCellPara(cp2.clone(),
+                    x + cell2.borrow().padLeftPx,
+                    cy,
+                    inner_w2
+                );
+                pi2 += 1;
+            }
+            x += cw2;
+            grid_col += span2;
+            c += 1;
+        }
     }
     fn layoutCellPara(&self, p: Rc<RefCell<Paragraph>>, x0: i64, mut y: i64, wrap_w: i64) -> i64 {
         let mut font_px: f64 = 12.0;
@@ -1230,8 +1261,8 @@ impl DocxLayout {
         if lh < 12 {
             lh = 12;
         }
-        let mut wrapped: Vec<String> = UITextRenderer::wrap(
-            &self.tr.as_ref().unwrap(),
+        let mut wrapped: Vec<String> = self.wrapLines(
+            p.borrow().id * 4 + 3,
             &p.borrow().text,
             font_px,
             (wrap_w as f64)

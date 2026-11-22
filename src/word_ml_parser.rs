@@ -435,6 +435,10 @@ impl WordMlParser {
             sec.borrow_mut().marginBottomTwips = _tmp_3833;
             let _tmp_3835 = WordXml::twipsAttr(&ot2, "w:left", sec.borrow().marginLeftTwips.clone());
             sec.borrow_mut().marginLeftTwips = _tmp_3835;
+            let hd: i64 = WordXml::twipsAttr(&ot2, "w:header", sec.borrow().headerTwips.clone());
+            sec.borrow_mut().headerTwips = hd;
+            let fd: i64 = WordXml::twipsAttr(&ot2, "w:footer", sec.borrow().footerTwips.clone());
+            sec.borrow_mut().footerTwips = fd;
         }
         let hr: i64 = WordXml::findNext(s_el, "w:headerReference", 0);
         if hr >= 0 {

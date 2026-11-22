@@ -577,6 +577,10 @@ pub struct DocSection {
     pub marginBottomTwips: i64,
     pub marginLeftTwips: i64,
     pub landscape: bool,
+    /// pgMar w:header / w:footer: the distance from the page edge to the top
+    /// of the header and to the bottom of the footer.
+    pub headerTwips: i64,
+    pub footerTwips: i64,
     pub headerRelId: String,
     pub footerRelId: String,
     pub headerParas: Vec<Rc<RefCell<Paragraph>>>,
@@ -593,6 +597,8 @@ impl DocSection {
             marginBottomTwips: 1440,
             marginLeftTwips: 1440,
             landscape: false,
+            headerTwips: 720,
+            footerTwips: 720,
             headerRelId: String::new(),
             footerRelId: String::new(),
             headerParas: Vec::new(),
@@ -616,6 +622,12 @@ impl DocSection {
     }
     pub fn marginBottomPx(&self) -> i64 {
         (((self.marginBottomTwips as f64) * 96.0) / 1440.0).floor() as i64
+    }
+    pub fn headerPx(&self) -> i64 {
+        (((self.headerTwips as f64) * 96.0) / 1440.0).floor() as i64
+    }
+    pub fn footerPx(&self) -> i64 {
+        (((self.footerTwips as f64) * 96.0) / 1440.0).floor() as i64
     }
     pub fn contentWidthPx(&self) -> i64 {
         let w: i64 = (self.pageWidthPx() - self.marginLeftPx()) - self.marginRightPx();

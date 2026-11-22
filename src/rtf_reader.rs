@@ -459,6 +459,8 @@ impl RtfReader {
         to.borrow_mut().pageHTwips = from.borrow().pageHTwips;
         to.borrow_mut().marginTopTwips = from.borrow().marginTopTwips;
         to.borrow_mut().marginBottomTwips = from.borrow().marginBottomTwips;
+        to.borrow_mut().headerTwips = from.borrow().headerTwips;
+        to.borrow_mut().footerTwips = from.borrow().footerTwips;
         to.borrow_mut().marginLeftTwips = from.borrow().marginLeftTwips;
         to.borrow_mut().marginRightTwips = from.borrow().marginRightTwips;
         to.borrow_mut().landscape = from.borrow().landscape;

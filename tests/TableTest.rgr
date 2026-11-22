@@ -410,6 +410,53 @@ class TableTest {
         def o:DocxApp (TableTest.fresh())
         c.ok("a table command with no table is refused" ((o.runCommand("table.insertRowBelow" "")) == false))
 
+        print "-- Long tables break between rows --"
+        def lt:DocxApp (TableTest.fresh())
+        lt.runCommand("insert.table" "60x2")
+        TableTest.to(lt 0 0)
+        lt.runCommand("text.insert" "Head")
+        lt.runCommand("table.repeatHeader" "")
+        TableTest.to(lt 59 0)
+        lt.runCommand("text.insert" "Last")
+        lt.viewer.renderPage(0)
+        def lay:DocxLayout lt.viewer.view.layout
+        c.ok("a 60-row table runs onto a second page" ((lay.pageCount()) > 1))
+        def p0:LaidPage (lay.pageAt(0))
+        def p0Max:int 0
+        def li:int 0
+        while (li < (array_length p0.lines)) {
+            def ln:LaidLine (itemAt p0.lines li)
+            if ((ln.kind == 0) && ((ln.y + ln.height) > p0Max)) {
+                p0Max = (ln.y + ln.height)
+            }
+            li = (li + 1)
+        }
+        c.ok("no row runs past the bottom margin" (p0Max <= (p0.height - 96)))
+        def p1:LaidPage (lay.pageAt(1))
+        def firstText:string ""
+        def firstY:int 100000
+        def lj:int 0
+        while (lj < (array_length p1.lines)) {
+            def ln2:LaidLine (itemAt p1.lines lj)
+            if ((ln2.kind == 0) && (ln2.y < firstY)) {
+                firstY = ln2.y
+                firstText = ln2.text
+            }
+            lj = (lj + 1)
+        }
+        c.eqStr("the header row is repeated on the next page" firstText "Head")
+        def lastPage:LaidPage (lay.pageAt(((lay.pageCount()) - 1)))
+        def sawLast:boolean false
+        def lk:int 0
+        while (lk < (array_length lastPage.lines)) {
+            def ln3:LaidLine (itemAt lastPage.lines lk)
+            if (ln3.text == "Last") {
+                sawLast = true
+            }
+            lk = (lk + 1)
+        }
+        c.ok("the last row is on the last page" sawLast)
+
         print ""
         print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
         if (c.failed == 0) {

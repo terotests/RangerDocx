@@ -1,0 +1,125 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; parity_bench — P1, P2, P3 of parity/metrics.tsv
+; ==============================================================================
+;
+;   P1  cold open + layout of the long text document (median of 5)
+;   P2  one keystroke to a new display list on that document (median of 100)
+;   P3  scroll frame on the long table document: scrollBy plus the current
+;       page's display list (mean over the scripted scroll)
+;
+; The documents come from bench/make_bench_docs.py (bin/bench/). Run from the
+; Ranger root:
+;
+;   python3 gallery/docx_viewer/bench/make_bench_docs.py
+;   bash scripts/rgr-suite.sh ./gallery/docx_viewer/bench/parity_bench.rgr ./gallery/docx_viewer/bin parity_bench.js
+; ==============================================================================
+
+Import "../src/lib.rs"
+
+class ParityBench {
+    sfn fmt:string (ms:double) {
+        def whole:int (to_int ms)
+        def frac:int (to_int ((ms - (to_double whole)) * 100.0))
+        if (frac < 0) {
+            frac = (0 - frac)
+        }
+        def f:string (to_string frac)
+        while ((strlen f) < 2) {
+            f = ("0" + f)
+        }
+        return ((to_string whole) + "." + f)
+    }
+
+    ; insertion sort, then the middle value
+    sfn median:double (xs:[double]) {
+        def n:int (array_length xs)
+        if (n == 0) {
+            return 0.0
+        }
+        def a:[double]
+        def i:int 0
+        while (i < n) {
+            def v:double (itemAt xs i)
+            def j:int (array_length a)
+            push a v
+            while (j > 0) {
+                def prev:double (itemAt a (j - 1))
+                if (prev > v) {
+                    set a j prev
+                    set a (j - 1) v
+                    j = (j - 1)
+                } {
+                    j = 0
+                }
+            }
+            i = (i + 1)
+        }
+        return (itemAt a (idiv n 2))
+    }
+
+    sfn open:DocxViewer (file:string) {
+        def v:DocxViewer (DocxViewer.new_())
+        v.init("gallery/pdf_writer/assets/fonts")
+        if ((v.openFile("gallery/docx_viewer/bin/bench" file)) == false) {
+            print ("could not open " + file + ": " + v.lastError)
+        }
+        return v
+    }
+
+    sfn main:void () {
+        print "== parity_bench =="
+        ; --- P1 ---------------------------------------------------------------
+        def p1:[double]
+        def pages:int 0
+        def r:int 0
+        while (r < 5) {
+            def v:DocxViewer (DocxViewer.new_())
+            v.init("gallery/pdf_writer/assets/fonts")
+            def t0:double (wall_clock_ms)
+            v.openFile("gallery/docx_viewer/bin/bench" "long-text.docx")
+            v.renderPage(0)
+            def t1:double (wall_clock_ms)
+            push p1 (t1 - t0)
+            pages = (v.pageCount())
+            r = (r + 1)
+        }
+        print ("P1 cold open + layout, " + (to_string pages) + " pages: " + (ParityBench.fmt((ParityBench.median(p1)))) + " ms (median of 5)")
+
+        ; --- P2 ---------------------------------------------------------------
+        def v2:DocxViewer (ParityBench.open("long-text.docx"))
+        v2.renderPage(0)
+        v2.setEditMode(true)
+        v2.clickAt(200 200 false)
+        def p2:[double]
+        def k:int 0
+        while (k < 100) {
+            def t2:double (wall_clock_ms)
+            v2.edit.typeText("x")
+            def dl:EVGDisplayList (v2.pageDisplayList(v2.currentPage))
+            def t3:double (wall_clock_ms)
+            push p2 (t3 - t2)
+            k = (k + 1)
+        }
+        print ("P2 keystroke to display list, " + (to_string (v2.pageCount())) + " pages: " + (ParityBench.fmt((ParityBench.median(p2)))) + " ms (median of 100)")
+
+        ; --- P3 ---------------------------------------------------------------
+        def v3:DocxViewer (ParityBench.open("long-table.docx"))
+        def tl0:double (wall_clock_ms)
+        v3.renderPage(0)
+        def tl1:double (wall_clock_ms)
+        v3.viewportH = 700
+        def frames:int 600
+        def t4:double (wall_clock_ms)
+        def f:int 0
+        while (f < frames) {
+            v3.scrollBy(60)
+            def dl3:EVGDisplayList (v3.pageDisplayList(v3.currentPage))
+            f = (f + 1)
+        }
+        def t5:double (wall_clock_ms)
+        print ("P3 scroll frame, " + (to_string (v3.pageCount())) + " pages: " + (ParityBench.fmt(((t5 - t4) / (to_double frames)))) + " ms (mean of " + (to_string frames) + ", reached page " + (to_string (v3.currentPage + 1)) + "; first layout " + (ParityBench.fmt((tl1 - tl0))) + " ms)")
+        print "done"
+    }
+}

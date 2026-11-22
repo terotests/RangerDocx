@@ -15,6 +15,8 @@
     "docx_viewer:home:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/HomeTest.rgr ./gallery/docx_viewer/bin HomeTest.js",
     "docx_viewer:table:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/TableTest.rgr ./gallery/docx_viewer/bin TableTest.js",
     "docx_viewer:review:test": "bash scripts/rgr-suite.sh ./gallery/docx_viewer/tests/ReviewTest.rgr ./gallery/docx_viewer/bin ReviewTest.js",
+    "docx_viewer:layout:metrics": "rm -f gallery/docx_viewer/bin/docx_oracle_dump.js && node gallery/docx_viewer/harness/run_oracles.mjs --skip-visual --fixture hello.docx && python3 gallery/docx_viewer/harness/layout_metrics.py",
+    "docx_viewer:parity:bench": "python3 gallery/docx_viewer/bench/make_bench_docs.py 1128 31770 && bash scripts/rgr-suite.sh ./gallery/docx_viewer/bench/parity_bench.rgr ./gallery/docx_viewer/bin parity_bench.js",
     "docx_viewer:load:test": "bash gallery/docx_viewer/tools/run_load_test.sh",
     "docx_viewer:module": "node dist/rgrc.js -es6 -nodemodule ./gallery/docx_viewer/src/lib.rs -d=./gallery/docx_viewer/bin -o=docx_viewer_module.cjs",
     "docx_viewer:oracles": "node gallery/docx_viewer/harness/run_oracles.mjs --skip-visual",
