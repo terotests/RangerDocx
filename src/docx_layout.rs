@@ -1138,6 +1138,18 @@ impl DocxLayout {
             if empty_line.borrow().boxW < 4 {
                 empty_line.borrow_mut().boxW = 4;
             }
+            // The caret of an empty line is drawn at the line's x: put it where
+            // the first typed character goes, the middle of a centred line and
+            // the right end of a right-aligned one.
+            // Same arithmetic as a text line with a width of 0.
+            if prefix.is_empty() {
+                if p.borrow().align == 1 {
+                    empty_line.borrow_mut().x = ml + (((content_w - indent) as f64 / 2.0).floor() as i64);
+                }
+                if p.borrow().align == 2 {
+                    empty_line.borrow_mut().x = ml + (content_w - indent);
+                }
+            }
             self.curPage.borrow_mut().lines.push(empty_line.clone());
             y += lh;
             if p.borrow().images.is_empty() {
@@ -1251,6 +1263,8 @@ impl DocxLayout {
         y + 10
     }
     /// A cell's content height: padding plus its paragraphs, at least 24 px.
+    /// Each paragraph is measured by `cellParaHeight`, the same arithmetic
+    /// `layoutCellPara` draws with, so the row is as tall as its text.
     fn cellHeight(&self, cell: &Rc<RefCell<DocTableCell>>, cw: i64) -> i64 {
         let mut inner_w: i64 = (cw - cell.borrow().padLeftPx) - cell.borrow().padRightPx;
         if inner_w < 20 {
@@ -1260,7 +1274,7 @@ impl DocxLayout {
         let mut pi: i64 = 0;
         while pi < (cell.borrow().paragraphs.len() as i64) {
             let mut cp: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
-            ch += self.estimateParaHeight(&cp, inner_w);
+            ch += self.cellParaHeight(&cp, inner_w);
             pi += 1;
         }
         if ch < 24 {
@@ -1536,8 +1550,9 @@ impl DocxLayout {
             c += 1;
         }
     }
-    fn layoutCellPara(&self, p: Rc<RefCell<Paragraph>>, x0: i64, mut y: i64, wrap_w: i64) -> i64 {
-        let mut font_px: f64 = 12.0;
+    /// Font size of a table-cell paragraph: its first span's, 14 px without one.
+    fn cellParaFontPx(p: &Rc<RefCell<Paragraph>>) -> f64 {
+        let mut font_px: f64 = 14.0;
         if !p.borrow().spans.is_empty() {
             let mut s0: Rc<RefCell<TextSpan>> = p.borrow().spans[0].clone();
             font_px = DocxLayout::ptToPx(s0.borrow().fontSizePt);
@@ -1545,11 +1560,61 @@ impl DocxLayout {
         if font_px < 8.0 {
             font_px = 8.0;
         }
-        DocxTextMetrics::useParagraph(&self.tr.clone().unwrap(), &p);
-        let mut lh: i64 = (UITextRenderer::lineHeight(&self.tr.as_ref().unwrap(), font_px)).floor() as i64;
+        font_px
+    }
+    /// Line height of a table-cell paragraph in the renderer's current face
+    /// (call `DocxTextMetrics::useParagraph` first), with its line spacing.
+    fn cellParaLineH(&self, p: &Rc<RefCell<Paragraph>>, font_px: f64) -> i64 {
+        let mut lh: i64 = (UITextRenderer::lineHeight(&self.tr.as_ref().unwrap(), font_px) * p.borrow().lineSpacing).floor() as i64;
         if lh < 12 {
             lh = 12;
         }
+        lh
+    }
+    /// The height `layoutCellPara` gives a paragraph: space before, its lines,
+    /// space after, and the pictures `estimateParaHeight` leaves room for.
+    /// The row height used to be measured with `estimateParaHeight` (line
+    /// spacing applied, no 2 px gap after a paragraph) while the cell was drawn
+    /// with single lines and the gap: at single line spacing a cell of five
+    /// paragraphs ran 10 px past its row and its last line sat on the border.
+    /// Cell text now gets the paragraph's line spacing and space before/after.
+    fn cellParaHeight(&self, p: &Rc<RefCell<Paragraph>>, wrap_w: i64) -> i64 {
+        let before: i64 = (DocxLayout::ptToPx(p.borrow().spaceBeforePt.clone())).floor() as i64;
+        let after: i64 = (DocxLayout::ptToPx(p.borrow().spaceAfterPt.clone())).floor() as i64;
+        let font_px: f64 = DocxLayout::cellParaFontPx(p);
+        DocxTextMetrics::useParagraph(&self.tr.clone().unwrap(), p);
+        let lh: i64 = self.cellParaLineH(p, font_px);
+        let mut lines: i64 = 1;
+        if !p.borrow().text.is_empty() {
+            let wrapped: Vec<String> = self.wrapLines(3, p, font_px, (wrap_w as f64));
+            lines = wrapped.len() as i64;
+            if lines < 1 {
+                lines = 1;
+            }
+        }
+        let mut img_h: i64 = 0;
+        let mut ii: i64 = 0;
+        while ii < (p.borrow().images.len() as i64) {
+            let mut dimg: Rc<RefCell<DocImage>> = p.borrow().images[ii as usize].clone();
+            let mut ih: i64 = dimg.borrow().heightPx;
+            let iw: i64 = dimg.borrow().widthPx;
+            if iw > wrap_w {
+                let scale: f64 = (wrap_w as f64) / (iw as f64);
+                ih = ((ih as f64) * scale).floor() as i64;
+            }
+            img_h = (img_h + ih) + 8;
+            ii += 1;
+        }
+        (((before + after) + lines * lh) + img_h) + 2
+    }
+    fn layoutCellPara(&self, p: Rc<RefCell<Paragraph>>, x0: i64, mut y: i64, wrap_w: i64) -> i64 {
+        let font_px: f64 = DocxLayout::cellParaFontPx(&p);
+        DocxTextMetrics::useParagraph(&self.tr.clone().unwrap(), &p);
+        let lh: i64 = self.cellParaLineH(&p, font_px);
+        let before: i64 = (DocxLayout::ptToPx(p.borrow().spaceBeforePt.clone())).floor() as i64;
+        let after: i64 = (DocxLayout::ptToPx(p.borrow().spaceAfterPt.clone())).floor() as i64;
+        let y_start: i64 = y;
+        y += before;
         let mut wrapped: Vec<String> = self.wrapLines(3, &p, font_px, (wrap_w as f64));
         if wrapped.is_empty() {
             wrapped.push(String::new().to_string());
@@ -1604,7 +1669,8 @@ impl DocxLayout {
             y += lh;
             li += 1;
         }
-        y + 2
+        // the same total as cellParaHeight, pictures included
+        y_start + self.cellParaHeight(&p, wrap_w)
     }
     /// A different document is in front of this layout, so nothing it holds is
     /// about the document it is now being asked about.
