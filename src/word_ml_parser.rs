@@ -115,7 +115,11 @@ impl WordMlParser {
         if !num_xml.is_empty() {
             self.numbering.clone().borrow_mut().parse(&num_xml);
         }
-        let mut doc: Rc<RefCell<RichDocument>> = self.parseDocumentXml(self.pkg.borrow().documentXml());
+        // document.xml is the largest part: inflate it once, for the parse
+        // and for the copy a save keeps.
+        let main_name: String = self.pkg.borrow().mainPart.clone();
+        let main_bytes: Vec<u8> = self.pkg.borrow().readPartBytes(&main_name);
+        let mut doc: Rc<RefCell<RichDocument>> = self.parseDocumentXml(DxNative::utf8_text(&main_bytes));
         // Keep the package whole: a save copies every part it does not rewrite.
         doc.borrow_mut().source.borrow_mut().known = true;
         doc.borrow_mut().source.borrow_mut().mainPart = self.pkg.borrow().mainPart.clone();
@@ -125,7 +129,7 @@ impl WordMlParser {
             doc.borrow_mut().source.borrow_mut().parts.push(pn.clone());
             doc.borrow_mut()
                 .source.borrow_mut()
-                .bytes.insert(pn.clone(), self.pkg.borrow().readPartBytes(&pn));
+                .bytes.insert(pn.clone(), if pn == main_name { main_bytes.clone() } else { self.pkg.borrow().readPartBytes(&pn) });
         }
         let mut i: i64 = 0;
         while i < doc.borrow().paragraphCount() {

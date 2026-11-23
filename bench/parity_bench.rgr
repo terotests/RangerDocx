@@ -4,7 +4,8 @@
 ; parity_bench — P1, P2, P3 of parity/metrics.tsv
 ; ==============================================================================
 ;
-;   P1  cold open + layout of the long text document (median of 5)
+;   P1  cold open + layout + first page display list, long text document
+;       (median of 5)
 ;   P2  one keystroke to a new display list on that document (median of 100)
 ;   P3  scroll frame on the long table document: scrollBy plus the current
 ;       page's display list (mean over the scripted scroll)
@@ -71,7 +72,12 @@ class ParityBench {
     sfn main:void () {
         print "== parity_bench =="
         ; --- P1 ---------------------------------------------------------------
+        ; Open = unzip + parse; then layout and the first page's display list,
+        ; which is what P2 and P3 measure too. Rasterizing the page in software
+        ; (renderPage) is reported on its own: a GPU host does not pay it.
         def p1:[double]
+        def pOpen:[double]
+        def pRaster:[double]
         def pages:int 0
         def r:int 0
         while (r < 5) {
@@ -79,13 +85,18 @@ class ParityBench {
             v.init("gallery/pdf_writer/assets/fonts")
             def t0:double (wall_clock_ms)
             v.openFile("gallery/docx_viewer/bin/bench" "long-text.docx")
-            v.renderPage(0)
+            def tm:double (wall_clock_ms)
+            def dl0:EVGDisplayList (v.pageDisplayList(0))
             def t1:double (wall_clock_ms)
+            v.renderPage(0)
+            def t2:double (wall_clock_ms)
             push p1 (t1 - t0)
+            push pOpen (tm - t0)
+            push pRaster (t2 - t1)
             pages = (v.pageCount())
             r = (r + 1)
         }
-        print ("P1 cold open + layout, " + (to_string pages) + " pages: " + (ParityBench.fmt((ParityBench.median(p1)))) + " ms (median of 5)")
+        print ("P1 cold open + layout, " + (to_string pages) + " pages: " + (ParityBench.fmt((ParityBench.median(p1)))) + " ms (median of 5; open " + (ParityBench.fmt((ParityBench.median(pOpen)))) + " ms, software raster of page 1 another " + (ParityBench.fmt((ParityBench.median(pRaster)))) + " ms)")
 
         ; --- P2 ---------------------------------------------------------------
         def v2:DocxViewer (ParityBench.open("long-text.docx"))

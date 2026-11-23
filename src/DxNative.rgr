@@ -33,6 +33,13 @@ class DxNative {
     sfn last_index_of:int (text:string key:string) {
         return (lastIndexOf text key)
     }
+    ; a part's UTF-8 bytes as text, the way OpcPackage.readXml decodes them
+    sfn utf8_text:string (data:buffer) {
+        if ((buffer_length data) == 0) {
+            return ""
+        }
+        return (Utf8.decode((buffer_to_string data)))
+    }
     ; a file's bytes (Ranger's Rust frontend has no std::fs)
     sfn read_bytes:buffer (dir:string file:string) {
         return (buffer_read_file dir file)

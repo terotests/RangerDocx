@@ -75,5 +75,5 @@ def long_table(rows: int) -> None:
 
 
 if __name__ == "__main__":
-    long_text(int(sys.argv[1]) if len(sys.argv) > 1 else 1128)
+    long_text(int(sys.argv[1]) if len(sys.argv) > 1 else 1226)
     long_table(int(sys.argv[2]) if len(sys.argv) > 2 else 31770)

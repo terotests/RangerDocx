@@ -497,7 +497,25 @@ impl DocxLayout {
             }
             if b.borrow().kind == DocBlockKind::para() {
                 let mut p: Rc<RefCell<Paragraph>> = b.borrow().paragraph.clone().clone();
-                let need: i64 = self.estimateParaHeight(&p, self.contentW.clone());
+                // A paragraph moves to the next page whole only when it says
+                // so (w:keepLines), or w:keepNext and the start of the next
+                // paragraph does not fit with it. Every other paragraph is
+                // split between the pages by layoutParagraph, line by line,
+                // with widow and orphan control, as Word splits it.
+                let mut need: i64 = 0;
+                if p.borrow().keepLines == 1 || p.borrow().keepNext == 1 {
+                    need = self.estimateParaHeight(&p, self.contentW.clone());
+                    if p.borrow().keepNext == 1 && bi + 1 < RichDocument::blockCount(&doc) {
+                        let nb: Rc<RefCell<DocBlock>> = RichDocument::blockAt(&doc, bi + 1);
+                        if nb.borrow().kind == DocBlockKind::para() {
+                            need += self.firstLinesHeight(&nb.borrow().paragraph.clone());
+                        }
+                    }
+                    // a paragraph taller than a page cannot be kept together
+                    if need > self.curMaxY - self.bodyTopOfPage() {
+                        need = 0;
+                    }
+                }
                 // A paragraph that starts a page and was not read with a break
                 // block in front of it (one the editor broke) starts it here.
                 let mut forced: bool = false;
@@ -510,7 +528,7 @@ impl DocxLayout {
                         }
                     }
                 }
-                if y + need > self.curMaxY || forced {
+                if (need > 0 && y + need > self.curMaxY && !self.curPage.borrow().lines.is_empty()) || forced {
                     let mut _tmp_1881 = self.curPage.clone();
                     self.paintChrome(&_tmp_1881, &self.curSec.clone());
                     let mut _tmp_1883 = self.curSec.clone();
@@ -855,6 +873,75 @@ impl DocxLayout {
         }
         bottom
     }
+    /// The line of a paragraph before which the page breaks, given that the
+    /// lines from `from` on start at `y`: n_lines when the rest fits. With
+    /// widow control (Word's default) neither the first nor the last line of
+    /// a paragraph is left alone on a page: a page that would hold only the
+    /// first line takes none, and a page that would leave only the last line
+    /// for the next one gives it the line before too.
+    fn lineBreakAt(&self, from: i64, n_lines: i64, y: i64, lh: i64, widow: bool) -> i64 {
+        let rest: i64 = n_lines - from;
+        let mut fit: i64 = 0;
+        if lh > 0 && self.curMaxY > y {
+            fit = (self.curMaxY - y) / lh;
+        }
+        if fit >= rest {
+            return n_lines;
+        }
+        let mut k: i64 = fit;
+        if widow && rest >= 2 {
+            if from == 0 && k < 2 {
+                k = 0;
+            }
+            if rest - k < 2 {
+                k = rest - 2;
+            }
+            if from == 0 && k < 2 {
+                k = 0;
+            }
+        }
+        // a page with nothing on it yet always takes at least one line, or a
+        // paragraph that cannot fit anywhere would break pages forever
+        if k <= 0 {
+            if self.curPage.borrow().lines.is_empty() || from > 0 {
+                k = 1;
+            } else {
+                k = 0;
+            }
+        }
+        if k < 0 {
+            k = 0;
+        }
+        from + k
+    }
+    /// Where the body starts on a fresh page of the current section.
+    fn bodyTopOfPage(&self) -> i64 {
+        let hh: i64 = self.measureHeaderFooter(&self.curSec.borrow().headerParas, self.contentW);
+        self.bodyTop(hh)
+    }
+    /// Height of a paragraph's space before and its first two lines (one
+    /// when it has only one): what w:keepNext keeps on the page with it.
+    fn firstLinesHeight(&self, p: &Rc<RefCell<Paragraph>>) -> i64 {
+        let full: i64 = self.estimateParaHeight(p, self.contentW);
+        let mut font_px: f64 = 14.0;
+        if !p.borrow().spans.is_empty() {
+            font_px = DocxLayout::ptToPx(p.borrow().spans[0].borrow().fontSizePt);
+        }
+        if font_px < 8.0 {
+            font_px = 8.0;
+        }
+        DocxTextMetrics::useParagraph(&self.tr.clone().unwrap(), p);
+        let mut lh: i64 = (UITextRenderer::lineHeight(&self.tr.as_ref().unwrap(), font_px) * p.borrow().lineSpacing).floor() as i64;
+        if lh < 12 {
+            lh = 12;
+        }
+        let before: i64 = (DocxLayout::ptToPx(p.borrow().spaceBeforePt)).floor() as i64;
+        let two: i64 = before + 2 * lh;
+        if two < full {
+            return two;
+        }
+        full
+    }
     pub fn breakPage(&mut self, y_unused: i64) -> i64 {
         let mut _tmp_1933 = self.curPage.clone();
         self.paintChrome(&_tmp_1933, &self.curSec.clone());
@@ -935,9 +1022,13 @@ impl DocxLayout {
             }
             let mut cursor: i64 = 0;
             let mut li: i64 = 0;
-            while li < (wrapped.len() as i64) {
-                if y + lh > self.curMaxY {
+            let n_lines: i64 = wrapped.len() as i64;
+            let widow: bool = p.borrow().widowControl != 0;
+            let mut break_at: i64 = self.lineBreakAt(0, n_lines, y, lh, widow);
+            while li < n_lines {
+                if li == break_at {
                     y = self.breakPage(y);
+                    break_at = self.lineBreakAt(li, n_lines, y, lh, widow);
                     ml = DocSection::marginLeftPx(&self.curSec);
                     // the new page's header and footer set their own face
                     DocxTextMetrics::useFamily(&self.tr.clone().unwrap(), &para_fam);
