@@ -1,0 +1,153 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+
+; ==============================================================================
+; LayoutFitTest - what the layout measures is what it draws.
+; ==============================================================================
+;
+; A table row was as tall as estimateParaHeight said while its cell was drawn
+; by layoutCellPara with other numbers, so the last line of a five-paragraph
+; cell sat on the row's bottom border. An empty centred paragraph had its line
+; at the left margin, so the caret was drawn there and the first typed letter
+; appeared in the middle.
+;
+;   npm run docx_viewer:fit:test
+; ==============================================================================
+
+Import "../src/lib.rs"
+
+class FitCheck {
+    def passed:int 0
+    def failed:int 0
+
+    fn ok:void (name:string cond:boolean) {
+        if cond {
+            passed = (passed + 1)
+            print ("  PASS " + name)
+        } {
+            failed = (failed + 1)
+            print ("  FAIL " + name)
+        }
+    }
+}
+
+class LayoutFitTest {
+    sfn open:DocxViewer (name:string) {
+        def v:DocxViewer (DocxViewer.new_())
+        if ((v.openFile("gallery/docx_viewer/fixtures" name)) == false) {
+            print ("  could not open " + name)
+        }
+        v.renderPage(0)
+        return v
+    }
+
+    ; The text line on page 0 whose text is t, or a new line when none is.
+    sfn lineWithText:LaidLine (v:DocxViewer t:string) {
+        def pg:LaidPage (v.view.layout.pageAt(0))
+        def i:int 0
+        while (i < (array_length pg.lines)) {
+            def ln:LaidLine (itemAt pg.lines i)
+            if ((ln.kind == 0) && (ln.text == t)) {
+                return ln
+            }
+            i = (i + 1)
+        }
+        return (new LaidLine)
+    }
+
+    ; The nearest horizontal border on page 0 that starts below y and spans x.
+    sfn borderBelow:int (v:DocxViewer x:int y:int) {
+        def pg:LaidPage (v.view.layout.pageAt(0))
+        def best:int 100000
+        def i:int 0
+        while (i < (array_length pg.lines)) {
+            def ln:LaidLine (itemAt pg.lines i)
+            if ((ln.kind == 3) && (ln.height == 1) && (ln.width > 1)) {
+                if ((ln.y > y) && (ln.y < best) && (ln.x <= x) && ((ln.x + ln.width) > x)) {
+                    best = ln.y
+                }
+            }
+            i = (i + 1)
+        }
+        return best
+    }
+
+    ; The id of the n-th (from 0) empty paragraph of the body.
+    sfn emptyPara:int (v:DocxViewer n:int) {
+        def k:int 0
+        def i:int 0
+        while (i < (array_length v.doc.paragraphs)) {
+            def p:Paragraph (itemAt v.doc.paragraphs i)
+            if ((strlen p.text) == 0) {
+                if (k == n) {
+                    return p.id
+                }
+                k = (k + 1)
+            }
+            i = (i + 1)
+        }
+        return -1
+    }
+
+    sfn main:void () {
+        def c:FitCheck (new FitCheck)
+        print "== LayoutFitTest =="
+
+        print "-- a table row is as tall as its cells --"
+        def v:DocxViewer (LayoutFitTest.open("27-cell-fit.docx"))
+        def names:[string] ([] _:string ("Mannerheimintie 10" "Finland" "\"Employer\"" "[EmployeeAddress]" "\"Employee\""))
+        def ni:int 0
+        while (ni < (array_length names)) {
+            def nm:string (itemAt names ni)
+            def ln:LaidLine (LayoutFitTest.lineWithText(v nm))
+            def bottom:int (LayoutFitTest.borderBelow(v (ln.x + 2) ln.y))
+            print ("  '" + nm + "' y=" + (to_string ln.y) + " h=" + (to_string ln.height) + " border=" + (to_string bottom))
+            c.ok(("'" + nm + "' is laid out") (ln.height > 0))
+            c.ok(("'" + nm + "' ends above its row's bottom border") ((ln.height > 0) && ((ln.y + ln.height) <= bottom)))
+            ni = (ni + 1)
+        }
+
+        print "-- the caret of an empty line is where typing starts --"
+        def e:DocxViewer (LayoutFitTest.open("27-cell-fit.docx"))
+        e.setEditMode(true)
+        def aligns:[string] ([] _:string ("centred" "right-aligned"))
+        def ai:int 0
+        while (ai < 2) {
+            def pid:int (LayoutFitTest.emptyPara(e 0))
+            if (ai == 1) {
+                pid = (LayoutFitTest.emptyPara(e 1))
+            }
+            c.ok(((itemAt aligns ai) + " empty paragraph found") (pid >= 0))
+            e.edit.setCaret(pid 0)
+            e.renderPage(0)
+            def before:int (e.edit.caretPixelX(e.view.layout 0))
+            e.typeText("W")
+            e.renderPage(0)
+            def after:LaidLine (LayoutFitTest.lineWithText(e "W"))
+            ; centred: the caret was at the middle of where the letter went;
+            ; right-aligned: at its right end
+            def want:int (after.x + (to_int (after.width / 2)))
+            if (ai == 1) {
+                want = (after.x + after.width)
+            }
+            print ("  " + (itemAt aligns ai) + " caret=" + (to_string before) + " typed x=" + (to_string after.x) + " w=" + (to_string after.width))
+            def d:int (before - want)
+            if (d < 0) {
+                d = (0 - d)
+            }
+            c.ok(((itemAt aligns ai) + ": the caret is where the letter appears") ((after.width > 0) && (d <= 1)))
+            ; take the letter out so the next empty paragraph is found again
+            e.edit.setCaret(pid 1)
+            e.edit.backspace()
+            e.renderPage(0)
+            ai = (ai + 1)
+        }
+
+        print ""
+        print ("passed=" + (to_string c.passed) + " failed=" + (to_string c.failed))
+        if (c.failed == 0) {
+            print "ALL PASS"
+        } {
+            print "FAILURES"
+        }
+    }
+}
