@@ -31,6 +31,7 @@ pub struct DocxTableState {
     pub cells: Vec<Rc<RefCell<DocTableCell>>>,
     pub spans: Vec<i64>,
     pub valigns: Vec<i64>,
+    pub vmerges: Vec<i64>,
     pub fills: Vec<String>,
     pub paraStart: Vec<i64>,
     pub paras: Vec<Rc<RefCell<Paragraph>>>,
@@ -49,6 +50,7 @@ impl DocxTableState {
             cells: Vec::new(),
             spans: Vec::new(),
             valigns: Vec::new(),
+            vmerges: Vec::new(),
             fills: Vec::new(),
             paraStart: Vec::new(),
             paras: Vec::new(),
@@ -114,6 +116,7 @@ impl DocxTableEdit {
                     st.borrow_mut().cells.push(cell.clone());
                     st.borrow_mut().spans.push(cell.borrow().gridSpan);
                     st.borrow_mut().valigns.push(cell.borrow().vAlign);
+                    st.borrow_mut().vmerges.push(cell.borrow().vMerge);
                     st.borrow_mut().fills.push(cell.borrow().fillHex.clone());
                     let pat: i64 = st.borrow().paras.len() as i64;
                     st.borrow_mut().paraStart.push(pat);
@@ -163,6 +166,7 @@ impl DocxTableEdit {
                     let cell: Rc<RefCell<DocTableCell>> = st.borrow().cells[ci as usize].clone();
                     cell.borrow_mut().gridSpan = st.borrow().spans[ci as usize];
                     cell.borrow_mut().vAlign = st.borrow().valigns[ci as usize];
+                    cell.borrow_mut().vMerge = st.borrow().vmerges[ci as usize];
                     cell.borrow_mut().fillHex = st.borrow().fills[ci as usize].clone();
                     cell.borrow_mut().paragraphs.clear();
                     let mut pi: i64 = st.borrow().paraStart[ci as usize];
@@ -449,13 +453,28 @@ impl DocxTableEdit {
         !t.borrow().rows.is_empty()
     }
     // --- merge and split -----------------------------------------------------------
+    /// The cell of row r whose grid columns start at g, if there is one.
+    pub fn cellStartingAt(t: &Rc<RefCell<DocumentTable>>, r: i64, g: i64) -> Option<Rc<RefCell<DocTableCell>>> {
+        let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[r as usize].clone();
+        let mut gs: i64 = 0;
+        let mut ci: i64 = 0;
+        while ci < (row.borrow().cells.len() as i64) {
+            let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[ci as usize].clone();
+            if gs == g {
+                return Some(cell);
+            }
+            gs += DocxTableEdit::spanOf(&cell);
+            ci += 1;
+        }
+        None
+    }
     pub fn paraIsEmpty(p: &Rc<RefCell<Paragraph>>) -> bool {
         p.borrow().text.is_empty() && p.borrow().images.is_empty()
     }
     /// In each row r0..r1, the cells covering g0..g1 become one: its span is
-    /// theirs added up and its paragraphs theirs, empty ones dropped. Answers
-    /// the number of rows merged.
-    pub fn mergeCells(t: &Rc<RefCell<DocumentTable>>, r0: i64, r1: i64, g0: i64, g1: i64) -> i64 {
+    /// theirs added up and its paragraphs theirs, empty ones dropped; over
+    /// several rows those then merge vertically. Answers how many cells changed.
+    pub fn mergeCells(doc: &Rc<RefCell<RichDocument>>, t: &Rc<RefCell<DocumentTable>>, r0: i64, r1: i64, g0: i64, g1: i64) -> i64 {
         let mut merged: i64 = 0;
         let mut ri: i64 = r0;
         while ri <= r1 && ri < (t.borrow().rows.len() as i64) {
@@ -509,6 +528,45 @@ impl DocxTableEdit {
                 merged += 1;
             }
             ri += 1;
+        }
+        // Over more than one row the per-row cells then merge downwards
+        // (w:vMerge): the top one keeps every row's text, the ones below stay
+        // as empty continuations.
+        if r1 > r0 {
+            let mut top: Option<Rc<RefCell<DocTableCell>>> = None;
+            let mut rr: i64 = r0;
+            while rr <= r1 && rr < (t.borrow().rows.len() as i64) {
+                let c: Option<Rc<RefCell<DocTableCell>>> = DocxTableEdit::cellStartingAt(t, rr, g0);
+                if c.is_some() {
+                    let cell: Rc<RefCell<DocTableCell>> = c.unwrap();
+                    if top.is_none() {
+                        cell.borrow_mut().vMerge = 1;
+                        cell.borrow_mut().fresh = true;
+                        top = Some(cell.clone());
+                    } else {
+                        let tc: Rc<RefCell<DocTableCell>> = top.clone().unwrap();
+                        let mut pi: i64 = 0;
+                        while pi < (cell.borrow().paragraphs.len() as i64) {
+                            let p: Rc<RefCell<Paragraph>> = cell.borrow().paragraphs[pi as usize].clone();
+                            if !DocxTableEdit::paraIsEmpty(&p) {
+                                if tc.borrow().paragraphs.len() == 1 && DocxTableEdit::paraIsEmpty(&tc.borrow().paragraphs[0].clone()) {
+                                    tc.borrow_mut().paragraphs.clear();
+                                }
+                                tc.borrow_mut().paragraphs.push(p.clone());
+                            }
+                            pi += 1;
+                        }
+                        let blank: Rc<RefCell<Paragraph>> = DocxTableEdit::emptyParaLike(doc, &cell);
+                        let mut only: Vec<Rc<RefCell<Paragraph>>> = Vec::new();
+                        only.push(blank);
+                        cell.borrow_mut().paragraphs = only;
+                        cell.borrow_mut().vMerge = 2;
+                        cell.borrow_mut().fresh = true;
+                    }
+                    merged += 1;
+                }
+                rr += 1;
+            }
         }
         merged
     }
@@ -587,6 +645,9 @@ impl DocxTableEdit {
         nt.borrow_mut().colWidthsTwips = t.borrow().colWidthsTwips.clone();
         nt.borrow_mut().borderColor = t.borrow().borderColor.clone();
         nt.borrow_mut().cellPadPx = t.borrow().cellPadPx;
+        nt.borrow_mut().natural = t.borrow().natural;
+        nt.borrow_mut().widthTwips = t.borrow().widthTwips;
+        nt.borrow_mut().widthPct = t.borrow().widthPct;
         while (t.borrow().rows.len() as i64) > r {
             let row: Rc<RefCell<DocTableRow>> = t.borrow().rows[r as usize].clone();
             t.borrow_mut().rows.remove(r as usize);

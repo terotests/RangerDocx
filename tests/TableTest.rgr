@@ -492,6 +492,28 @@ class TableTest {
         def o:DocxApp (TableTest.fresh())
         c.ok("a table command with no table is refused" ((o.runCommand("table.insertRowBelow" "")) == false))
 
+        print "-- Vertical merge --"
+        def vm:DocxApp (TableTest.filled())
+        TableTest.to(vm 0 0)
+        vm.runCommand("table.selectColumn" "")
+        c.ok("table.merge over a column runs" (vm.runCommand("table.merge" "")))
+        def v0:DocTableCell (TableTest.cell(vm 0 0))
+        def v1:DocTableCell (TableTest.cell(vm 1 0))
+        def v2:DocTableCell (TableTest.cell(vm 2 0))
+        c.ok("the top cell starts the merge" (v0.vMerge == 1))
+        c.ok("the cells below continue it" ((v1.vMerge == 2) && (v2.vMerge == 2)))
+        c.eqStr("the top cell holds the column's text" (TableTest.cellText(vm 0 0)) "a1/a2/a3")
+        c.eqStr("the continuations are empty" (TableTest.cellText(vm 1 0)) "")
+        def vback:DocxApp (TableTest.reopen(vm))
+        def vb0:DocTableCell (TableTest.cell(vback 0 0))
+        def vb2:DocTableCell (TableTest.cell(vback 2 0))
+        c.ok("saved: w:vMerge reads back" ((vb0.vMerge == 1) && (vb2.vMerge == 2)))
+        c.eqStr("saved: the text stays in the top cell" (TableTest.cellText(vback 0 0)) "a1/a2/a3")
+        vm.runCommand("edit.undo" "")
+        def vu1:DocTableCell (TableTest.cell(vm 1 0))
+        c.ok("undo: no merge" (vu1.vMerge == 0))
+        c.eqStr("undo: the grid as it was" (TableTest.grid(vm)) "a1|b1|c1,a2|b2|c2,a3|b3|c3")
+
         print "-- Long tables break between rows --"
         def lt:DocxApp (TableTest.fresh())
         lt.runCommand("insert.table" "60x2")

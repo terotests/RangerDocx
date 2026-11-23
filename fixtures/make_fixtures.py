@@ -294,7 +294,7 @@ def table(rows: list[list[dict | str | tuple]], col_widths: Optional[list[int]] 
     Each cell may be:
       - str
       - (text,) / (text, opts_dict)
-      - dict with keys: text, gridSpan, fill, borders (dict of side->val/color/sz)
+      - dict with keys: text, gridSpan, vMerge (restart/continue), fill, borders (dict of side->val/color/sz)
     """
     if not rows:
         return ""
@@ -318,6 +318,10 @@ def table(rows: list[list[dict | str | tuple]], col_widths: Optional[list[int]] 
             tcpr = []
             if opts.get("gridSpan", 1) > 1:
                 tcpr.append(f'<w:gridSpan w:val="{opts["gridSpan"]}"/>')
+            if opts.get("vMerge") == "restart":
+                tcpr.append('<w:vMerge w:val="restart"/>')
+            elif opts.get("vMerge"):
+                tcpr.append("<w:vMerge/>")
             if opts.get("fill"):
                 tcpr.append(
                     f'<w:shd w:val="clear" w:color="auto" w:fill="{opts["fill"]}"/>'

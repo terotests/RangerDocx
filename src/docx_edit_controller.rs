@@ -2570,7 +2570,8 @@ impl DocxEditController {
         }
         let t: Rc<RefCell<DocumentTable>> = self.tableAt(tg[0]);
         let before: Rc<RefCell<DocxTableSnap>> = self.tableBegin(&t);
-        let merged: i64 = DocxTableEdit::mergeCells(&t, tg[1], tg[2], tg[3], tg[4]);
+        let mdoc: Rc<RefCell<RichDocument>> = self.adapter.borrow().doc.clone();
+        let merged: i64 = DocxTableEdit::mergeCells(&mdoc, &t, tg[1], tg[2], tg[3], tg[4]);
         if merged == 0 {
             return false;
         }

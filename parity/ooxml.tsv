@@ -16,7 +16,7 @@ Styles	Latent styles, linked styles, table styles	w:latentStyles w:link w:tblSty
 Numbering	Lists: abstractNum, num, lvl, lvlText	w:abstractNum w:num w:lvl w:lvlText w:numFmt w:numPr w:ilvl	yes	yes	yes	no	yes	yes	tests/DocxTest.rgr
 Numbering	Overrides, restarts, picture bullets	w:lvlOverride w:startOverride w:lvlPicBulletId	yes	yes	no	no	no	no	-
 Tables	Grid, rows, cells, spans	w:tbl w:tblGrid w:tr w:tc w:gridSpan	yes	yes	yes	no	yes	yes	tests/DocxTest.rgr
-Tables	Vertical merge, nested tables	w:vMerge (nested w:tbl)	yes	yes	no	no	no	no	-
+Tables	Vertical merge, nested tables	w:vMerge (nested w:tbl)	yes	yes	no	no	partial	partial	tests/TableTest.rgr
 Tables	Borders, shading, widths, margins	w:tblBorders w:tcBorders w:shd w:tcW w:tblCellMar	yes	yes	partial	no	partial	yes	tests/DocxTest.rgr
 Tables	Header rows, row height, cantSplit	w:tblHeader w:trHeight w:cantSplit	yes	yes	no	no	partial	partial	tests/TableTest.rgr
 Tables	Floating and RTL tables	w:tblpPr w:bidiVisual	yes	yes	no	no	no	no	-

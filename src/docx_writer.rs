@@ -636,6 +636,12 @@ impl DocxWriter {
                     if span > 1 {
                         tc_pr = format!("{}<w:gridSpan w:val=\"{}\"/>", tc_pr, span);
                     }
+                    if cell.borrow().vMerge == 1 {
+                        tc_pr = format!("{}<w:vMerge w:val=\"restart\"/>", tc_pr);
+                    }
+                    if cell.borrow().vMerge == 2 {
+                        tc_pr = format!("{}<w:vMerge/>", tc_pr);
+                    }
                     if (DxNative::str_len(&cell.borrow().fillHex)) == 6 {
                         tc_pr = format!("{}<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{}\"/>", tc_pr, cell.borrow().fillHex);
                     }

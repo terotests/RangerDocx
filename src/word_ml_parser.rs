@@ -459,6 +459,34 @@ impl WordMlParser {
     }
     pub fn parseTable(&self, doc: &Rc<RefCell<RichDocument>>, t_el: &str, base: i64) -> Rc<RefCell<DocumentTable>> {
         let mut t: Rc<RefCell<DocumentTable>> = doc.borrow_mut().addTable();
+        t.borrow_mut().natural = true;
+        let tpr: i64 = WordXml::findNext(t_el, "w:tblPr", 0);
+        if tpr >= 0 {
+            let tpr_el: String = WordXml::sliceElement(t_el, "w:tblPr", tpr);
+            let tw: i64 = WordXml::findNext(&tpr_el, "w:tblW", 0);
+            if tw >= 0 {
+                let tw_tag: String = WordXml::openTag(&WordXml::sliceElement(&tpr_el, "w:tblW", tw));
+                let ty: String = WordXml::attr(&tw_tag, "w:type");
+                let wv: String = WordXml::attr(&tw_tag, "w:w");
+                if ty == "pct" {
+                    // "50%" or fiftieths of a percent
+                    if DxNative::index_of(&wv, "%") > 0 {
+                        let pv: Option<f64> = DxNative::substr(&wv, 0, DxNative::index_of(&wv, "%")).parse::<f64>().ok();
+                        if pv.is_some() {
+                            t.borrow_mut().widthPct = (pv.unwrap() * 50.0).floor() as i64;
+                        }
+                    } else {
+                        let pv: Option<i64> = wv.parse::<i64>().ok();
+                        if pv.is_some() {
+                            t.borrow_mut().widthPct = pv.unwrap();
+                        }
+                    }
+                }
+                if ty == "dxa" {
+                    t.borrow_mut().widthTwips = WordXml::twipsAttr(&tw_tag, "w:w", 0);
+                }
+            }
+        }
         let grid: i64 = WordXml::findNext(t_el, "w:tblGrid", 0);
         if grid >= 0 {
             let g_el: String = WordXml::sliceElement(t_el, "w:tblGrid", grid);
@@ -580,6 +608,12 @@ impl WordMlParser {
                 if gv.is_some() {
                     cell.borrow_mut().gridSpan = gv.unwrap();
                 }
+            }
+            let vm: i64 = WordXml::findNext(&pr, "w:vMerge", 0);
+            if vm >= 0 {
+                let vm_el: String = WordXml::sliceElement(&pr, "w:vMerge", vm);
+                let vmv: String = WordXml::attr(&WordXml::openTag(&vm_el), "w:val");
+                cell.borrow_mut().vMerge = if vmv == "restart" { 1 } else { 2 };
             }
             let shd: i64 = WordXml::findNext(&pr, "w:shd", 0);
             if shd >= 0 {
