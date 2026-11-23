@@ -379,7 +379,7 @@ Table Layout	Rows & Columns	Insert Above	table.insertRowAbove	live	no	yes	tests/
 Table Layout	Rows & Columns	Insert Below	table.insertRowBelow	live	partial	yes	tests/TableTest.rgr
 Table Layout	Rows & Columns	Insert Left	table.insertColumnLeft	live	no	yes	tests/TableTest.rgr
 Table Layout	Rows & Columns	Insert Right	table.insertColumnRight	live	no	yes	tests/TableTest.rgr
-Table Layout	Merge	Merge Cells	table.merge	live	no	partial	tests/TableTest.rgr
+Table Layout	Merge	Merge Cells	table.merge	live	no	done	tests/TableTest.rgr
 Table Layout	Merge	Split Cells	table.split	live	no	yes	tests/TableTest.rgr
 Table Layout	Merge	Split Table	table.splitTable	live	no	yes	tests/TableTest.rgr
 Table Layout	Cell Size	AutoFit	table.autofit	live	no	partial	tests/TableTest.rgr

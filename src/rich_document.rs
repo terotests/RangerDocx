@@ -662,6 +662,9 @@ pub struct DocTableCell {
     pub fillHex: String,
     pub paragraphs: Vec<Rc<RefCell<Paragraph>>>,
     pub vAlign: i64,
+    /// w:vMerge: 0 not merged, 1 starts a vertical merge (`restart`), 2 goes
+    /// on with the one above (`continue`). The text lives in the first cell.
+    pub vMerge: i64,
     pub borderTop: Rc<RefCell<DocTableBorder>>,
     pub borderLeft: Rc<RefCell<DocTableBorder>>,
     pub borderBottom: Rc<RefCell<DocTableBorder>>,
@@ -683,6 +686,7 @@ impl DocTableCell {
             fillHex: String::new(),
             paragraphs: Vec::new(),
             vAlign: 0,
+            vMerge: 0,
             borderTop: Rc::new(RefCell::new(DocTableBorder::new())),
             borderLeft: Rc::new(RefCell::new(DocTableBorder::new())),
             borderBottom: Rc::new(RefCell::new(DocTableBorder::new())),
@@ -726,6 +730,12 @@ pub struct DocumentTable {
     pub rows: Vec<Rc<RefCell<DocTableRow>>>,
     pub borderColor: String,
     pub cellPadPx: i64,
+    /// Read from a .docx: the table is as wide as it says (w:tblW, else its
+    /// grid), not stretched to the margins. Tables made here fill the width.
+    pub natural: bool,
+    /// w:tblW: twips (type dxa) or fiftieths of a percent (type pct); 0 auto.
+    pub widthTwips: i64,
+    pub widthPct: i64,
 }
 
 impl DocumentTable {
@@ -738,6 +748,9 @@ impl DocumentTable {
             rows: Vec::new(),
             borderColor: "666666".to_string(),
             cellPadPx: 6,
+            natural: false,
+            widthTwips: 0,
+            widthPct: 0,
         }
     }
     pub fn columnCount(&self) -> i64 {

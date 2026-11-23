@@ -1196,11 +1196,29 @@ impl DocxLayout {
         if total_tw < 1 {
             total_tw = 1;
         }
+        // A table read from a file is as wide as it says: w:tblW in percent
+        // of the column or in twips, else the sum of its grid. Never wider
+        // than the column here (Word lets it run into the margin).
+        let mut table_w: i64 = content_w;
+        if tbl.borrow().natural {
+            let pct: i64 = tbl.borrow().widthPct;
+            let dxa: i64 = tbl.borrow().widthTwips;
+            table_w = DocxLayout::twipsToPx(total_tw);
+            if dxa > 0 {
+                table_w = DocxLayout::twipsToPx(dxa);
+            }
+            if pct > 0 {
+                table_w = (((content_w as f64) * (pct as f64)) / 5000.0).floor() as i64;
+            }
+            if table_w > content_w || table_w < 24 {
+                table_w = content_w;
+            }
+        }
         let mut col_px: Vec<i64> = Vec::new();
         let mut ci1: i64 = 0;
         while ci1 < cols {
             let tw: i64 = tbl.borrow().colWidthsTwips[ci1 as usize];
-            let mut px: i64 = (((tw as f64) * (content_w as f64)) / (total_tw as f64)).floor() as i64;
+            let mut px: i64 = (((tw as f64) * (table_w as f64)) / (total_tw as f64)).floor() as i64;
             if px < 24 {
                 px = 24;
             }
@@ -1210,21 +1228,22 @@ impl DocxLayout {
         // Rows break across pages the way Word breaks them: a row that does not
         // fit goes to the next page whole, and the header rows (w:tblHeader at
         // the top of the table) are drawn again above it.
+        let heights: Vec<i64> = self.tableRowHeights(tbl, &col_px);
         let mut fresh: bool = self.curPage.borrow().lines.is_empty();
         let mut ri: i64 = 0;
         while ri < (tbl.borrow().rows.len() as i64) {
-            let row_h: i64 = self.tableRowHeight(tbl, ri, &col_px);
+            let row_h: i64 = heights[ri as usize];
             if y + row_h > self.curMaxY && !fresh {
                 y = self.breakPage(y);
                 let mut hr: i64 = 0;
                 while hr < ri && tbl.borrow().rows[hr as usize].borrow().header {
-                    let hh: i64 = self.tableRowHeight(tbl, hr, &col_px);
-                    self.drawTableRow(tbl, hr, &col_px, ml, y, hh);
+                    let hh: i64 = heights[hr as usize];
+                    self.drawTableRow(tbl, hr, &col_px, ml, y, &heights);
                     y += hh;
                     hr += 1;
                 }
             }
-            self.drawTableRow(tbl, ri, &col_px, ml, y, row_h);
+            self.drawTableRow(tbl, ri, &col_px, ml, y, &heights);
             fresh = false;
             y += row_h;
             ri += 1;
@@ -1249,7 +1268,89 @@ impl DocxLayout {
         }
         ch
     }
+    /// vMerge of the cell that starts at grid column g in row ri: 0 when the
+    /// row has none there (or no such row).
+    fn vMergeAt(tbl: &Rc<RefCell<DocumentTable>>, ri: i64, g: i64) -> i64 {
+        if ri < 0 || ri >= (tbl.borrow().rows.len() as i64) {
+            return 0;
+        }
+        let row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
+        let mut gs: i64 = 0;
+        let mut c: i64 = 0;
+        while c < (row.borrow().cells.len() as i64) {
+            let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[c as usize].clone();
+            if gs == g {
+                return cell.borrow().vMerge;
+            }
+            let mut sp: i64 = cell.borrow().gridSpan;
+            if sp < 1 {
+                sp = 1;
+            }
+            gs += sp;
+            c += 1;
+        }
+        0
+    }
+    /// The last row of the vertical merge that starts at (ri, g).
+    fn vMergeEnd(tbl: &Rc<RefCell<DocumentTable>>, ri: i64, g: i64) -> i64 {
+        let mut re: i64 = ri;
+        while DocxLayout::vMergeAt(tbl, re + 1, g) == 2 {
+            re += 1;
+        }
+        re
+    }
+    /// Every row's height. A vertically merged cell's text does not size its
+    /// first row: when it is taller than all the rows it covers, the last of
+    /// them grows by the difference, as Word grows it.
+    fn tableRowHeights(&self, tbl: &Rc<RefCell<DocumentTable>>, col_px: &Vec<i64>) -> Vec<i64> {
+        let n: i64 = tbl.borrow().rows.len() as i64;
+        let mut hs: Vec<i64> = Vec::new();
+        let mut ri: i64 = 0;
+        while ri < n {
+            hs.push(self.tableRowHeight(tbl, ri, col_px));
+            ri += 1;
+        }
+        ri = 0;
+        while ri < n {
+            let row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
+            let mut gs: i64 = 0;
+            let mut c: i64 = 0;
+            while c < (row.borrow().cells.len() as i64) {
+                let cell: Rc<RefCell<DocTableCell>> = row.borrow().cells[c as usize].clone();
+                let mut sp: i64 = cell.borrow().gridSpan;
+                if sp < 1 {
+                    sp = 1;
+                }
+                if cell.borrow().vMerge == 1 {
+                    let re: i64 = DocxLayout::vMergeEnd(tbl, ri, gs);
+                    if re > ri {
+                        let mut cw: i64 = 0;
+                        let mut k: i64 = 0;
+                        while k < sp && gs + k < (col_px.len() as i64) {
+                            cw += col_px[(gs + k) as usize];
+                            k += 1;
+                        }
+                        let need: i64 = self.cellHeight(&cell, cw);
+                        let mut have: i64 = 0;
+                        let mut rr: i64 = ri;
+                        while rr <= re {
+                            have += hs[rr as usize];
+                            rr += 1;
+                        }
+                        if need > have {
+                            hs[re as usize] = hs[re as usize] + (need - have);
+                        }
+                    }
+                }
+                gs += sp;
+                c += 1;
+            }
+            ri += 1;
+        }
+        hs
+    }
     /// The height a row takes: its tallest cell, or its own minimum height.
+    /// Cells inside a vertical merge leave it to `tableRowHeights`.
     fn tableRowHeight(&self, tbl: &Rc<RefCell<DocumentTable>>, ri: i64, col_px: &Vec<i64>) -> i64 {
         let mut row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
         let mut row_h: i64 = 24;
@@ -1267,9 +1368,15 @@ impl DocxLayout {
                 cw += col_px[(grid_col + s) as usize];
                 s += 1;
             }
-            let ch: i64 = self.cellHeight(&cell, cw);
-            if ch > row_h {
-                row_h = ch;
+            let mut in_merge: bool = cell.borrow().vMerge == 2;
+            if cell.borrow().vMerge == 1 && DocxLayout::vMergeAt(tbl, ri + 1, grid_col) == 2 {
+                in_merge = true;
+            }
+            if !in_merge {
+                let ch: i64 = self.cellHeight(&cell, cw);
+                if ch > row_h {
+                    row_h = ch;
+                }
             }
             grid_col += span;
             c += 1;
@@ -1280,7 +1387,8 @@ impl DocxLayout {
         }
         row_h
     }
-    fn drawTableRow(&self, tbl: &Rc<RefCell<DocumentTable>>, ri: i64, col_px: &Vec<i64>, ml: i64, y: i64, row_h: i64) {
+    fn drawTableRow(&self, tbl: &Rc<RefCell<DocumentTable>>, ri: i64, col_px: &Vec<i64>, ml: i64, y: i64, heights: &Vec<i64>) {
+        let row_h: i64 = heights[ri as usize];
         let mut row: Rc<RefCell<DocTableRow>> = tbl.borrow().rows[ri as usize].clone();
         let mut cell_heights: Vec<i64> = Vec::new();
         let mut cm: i64 = 0;
@@ -1332,7 +1440,10 @@ impl DocxLayout {
             if (DxNative::str_len(&bcol)) != 6 {
                 bcol = tbl.borrow().borderColor.clone();
             }
-            if cell2.borrow().borderTop.borrow().style != "nil" {
+            // inside a vertical merge: no line between its rows
+            let merged_above: bool = cell2.borrow().vMerge == 2;
+            let merged_below: bool = cell2.borrow().vMerge != 0 && DocxLayout::vMergeAt(tbl, ri + 1, grid_col) == 2;
+            if cell2.borrow().borderTop.borrow().style != "nil" && !merged_above {
                 if cell2.borrow().borderTop.borrow().style != "none" {
                     let mut bt: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
                     bt.borrow_mut().kind = LaidLineKind::border();
@@ -1344,7 +1455,7 @@ impl DocxLayout {
                     self.curPage.borrow_mut().lines.push(bt.clone());
                 }
             }
-            if cell2.borrow().borderBottom.borrow().style != "nil" {
+            if cell2.borrow().borderBottom.borrow().style != "nil" && !merged_below {
                 if cell2.borrow().borderBottom.borrow().style != "none" {
                     let mut bb: Rc<RefCell<LaidLine>> = Rc::new(RefCell::new(LaidLine::new()));
                     bb.borrow_mut().kind = LaidLineKind::border();
@@ -1384,8 +1495,18 @@ impl DocxLayout {
             let mut cy: i64 = y + cell2.borrow().padTopPx;
             // Centred or bottom: the room the row has over this cell's own
             // height goes above the text.
+            // a merge's first cell aligns its text in all the rows it covers
+            let mut span_h: i64 = row_h;
+            if cell2.borrow().vMerge == 1 {
+                let re: i64 = DocxLayout::vMergeEnd(tbl, ri, grid_col);
+                let mut rr: i64 = ri + 1;
+                while rr <= re {
+                    span_h += heights[rr as usize];
+                    rr += 1;
+                }
+            }
             if c < (cell_heights.len() as i64) {
-                let room: i64 = row_h - cell_heights[c as usize];
+                let room: i64 = span_h - cell_heights[c as usize];
                 if cell2.borrow().vAlign == 1 && room > 0 {
                     cy += room / 2;
                 }
@@ -1398,6 +1519,9 @@ impl DocxLayout {
                 inner_w2 = 20;
             }
             let mut pi2: i64 = 0;
+            if merged_above {
+                pi2 = cell2.borrow().paragraphs.len() as i64;
+            }
             while pi2 < (cell2.borrow().paragraphs.len() as i64) {
                 let mut cp2: Rc<RefCell<Paragraph>> = cell2.borrow().paragraphs[pi2 as usize].clone();
                 cy = self.layoutCellPara(cp2.clone(),
