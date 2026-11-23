@@ -164,3 +164,19 @@ target. P1 (260 ms, target 150) is about half parsing and half the first
 layout; the first layout of the 1,096-page table takes about 1.3 s. P2 still
 rebuilds the whole page list after the cached wraps; a layout that resumes
 from the edited page is the next step there.
+
+### Progress 2026-11-23
+
+| Step | Commit | Result |
+|---|---|---|
+| 6. Pagination | 340c9c0 | Paragraphs split between pages with widow/orphan control (w:widowControl); keepLines and keepNext (direct pPr) move a paragraph to the next page. document.xml is inflated once on open. P1 260 → 123 ms (open ~40 ms, first layout ~80 ms; the ~78 ms software raster of page 1 is now reported outside P1) |
+| 7. Tables | 6784961 | Vertical merge (w:vMerge) read, laid out (no rules inside the merge, vAlign over the merged height), written, and made by Merge Cells across rows; table width from w:tblW (dxa, pct) or its grid. Fixture 27-table-vmerge.docx |
+| 8. Typing | b1d44f2 | Undo/redo take a waiting caret toggle (⌘B with nothing selected) back first; typing after Backspace takes the deleted character's look, typing over a selection the first selected character's; Tab with whole paragraphs selected indents them, else types a tab; Insert Table puts the caret in the first cell, whose first word is capitalised under its own switch. C4 28.5 → 33.5 |
+
+Metrics now: L1 95.2% (21 fixtures), L2 50.8% (502 lines), L3 0.922, P1
+123 ms, P2 3 ms, P3 5.4 ms (the table document is now 1,177 pages since
+rows are as tall as their text), T1 1440 checks, C1 134.5, C2 19, C3 20.5.
+
+Left out this round: style-level keepNext/keepLines (only direct pPr is
+read), the L2 width difference against LibreOffice, a layout that resumes
+from the edited page (P2), inflate and XML scanning cost in the open.
