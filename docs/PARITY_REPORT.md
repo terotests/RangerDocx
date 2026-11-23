@@ -22,7 +22,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Read Mode | 3 | 2 | 0 | 0 |
 | Developer | 11 | 11 | 0 | 0 |
 | Table Design | 8 | 8 | 0 | 1 |
-| Table Layout | 33 | 33 | 1 | 21.5 |
+| Table Layout | 33 | 33 | 1 | 22 |
 | Equation | 22 | 21 | 0 | 0 |
 | Outlining | 13 | 13 | 0 | 6 |
 | Picture Format | 14 | 14 | 0 | 0 |
@@ -32,7 +32,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Header & Footer | 5 | 5 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 27 |
 | Tools | 7 | 7 | 0 | 0.5 |
-| **Total** | **522** | **510 (97.7%)** | **20 (3.8%)** | **134 (25.7%)** |
+| **Total** | **522** | **510 (97.7%)** | **20 (3.8%)** | **134.5 (25.8%)** |
 
 ## OOXML read and write (C2, C3)
 
@@ -42,7 +42,7 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Paragraph | 6 | 6 | 6 | 2.5 | 0 | 3 | 2.5 |
 | Styles | 2 | 2 | 2 | 1 | 0 | 1 | 1 |
 | Numbering | 2 | 2 | 2 | 1 | 0 | 1 | 1 |
-| Tables | 5 | 5 | 5 | 1.5 | 0 | 2 | 2.5 |
+| Tables | 5 | 5 | 5 | 1.5 | 0 | 2.5 | 3 |
 | Sections | 3 | 3 | 3 | 1 | 0 | 1 | 1 |
 | Headers | 2 | 2 | 2 | 1 | 0 | 1 | 0.5 |
 | Notes | 1 | 1 | 1 | 0 | 0 | 0.5 | 0.5 |
@@ -54,35 +54,35 @@ Scoring: yes/done = 1, partial = 0.5. A RangerDocx row scores only when its test
 | Controls | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | East Asian | 1 | 0.5 | 0.5 | 0 | 0 | 0 | 0 |
 | Package | 8 | 7.5 | 6.5 | 0.5 | 0 | 0.5 | 2 |
-| **Total** | **55** | **52 (94.5%)** | **51 (92.7%)** | **14 (25.5%)** | **0 (0.0%)** | **18.5 (33.6%)** | **20 (36.4%)** |
+| **Total** | **55** | **52 (94.5%)** | **51 (92.7%)** | **14 (25.5%)** | **0 (0.0%)** | **19 (34.5%)** | **20.5 (37.3%)** |
 
 ## Typing behaviour (C4)
 
 | section | rows | RangerDocx |
 |---|---:|---:|
-| Lists | 22 | 12.5 |
-| Undo | 4 | 2 |
+| Lists | 22 | 13.5 |
+| Undo | 4 | 3 |
 | Paste | 3 | 0 |
 | Track Changes | 13 | 0.5 |
-| Editing keys | 14 | 5 |
+| Editing keys | 14 | 7 |
 | English spelling by dialect (SCOWL, CP2) | 6 | 0 |
 | Spelling as you type (#1552) | 8 | 0 |
 | Editing options (File › Options › Advanced) | 2 | 0.5 |
 | Enter in a drop cap paragraph | 1 | 0 |
-| AutoCorrect and AutoFormat as you type | 24 | 8 |
+| AutoCorrect and AutoFormat as you type | 24 | 9 |
 | Text direction | 4 | 0 |
 | Complex scripts | 2 | 0 |
 | Input methods | 7 | 0 |
-| **Total** | **110** | **28.5 (25.9%)** |
+| **Total** | **110** | **33.5 (30.5%)** |
 
 ## All metrics
 
 | id | metric | unit | better | WordCraft | Ranger docx_viewer | RangerDocx | target |
 |---|---|---|---|---:|---:|---:|---:|
-| C1 | Ribbon/menu catalog features with a working command | count of 522 | higher | 510 | 20 | 134 | 300 |
-| C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 18.5 | 40 |
-| C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 20 | 35 |
-| C4 | Typing-behaviour scenarios that pass | count of 110 | higher | 110 | 0 | 28.5 | 30 |
+| C1 | Ribbon/menu catalog features with a working command | count of 522 | higher | 510 | 20 | 134.5 | 300 |
+| C2 | OOXML feature groups read | count of 55 | higher | 52 | 14 | 19 | 40 |
+| C3 | OOXML feature groups written | count of 55 | higher | 51 | 0 | 20.5 | 35 |
+| C4 | Typing-behaviour scenarios that pass | count of 110 | higher | 110 | 0 | 33.5 | 30 |
 | F1 | Corpus files that open without error | % of corpus | higher | unmeasured | unmeasured | 100 (19/19 fixtures) | 99 |
 | F2 | Semantic round trip: open, save, reopen gives the same semantic dump | % of corpus | higher | unmeasured | 0 | 100 (17/17, all blocks regenerated) | 90 |
 | F3 | Saved files open in LibreOffice without repair or error | % of corpus | higher | unmeasured | 0 | 100 (17/17) | 100 |

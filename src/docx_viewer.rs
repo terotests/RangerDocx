@@ -716,6 +716,31 @@ impl DocxViewer {
                 }
             }
         }
+        // A whole paragraph (or several) selected: Tab indents them by one
+        // tab stop and the text stays. Part of one paragraph selected, or
+        // nothing: Tab is a tab character, typed over the selection.
+        if !moved {
+            let sel = self.edit.borrow().sel.clone();
+            let mut whole: bool = false;
+            if !DocumentRange::isCollapsed(&sel) {
+                if !DocumentRange::sameParagraph(&sel) {
+                    whole = true;
+                } else {
+                    let spid: i64 = sel.borrow().focus.borrow().paragraphId;
+                    let len: i64 = self.edit.borrow().adapter.borrow().textLength(spid);
+                    whole = DocumentRange::startOffset(&sel) == 0 && DocumentRange::endOffset(&sel) == len && len > 0;
+                }
+            }
+            if whole {
+                moved = self.edit.borrow().formatParagraphs(&if backward { "outdent".to_string() } else { "indent".to_string() }, "", &self.parser.borrow().resolver);
+                self.renderPage(self.currentPage.clone());
+            } else {
+                if !backward {
+                    self.typeText("\t");
+                    moved = true;
+                }
+            }
+        }
         if moved {
             self.followCaret();
         }

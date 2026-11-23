@@ -484,6 +484,95 @@ class TypingTest {
         TypingTest.keys(a96 "Then i said dont, it was teh end ")
         c.eqStr("i, dont, teh" (TypingTest.text(a96 0)) "Then I said don't, it was the end ")
 
+        print "-- 25 (Undo): ⌘B with nothing selected, ⌘Z, type --"
+        def u25:DocxApp (TypingTest.fresh())
+        u25.viewer.edit.autoCorrect = false
+        TypingTest.keys(u25 "ab ")
+        u25.runCommand("format.bold" "")
+        u25.runCommand("edit.undo" "")
+        c.eqStr("Undo took the waiting bold back, not the text" (TypingTest.text(u25 0)) "ab ")
+        TypingTest.keys(u25 "c")
+        c.ok("the text typed is not bold" ((u25.viewer.edit.adapter.rangeIsOn((TypingTest.pid(u25 0)) 3 4 "bold")) == false))
+        def r25:DocxApp (TypingTest.fresh())
+        r25.viewer.edit.autoCorrect = false
+        TypingTest.keys(r25 "ab ")
+        r25.runCommand("format.bold" "")
+        r25.runCommand("edit.undo" "")
+        r25.runCommand("edit.redo" "")
+        TypingTest.keys(r25 "c")
+        c.ok("⌘Y brings it back: bold" (r25.viewer.edit.adapter.rangeIsOn((TypingTest.pid(r25 0)) 3 4 "bold")))
+
+        print "-- 44 (Editing keys): Backspace, then type --"
+        def e44:DocxApp (TypingTest.fresh())
+        e44.viewer.edit.autoCorrect = false
+        TypingTest.keys(e44 "Abc abc")
+        e44.viewer.edit.setRange((TypingTest.pid(e44 0)) 0 3)
+        e44.runCommand("format.bold" "")
+        e44.viewer.edit.setCaret((TypingTest.pid(e44 0)) 4)
+        TypingTest.key(e44 "backspace")
+        TypingTest.keys(e44 "X")
+        c.eqStr("  text" (TypingTest.text(e44 0)) "AbcXabc")
+        c.ok("Backspace over the space, X: plain like the space" ((e44.viewer.edit.adapter.rangeIsOn((TypingTest.pid(e44 0)) 3 4 "bold")) == false))
+        def f44:DocxApp (TypingTest.fresh())
+        f44.viewer.edit.autoCorrect = false
+        TypingTest.keys(f44 "Abc abc")
+        f44.viewer.edit.setRange((TypingTest.pid(f44 0)) 0 3)
+        f44.runCommand("format.bold" "")
+        f44.viewer.edit.setCaret((TypingTest.pid(f44 0)) 5)
+        TypingTest.key(f44 "backspace")
+        TypingTest.keys(f44 "Y")
+        c.eqStr("  text" (TypingTest.text(f44 0)) "Abc Ybc")
+        c.ok("Backspace over a plain letter after the space: Y plain" ((f44.viewer.edit.adapter.rangeIsOn((TypingTest.pid(f44 0)) 4 5 "bold")) == false))
+        def g44:DocxApp (TypingTest.fresh())
+        g44.viewer.edit.autoCorrect = false
+        TypingTest.keys(g44 "Abc abc")
+        g44.viewer.edit.setRange((TypingTest.pid(g44 0)) 0 3)
+        g44.runCommand("format.bold" "")
+        g44.viewer.edit.setCaret((TypingTest.pid(g44 0)) 3)
+        TypingTest.key(g44 "backspace")
+        TypingTest.keys(g44 "Z")
+        c.ok("Backspace over a bold letter: Z bold" (g44.viewer.edit.adapter.rangeIsOn((TypingTest.pid(g44 0)) 2 3 "bold")))
+
+        print "-- 45 (Editing keys): select right to left, type --"
+        def e45:DocxApp (TypingTest.fresh())
+        e45.viewer.edit.autoCorrect = false
+        TypingTest.keys(e45 "ab cd")
+        e45.viewer.edit.setRange((TypingTest.pid(e45 0)) 3 5)
+        e45.runCommand("format.bold" "")
+        ; anchor at the end, focus at the start: a selection made from the right
+        e45.viewer.edit.setRange((TypingTest.pid(e45 0)) 5 3)
+        TypingTest.keys(e45 "X")
+        c.eqStr("  text" (TypingTest.text(e45 0)) "ab X")
+        c.ok("the new text takes the first selected character's look (bold)" (e45.viewer.edit.adapter.rangeIsOn((TypingTest.pid(e45 0)) 3 4 "bold")))
+
+        print "-- 7 (Lists): Tab with whole paragraphs, or part of one, selected --"
+        def t7:DocxApp (TypingTest.fresh())
+        t7.viewer.edit.autoCorrect = false
+        TypingTest.keys(t7 "one")
+        TypingTest.key(t7 "enter")
+        TypingTest.keys(t7 "two")
+        t7.viewer.edit.setRange((TypingTest.pid(t7 0)) 0 3)
+        TypingTest.key(t7 "tab")
+        c.eqStr("a whole paragraph: the text stays" (TypingTest.text(t7 0)) "one")
+        c.ok("and it is indented a tab stop" ((TypingTest.indent(t7 0)) > 0.0))
+        t7.viewer.edit.setRange((TypingTest.pid(t7 1)) 0 1)
+        TypingTest.key(t7 "tab")
+        c.eqStr("part of a paragraph: replaced by a tab" (TypingTest.text(t7 1)) "\two")
+        c.ok("and not indented" ((TypingTest.indent(t7 1)) == 0.0))
+
+        print "-- 80 (AutoCorrect): the first letter of a table cell --"
+        def c80:DocxApp (TypingTest.fresh())
+        c80.runCommand("insert.table" "2x2")
+        TypingTest.keys(c80 "hello there ")
+        def cp80:Paragraph (c80.viewer.edit.caretParagraph())
+        c.eqStr("capitalised like a sentence start" cp80.text "Hello there ")
+        def d80:DocxApp (TypingTest.fresh())
+        d80.viewer.edit.capCells = false
+        d80.runCommand("insert.table" "2x2")
+        TypingTest.keys(d80 "hello ")
+        def dp80:Paragraph (d80.viewer.edit.caretParagraph())
+        c.eqStr("its own switch turns it off" dp80.text "hello ")
+
         print "-- the keyboard commands by name (catalog: Editing, Outlining, File) --"
         def k:DocxApp (TypingTest.fresh())
         c.ok("file.new gives an empty document in editing mode" (((TypingTest.count(k)) == 1) && (k.viewer.editMode())))

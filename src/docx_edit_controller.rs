@@ -78,6 +78,20 @@ pub struct DocxEditController {
     pub painterArmed: bool,
     pub painterSticky: bool,
     painterSpan: Rc<RefCell<TextSpan>>,
+    /// Bold, italic… switched with nothing selected wait for the next typed
+    /// text; Undo takes such a switch back first, Redo puts it back. Valid
+    /// only while the caret and the document are where they were.
+    pendingToggles: Vec<String>,
+    undoneToggles: Vec<String>,
+    pendingPid: i64,
+    pendingOff: i64,
+    pendingRev: i64,
+    /// The look of the character Backspace just deleted: text typed straight
+    /// after takes it, as in Word.
+    inheritSpan: Rc<RefCell<TextSpan>>,
+    inheritPid: i64,
+    inheritOff: i64,
+    inheritRev: i64,
     painterPara: Rc<RefCell<Paragraph>>,
     /// The document's lists, for the list buttons to put paragraphs in.
     pub numbering: Rc<RefCell<WordNumbering>>,
@@ -86,6 +100,8 @@ pub struct DocxEditController {
     pub resolver: Rc<RefCell<WordStyleResolver>>,
     /// AutoCorrect and AutoFormat as you type (Word's defaults: on).
     pub autoCorrect: bool,
+    /// AutoCorrect's "Capitalize first letter of table cells", on by default.
+    pub capCells: bool,
     pub autoFormat: bool,
     /// The paragraph whose list number the last Backspace took off: the next
     /// Backspace at its start makes it a plain paragraph instead of joining.
@@ -140,6 +156,16 @@ impl DocxEditController {
             painterArmed: false,
             painterSticky: false,
             painterSpan: Rc::new(RefCell::new(TextSpan::new())),
+            capCells: true,
+            pendingToggles: Vec::new(),
+            undoneToggles: Vec::new(),
+            pendingPid: 0,
+            pendingOff: 0,
+            pendingRev: -1,
+            inheritSpan: Rc::new(RefCell::new(TextSpan::new())),
+            inheritPid: 0,
+            inheritOff: 0,
+            inheritRev: -1,
             painterPara: Rc::new(RefCell::new(Paragraph::new())),
             numbering: Rc::new(RefCell::new(WordNumbering::new())),
             resolver: Rc::new(RefCell::new(WordStyleResolver::new())),
@@ -524,11 +550,35 @@ impl DocxEditController {
         // Typing over a selection is ONE step: the first undo brings the
         // selected text back, still selected.
         let mut typed_over: bool = false;
+        // The look the typed text takes: the first selected character's when
+        // it replaces a selection (whichever end the selection was made
+        // from), the deleted character's right after a Backspace; otherwise
+        // the text before the caret's, which the insert gives it anyway.
+        let mut look: Option<Rc<RefCell<TextSpan>>> = None;
         if !DocumentRange::isCollapsed(&self.sel) {
+            let spid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+            let sp_para: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(spid);
+            let first: i64 = DocumentRange::startOffset(&self.sel);
+            look = Some(TextSpan::copy(&self.adapter.borrow().spanAt(&sp_para, first)));
             self.beginAction();
             typed_over = true;
             self.deleteSelection();
+        } else {
+            let cpid: i64 = self.sel.borrow().focus.borrow().paragraphId;
+            let coff: i64 = self.sel.borrow().focus.borrow().textOffset;
+            if cpid == self.inheritPid && coff == self.inheritOff && self.adapter.borrow().doc.borrow().revision == self.inheritRev {
+                look = Some(self.inheritSpan.clone());
+            }
         }
+        // A switch pressed here with nothing selected still wins over the look.
+        let waiting: bool = !self.pendingToggles.is_empty() && self.pendingHere();
+        if look.is_some() && !waiting {
+            let lk: Rc<RefCell<TextSpan>> = look.clone().unwrap();
+            self.adoptLook(&lk);
+        }
+        self.inheritRev = -1;
+        self.pendingToggles.clear();
+        self.undoneToggles.clear();
         let pid: i64 = self.sel.borrow().focus.borrow().paragraphId;
         let off: i64 = self.sel.borrow().focus.borrow().textOffset;
         let n_text: i64 = DxNative::str_len(&text);
@@ -557,17 +607,25 @@ impl DocxEditController {
         }
         self.adapter.clone().borrow().replaceRange(pid, off, off, &text);
         let up_to: i64 = off + (DxNative::str_len(&text));
-        if self.typingBold {
-            self.adapter.clone().borrow().applyRun(pid, off, up_to, "bold", true, 0.0, String::new());
+        if look.is_some() {
+            let lk2: Rc<RefCell<TextSpan>> = look.clone().unwrap();
+            self.applyLook(&lk2, pid, off, up_to);
         }
-        if self.typingItalic {
-            self.adapter.clone().borrow().applyRun(pid, off, up_to, "italic", true, 0.0, String::new());
+        if self.typingBold || waiting {
+            let on_bold: bool = self.typingBold;
+            self.adapter.clone().borrow().applyRun(pid, off, up_to, "bold", on_bold, 0.0, String::new());
         }
-        if self.typingUnderline {
-            self.adapter.clone().borrow().applyRun(pid, off, up_to, "underline", true, 0.0, String::new());
+        if self.typingItalic || waiting {
+            let on_italic: bool = self.typingItalic;
+            self.adapter.clone().borrow().applyRun(pid, off, up_to, "italic", on_italic, 0.0, String::new());
         }
-        if self.typingStrike {
-            self.adapter.clone().borrow().applyRun(pid, off, up_to, "strike", true, 0.0, String::new());
+        if self.typingUnderline || waiting {
+            let on_underline: bool = self.typingUnderline;
+            self.adapter.clone().borrow().applyRun(pid, off, up_to, "underline", on_underline, 0.0, String::new());
+        }
+        if self.typingStrike || waiting {
+            let on_strike: bool = self.typingStrike;
+            self.adapter.clone().borrow().applyRun(pid, off, up_to, "strike", on_strike, 0.0, String::new());
         }
         if self.typingVert == 1 {
             self.adapter.clone().borrow().applyRun(pid, off, up_to, "super", true, 0.0, String::new());
@@ -610,6 +668,8 @@ impl DocxEditController {
         let off: i64 = self.sel.borrow().focus.borrow().textOffset;
         if off > 0 {
             let old: String = DxNative::substr(&self.adapter.borrow().getText(pid), off - 1, off);
+            let bp: Rc<RefCell<Paragraph>> = self.adapter.borrow().findParagraph(pid);
+            let gone: Rc<RefCell<TextSpan>> = TextSpan::copy(&self.adapter.borrow().spanAt(&bp, off - 1));
             let mut op: Rc<RefCell<DocEditOp>> = Rc::new(RefCell::new(DocEditOp::new()));
             op.borrow_mut().kind = 0;
             op.borrow_mut().paragraphId = pid;
@@ -620,6 +680,11 @@ impl DocxEditController {
             self.adapter.clone().borrow().replaceRange(pid, off - 1, off, "");
             self.pushUndo(op.clone());
             self.setCaret(pid, off - 1);
+            self.inheritSpan = gone.clone();
+            self.inheritPid = pid;
+            self.inheritOff = off - 1;
+            self.inheritRev = self.adapter.borrow().doc.borrow().revision;
+            self.adoptLook(&gone);
             return;
         }
         // At the start of a list item: the first Backspace takes the number
@@ -1008,6 +1073,14 @@ impl DocxEditController {
             if what == "sub" {
                 self.typingVert = if (self.typingVert == 2) { 0 } else { 2 };
             }
+            if !self.pendingHere() {
+                self.pendingToggles.clear();
+            }
+            self.undoneToggles.clear();
+            self.pendingToggles.push(what.to_string());
+            self.pendingPid = self.sel.borrow().focus.borrow().paragraphId;
+            self.pendingOff = self.sel.borrow().focus.borrow().textOffset;
+            self.pendingRev = self.adapter.borrow().doc.borrow().revision;
             return;
         }
         if !DocumentRange::sameParagraph(&self.sel) {
@@ -1035,6 +1108,46 @@ impl DocxEditController {
             op.borrow_mut().boldVal = turn_on;
             self.pushUndo(op.clone());
         }
+    }
+    /// The caret and the document are where the waiting switches were made.
+    fn pendingHere(&self) -> bool {
+        if !DocumentRange::isCollapsed(&self.sel) {
+            return false;
+        }
+        self.sel.borrow().focus.borrow().paragraphId == self.pendingPid
+            && self.sel.borrow().focus.borrow().textOffset == self.pendingOff
+            && self.adapter.borrow().doc.borrow().revision == self.pendingRev
+    }
+    /// Flip one waiting switch, as toggleRun does with nothing selected.
+    fn flipTyping(&mut self, what: &str) {
+        if what == "bold" {
+            self.typingBold = !self.typingBold;
+        }
+        if what == "italic" {
+            self.typingItalic = !self.typingItalic;
+        }
+        if what == "underline" {
+            self.typingUnderline = !self.typingUnderline;
+        }
+        if what == "strike" {
+            self.typingStrike = !self.typingStrike;
+        }
+        if what == "super" {
+            self.typingVert = if (self.typingVert == 1) { 0 } else { 1 };
+        }
+        if what == "sub" {
+            self.typingVert = if (self.typingVert == 2) { 0 } else { 2 };
+        }
+    }
+    /// The waiting switches take the look of `sp`: what is typed next looks
+    /// like it unless a switch is pressed again.
+    fn adoptLook(&mut self, sp: &Rc<RefCell<TextSpan>>) {
+        self.typingBold = sp.borrow().bold;
+        self.typingItalic = sp.borrow().italic;
+        self.typingUnderline = sp.borrow().underline;
+        self.typingStrike = sp.borrow().strike;
+        self.typingVert = sp.borrow().vertAlign;
+        self.typingHighlight = String::new();
     }
     pub fn rememberTyping(&mut self, what: &str, on: bool) {
         if what == "bold" {
@@ -2194,7 +2307,11 @@ impl DocxEditController {
         self.painterSticky = false;
     }
     pub fn paintRange(&self, pid: i64, a: i64, b: i64) {
-        let mut sp: Rc<RefCell<TextSpan>> = self.painterSpan.clone().clone();
+        let sp: Rc<RefCell<TextSpan>> = self.painterSpan.clone();
+        self.applyLook(&sp, pid, a, b);
+    }
+    /// Text a..b of paragraph pid takes span sp's character formatting.
+    fn applyLook(&self, sp: &Rc<RefCell<TextSpan>>, pid: i64, a: i64, b: i64) {
         let mut _tmp_3325 = sp.borrow().bold.clone();
         self.adapter.clone().borrow().applyRun(pid, a, b, "bold", _tmp_3325, 0.0, String::new());
         let mut _tmp_3328 = sp.borrow().italic.clone();
@@ -2276,6 +2393,17 @@ impl DocxEditController {
         self.beginAction();
         let done: bool = self.pasteTable(&t);
         self.endAction();
+        // Word puts the caret in the first cell of a table it inserts.
+        if done {
+            let after: i64 = self.sel.borrow().focus.borrow().paragraphId;
+            let bi: i64 = self.adapter.borrow().blockIndexOfParagraph(after);
+            if bi > 0 {
+                let first: i64 = self.adapter.borrow().cellParagraphId(bi - 1, 0, 0);
+                if first > 0 {
+                    self.setCaret(first, 0);
+                }
+            }
+        }
         done
     }
     // --- Table Layout ----------------------------------------------------------
@@ -4072,7 +4200,14 @@ impl DocxEditController {
             return;
         }
         let word: String = DxNative::substr(&before, ws, we);
-        let sentence: bool = DocxTyping::startsSentence(&ptext, ws);
+        let mut sentence: bool = DocxTyping::startsSentence(&ptext, ws);
+        // The first word of a table cell is capitalised under its own switch.
+        if sentence && DxNative::str_len(&DxNative::substr(&ptext, 0, ws).trim().to_string()) == 0 {
+            let cell: Vec<i64> = self.adapter.borrow().tableCellOf(pid);
+            if cell[0] >= 0 {
+                sentence = self.capCells;
+            }
+        }
         let fixed: String = DocxTyping::fixWord(&word, sentence);
         if !fixed.is_empty() {
             self.replaceAsFix(pid, ws, we, &fixed);
@@ -4899,6 +5034,13 @@ impl DocxEditController {
     /// One press of undo is one ACTION: the top op, and every op below it that
     /// was stamped with the same transaction.
     pub fn undo(&mut self) {
+        if !self.pendingToggles.is_empty() && self.pendingHere() {
+            let last: String = self.pendingToggles[(self.pendingToggles.len() - 1) as usize].clone();
+            self.pendingToggles.remove((self.pendingToggles.len() - 1) as usize);
+            self.flipTyping(&last);
+            self.undoneToggles.push(last);
+            return;
+        }
         if !self.history.borrow().canUndo() {
             return;
         }
@@ -4916,6 +5058,13 @@ impl DocxEditController {
         }
     }
     pub fn redo(&mut self) {
+        if !self.undoneToggles.is_empty() && self.pendingHere() {
+            let last: String = self.undoneToggles[(self.undoneToggles.len() - 1) as usize].clone();
+            self.undoneToggles.remove((self.undoneToggles.len() - 1) as usize);
+            self.flipTyping(&last);
+            self.pendingToggles.push(last);
+            return;
+        }
         if !self.history.borrow().canRedo() {
             return;
         }
